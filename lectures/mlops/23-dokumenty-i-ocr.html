@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Документы и OCR для RAG — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">M. Практика работы с ИИ</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Документы и OCR для RAG</h1>
+        <p class="lead">Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное</p>
+        <div class="meta"><span class="badge">85 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">ocr</span><span class="tag">pdf</span><span class="tag">документы</span><span class="tag">извлечение</span><span class="tag">таблицы</span><span class="tag">разметка</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#klassifikaciya-dokumentov-chto-u-tebya-na-diske">Классификация документов: что у тебя на диске</a></li><li class="toc-l2"><a href="#kasha-iz-pdftotext-chto-imenno-ne-tak">«Каша» из pdftotext: что именно не так</a></li><li class="toc-l2"><a href="#ocr-kak-rabotaet-i-pochemu-russkiy-slozhnee">OCR: как работает и почему русский сложнее</a></li><li class="toc-l3"><a href="#klassy-resheniy-i-kak-vybirat">Классы решений и как выбирать</a></li><li class="toc-l2"><a href="#predobrabotka-gde-vyigrysh-bolshe-chem-v-smene-dvizhka">Предобработка: где выигрыш больше, чем в смене движка</a></li><li class="toc-l2"><a href="#struktura-dokumenta-glavnoe-chto-reshaet">Структура документа: главное, что решает</a></li><li class="toc-l3"><a href="#tablicy-pochemu-ih-nado-otdavat-strukturoy">Таблицы: почему их надо отдавать структурой</a></li><li class="toc-l3"><a href="#metadannye-obyazatelny">Метаданные обязательны</a></li><li class="toc-l2"><a href="#deduplikaciya-i-versionirovanie-korpusa">Дедупликация и версионирование корпуса</a></li><li class="toc-l2"><a href="#inkrementalnaya-pereindeksaciya-manifest-korpusa">Инкрементальная переиндексация: манифест корпуса</a></li><li class="toc-l2"><a href="#kachestvo-izvlecheniya-metriki-kotorye-nuzhno-meryat">Качество извлечения: метрики, которые нужно мерять</a></li><li class="toc-l2"><a href="#praktika-ot-papki-s-pdf-do-jsonl-chankov">Практика: от папки с PDF до JSONL чанков</a></li><li class="toc-l2"><a href="#sravnenie-podhodov-k-izvlecheniyu">Сравнение подходов к извлечению</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>У тебя есть работающий RAG из <a href="../../lectures/mlops/06-rag-pipeline.html">лекции о пайплайне</a>: чанкинг, эмбеддинги, гибридный поиск, reranking, генерация с цитатами. И есть папка, которую ты дал на индексацию. Через полчаса выясняется, что из неё в индекс попало полторы страницы текста, а ответы на вопросы по регламенту — выдумка.</p>
+<p>Так происходит почти всегда, потому что курсы про RAG рисуют корпус идеальным: markdown, Confluence, пара текстовых PDF. Реальность компании другая: выгрузка из 1С в PDF, договор, отсканированный на офисном МФУ в 2019 году, презентация со слайдами, Excel с прайсом, DOCX, в котором кто-то нарисовал таблицу текстовыми табуляциями. <strong>Этап загрузки ломает RAG чаще, чем всё остальное вместе взятое</strong>, и именно про него этот модуль.</p>
+<h2 id="klassifikaciya-dokumentov-chto-u-tebya-na-diske">Классификация документов: что у тебя на диске</h2>
+<p>Первое решение, которое стоит принять до установки любой библиотеки: <strong>как устроен конкретный файл</strong>. Правильная стратегия зависит от ответа, а не от модного пакета.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Примеры</th>
+<th style="text-align:left">Текстовый слой</th>
+<th style="text-align:left">Что делать</th>
+<th style="text-align:left">Типичная ошибка</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Родной текстовый PDF</strong></td>
+<td style="text-align:left">PDF, сохранённый из Word, выгрузка из 1С, Confluence PDF</td>
+<td style="text-align:left">есть, корректный</td>
+<td style="text-align:left">извлекать напрямую, без OCR</td>
+<td style="text-align:left">прогнали через OCR и испортили</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Скан</strong></td>
+<td style="text-align:left">договор, распознанный копиром, PDF из факс-сервера</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">рендер в картинку + OCR</td>
+<td style="text-align:left">отдали в индекс пустые страницы</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Смешанный</strong></td>
+<td style="text-align:left">страница с текстом и вставленным сканом внутрь</td>
+<td style="text-align:left">частично</td>
+<td style="text-align:left">посимвольно: текстовый слой + OCR только для картинок</td>
+<td style="text-align:left">самый частый случай и самый неприятный</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Табличный PDF</strong></td>
+<td style="text-align:left">прайс, реестр, ведомость</td>
+<td style="text-align:left">есть, но без сетки</td>
+<td style="text-align:left">извлекать таблицей, а не плоским текстом</td>
+<td style="text-align:left">строки склеились — цифры перепутаны</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>DOCX / ODT</strong></td>
+<td style="text-align:left">регламенты в Word</td>
+<td style="text-align:left">есть, с корректной структурой</td>
+<td style="text-align:left">конвертировать в markdown, сохраняя заголовки</td>
+<td style="text-align:left">конвертация «в txt» убивает иерархию</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>XLSX / CSV</strong></td>
+<td style="text-align:left">прайсы, справочники, реестры</td>
+<td style="text-align:left">есть, лист за листом</td>
+<td style="text-align:left">каждая строка = документ, лист и колонки = метаданные</td>
+<td style="text-align:left">засунули весь лист одним чанком</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>PPTX</strong></td>
+<td style="text-align:left">презентации, инструкции</td>
+<td style="text-align:left">есть, по слайдам</td>
+<td style="text-align:left">один слайд = юнит с заголовком</td>
+<td style="text-align:left">текст вперемешку со слайдов</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Правило, которое экономит больше всего времени: <strong>документ с текстовым слоем через OCR не пропускают</strong>. Это не «так проще», это порча данных: OCR переписывает готовый точный текст своими ошибками, путает <code>О</code> и <code>0</code>, <code>l</code> и <code>1</code>, разрывает слова на переносах, ломает нумерацию списков. Результат после OCR хуже исходного текстового слоя всегда — единственный случай, когда OCR уместен, это когда слоя нет.</p></div></div>
+<p>Быстрая проверка «есть ли слой» занимает секунду:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Быстрая диагностика папки: сколько страниц с текстовым слоем, сколько — чистые сканы</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Установка инструментов: poppler-utils даёт pdftotext/pdftoppm/pdfinfo</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">sudo</span> <span class="tok-k">apt</span>-get update &amp;&amp; <span class="tok-k">sudo</span> <span class="tok-k">apt</span>-get install -y poppler-utils tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">mkdir</span> -p /opt/rag-work/diag &amp;&amp; <span class="tok-k">cd</span> /opt/rag-work/diag</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">for</span> f in /data/docs/*.pdf; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">7</span>  pages=$(pdfinfo <span class="tok-str">"$f"</span> <span class="tok-n">2</span>&gt;/dev/null | <span class="tok-k">awk</span> <span class="tok-str">'/^Pages:/{print $2}'</span>)</span>
+<span class="ln"><span class="ln-i">8</span>  chars=$(pdftotext <span class="tok-str">"$f"</span> - <span class="tok-n">2</span>&gt;/dev/null | tr -d <span class="tok-str">'[:space:]'</span> | wc -c)</span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-k">awk</span> -v n=<span class="tok-str">"$(basename "</span>$f<span class="tok-str">")"</span> -v p=<span class="tok-str">"${pages:-1}"</span> -v c=<span class="tok-str">"${chars:-0}"</span> \</span>
+<span class="ln"><span class="ln-i">10</span>      <span class="tok-str">'BEGIN {printf "%-60s pages=%-4d chars/page=%.0f\n", n, p, (p&gt;0 ? c/p : 0)}'</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-k">done</span></span>
+</code></pre></div>
+<p>Интерпретация простая: <code>chars/page</code> больше 300 — текстовый слой нормальный, бери напрямую. Меньше 100 — перед тобой скан или почти пустые страницы, бери OCR. Значение между 100 и 300 — смешанный случай, разбирай постранично. Для скана 300 dpi норма — 1500–3000 знаков на страницу; если меньше, качество скана плохое и сначала надо чинить скан, а не подбирать движок OCR.</p>
+<h2 id="kasha-iz-pdftotext-chto-imenno-ne-tak">«Каша» из pdftotext: что именно не так</h2>
+<p>Дефолтный <code>pdftotext</code> — это не парсер, а дамп потока символов в порядке, в котором PDF-ридер отдал их. Порядок этот — не порядок чтения человеком. Вот реальный вывод с типового трёхколоночного документа:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Служебная записка №14/2-118                    ТУРБИНИРОВАНИЕ ИЗДЕЛИЙ        стр. 3</span>
+<span class="ln"><span class="ln-i">2</span>от 12.03.2024                                                   Врач поликлиники №7</span>
+<span class="ln"><span class="ln-i">3</span>ТУРБИНИРОВАНИЕ ИЗДЕЛИЙ</span>
+<span class="ln"><span class="ln-i">4</span>Настоящим подтверждается, что пациент Иванов И.И.</span>
+<span class="ln"><span class="ln-i">5</span>1 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27</span>
+<span class="ln"><span class="ln-i">6</span>выполнено терапевтическое лечение зубов 26, 27,           Осмотр: 12.03.2024</span>
+<span class="ln"><span class="ln-i">7</span>28 в объеме лечебно-профилактической помощи.</span>
+<span class="ln"><span class="ln-i">8</span>Диагноз: кариес средней поверхности зуба 26.          Подпись врача ____________________</span>
+<span class="ln"><span class="ln-i">9</span>Л.: 6Б-243/24                                   М.П.</span>
+</code></pre></div>
+<p>Что здесь произошло: колонка с нумерацией зубов попала между строк основного текста; колонтитул оказался в начале страницы; колонка с подписью врача перемешана с диагнозом; таблица (схема зубов) превратилась в поток чисел, в котором «26, 27, 28» неотличимы от номеров строк. Всё это — один абзац для чанкера и один вектор для эмбеддинга.</p>
+<p>Почему из такой «каши» RAG не работает — четыре независимые причины, и важно понимать их по отдельности:</p>
+<ol><li><strong>Границы чанков не совпадают со смыслом.</strong> Чанкер режет по токенам, а не по предложениям. Внутри одного фрагмента оказываются три разных факта, и эмбеддинг усредняет их в точку, которая не похожа ни на один из них. Вопрос «что делали с зубом 26» найдёт этот чанк плохо.</li><li><strong>Строки таблиц теряют границы.</strong> «26, 27, 28» отдельно от заголовка «зубы» — это не данные, это шум. Числа в соседних строках разных таблиц слипаются, и модель получает ответ на вопрос о цене, выдуманный из соседней строки.</li><li><strong>Колонтитулы съедают бюджет и снижают разнообразие.</strong> Если каждая страница начинается с «ТУРБИНИРОВАНИЕ ИЗДЕЛИЙ ... стр. 3», то чанки соседних страниц становятся почти одинаковыми. Эмбеддинги сближаются, поиск выдаёт пять страниц одного документа вместо нужной из другого.</li><li><strong>Цитата ведёт не туда.</strong> Даже если факт угадан, координата «страница 3» не соответствует ни одному конкретному утверждению: в выдаче нет способа сказать пользователю, где именно на странице смотреть.</li></ol>
+<p>Что делать — три уровня, от дешёвого к дорогому:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Уровень</th>
+<th style="text-align:left">Инструмент</th>
+<th style="text-align:center">Что чинит</th>
+<th style="text-align:center">Чего не чинит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">1. Флаги</td>
+<td style="text-align:left"><code>pdftotext -layout</code>, <code>-raw</code></td>
+<td style="text-align:center">порядок колонок «как есть» на странице</td>
+<td style="text-align:center">не восстанавливает иерархию</td>
+</tr>
+<tr>
+<td style="text-align:left">2. Блоки</td>
+<td style="text-align:left">PyMuPDF: блоки с координатами и шрифтами</td>
+<td style="text-align:center">читает страницу блоками, видит размер шрифта</td>
+<td style="text-align:center">таблицы без сетки всё равно плоские</td>
+</tr>
+<tr>
+<td style="text-align:left">3. Layout-анализ</td>
+<td style="text-align:left">сервис или модель, понимающая раскладку</td>
+<td style="text-align:center">колонки, таблицы, формы, заголовки</td>
+<td style="text-align:center">стоит денег и требует проверки на своих данных</td>
+</tr>
+</tbody></table></div>
+<p>Промежуточный вариант, который стоит попробовать первым: <code>-layout</code> сохраняет горизонтальное позиционирование пробелами, и это уже позволяет отделить строку таблицы от абзаца, не поднимая OCR:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Три способа достать текст из одного и того же PDF — сравни глазами</span></span>
+<span class="ln"><span class="ln-i">2</span>f=<span class="tok-str">"/data/docs/zapiska-14-2-118.pdf"</span></span>
+<span class="ln"><span class="ln-i">3</span>pdftotext        <span class="tok-str">"$f"</span> out_plain.txt     <span class="tok-cmt"># по потоку символов: колонки перемешаны</span></span>
+<span class="ln"><span class="ln-i">4</span>pdftotext -layout <span class="tok-str">"$f"</span> out_layout.txt   <span class="tok-cmt"># сохраняет колонки пробелами: читаемо для человека</span></span>
+<span class="ln"><span class="ln-i">5</span>pdftotext -raw    <span class="tok-str">"$f"</span> out_raw.txt      <span class="tok-cmt"># как лежит в потоке: для отладки, не для индекса</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># Проверить, есть ли у страницы текстовый слой, и сколько боксов на ней</span></span>
+<span class="ln"><span class="ln-i">8</span>python3 - &lt;&lt;<span class="tok-str">'PY'</span></span>
+<span class="ln"><span class="ln-i">9</span>import pymupdf</span>
+<span class="ln"><span class="ln-i">10</span>doc = pymupdf.<span class="tok-fn">open</span>(<span class="tok-str">"/data/docs/zapiska-14-2-118.pdf"</span>)</span>
+<span class="ln"><span class="ln-i">11</span>page = doc[<span class="tok-n">0</span>]</span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-fn">print</span>(<span class="tok-str">"символов в слое:"</span>, <span class="tok-fn">len</span>(page.<span class="tok-fn">get_text</span>(<span class="tok-str">"text"</span>).<span class="tok-fn">strip</span>()))</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-fn">print</span>(<span class="tok-str">"текстовых блоков:"</span>, <span class="tok-fn">len</span>(page.<span class="tok-fn">get_text</span>(<span class="tok-str">"blocks"</span>)))</span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-fn">print</span>(<span class="tok-str">"изображений:"</span>, <span class="tok-fn">len</span>(page.<span class="tok-fn">get_images</span>(full=True)))</span>
+<span class="ln"><span class="ln-i">15</span>PY</span>
+</code></pre></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Практика, которая экономит дни: <strong>выдели 10 характерных страниц корпуса, прогони на них все кандидатные извлекатели и сравни результат с тем, что видит на экране человек.</strong> Десять страниц, выбранных так, чтобы среди них были: таблица, сканы, футер с номером, текст с картинкой, пустая страница. Это дешевле, чем любая теория о том, какой извлекатель «лучше», и даёт ответ про твой корпус, а не про демо-файл вендора.</p></div></div>
+<h2 id="ocr-kak-rabotaet-i-pochemu-russkiy-slozhnee">OCR: как работает и почему русский сложнее</h2>
+<p>OCR — это задача «изображение → последовательность символов». Классический движок решает её в четыре шага, и понимание шагов объясняет, почему он ломается:</p>
+<ol><li><strong>Бинаризация и очистка</strong> — картинка превращается в чёрно-белое изображение. Это часть предобработки, о ней ниже.</li><li><strong>Анализ раскладки</strong> — поиск строк, слов, колонок, таблиц, картинок. Здесь рождается порядок чтения. У Tesseract это один из самых слабых шагов.</li><li><strong>Распознавание символов</strong> — каждая последовательность пикселей сопоставляется с символами по статистике начертаний и языковой модели.</li><li><strong>Сборка в текст</strong> — язык помогает выбрать между похожими символами: это обязательный этап, а не украшение.</li></ol>
+<p>Отсюда первое практическое следствие: <strong>порядок чтения задаётся на втором шаге, а не моделью</strong>. Если движок не понял, что страница в три колонки, никакое улучшение распознавания символов не восстановит правильный порядок. Второе следствие: язык движка имеет алфавит и словарь, и русский там не всегда полноценно поддержан «из коробки» — отсюда проблемы ниже.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Особенность</th>
+<th style="text-align:left">Как проявляется</th>
+<th style="text-align:center">Что с этим делать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Диакритика: <code>ё</code>, <code>й</code>, <code>ъ</code>, <code>і</code></td>
+<td style="text-align:left"><code>е</code> вместо <code>ё</code>, потеря мягкого знака</td>
+<td style="text-align:center">языковые пакеты; словарь домена в постобработке</td>
+</tr>
+<tr>
+<td style="text-align:left">Похожие начертания</td>
+<td style="text-align:left"><code>О</code>↔<code>0</code>, <code>З</code>↔<code>3</code>, <code>l</code>↔<code>1</code>→<code>I</code></td>
+<td style="text-align:center">проверка полей, которые должны быть числами или идентификаторами</td>
+</tr>
+<tr>
+<td style="text-align:left">Переносы по слогам</td>
+<td style="text-align:left"><code>сис-тема</code> → <code>сис тема</code></td>
+<td style="text-align:center">склейка по словарю или по эвристике дефиса в конце строки</td>
+</tr>
+<tr>
+<td style="text-align:left">Мелкий шрифт подписей</td>
+<td style="text-align:left">пропадает целиком</td>
+<td style="text-align:center">увеличение DPI при рендере, а не смена движка</td>
+</tr>
+<tr>
+<td style="text-align:left">Сканы с рукописью</td>
+<td style="text-align:left">ложные срабатывания высокой частоты</td>
+<td style="text-align:center">вручную, OCR не для этого</td>
+</tr>
+<tr>
+<td style="text-align:left">Вертикальный текст и водяные знаки</td>
+<td style="text-align:left">ложные строки</td>
+<td style="text-align:center">отсечение по площади и положению блока</td>
+</tr>
+</tbody></table></div>
+<p><strong>Tesseract — классика, и для качественных сканов её достаточно.</strong> Это честное утверждение, а не ностальгия: у скана хорошего качества, снятого или полученного с нормального сканера при 300 dpi, Tesseract с русским языковым пакетом даёт точность 95–98 %, чего для корпоративного корпуса хватает. Проблемы начинаются там, где у документа сложная раскладка, а не плохой текст.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Установка движка и языковых пакетов (один раз на хост)</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> <span class="tok-k">apt</span>-get install -y tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng tesseract-ocr-osd</span>
+<span class="ln"><span class="ln-i">3</span>tesseract --list-langs</span>
+<span class="ln"><span class="ln-i">4</span>tesseract --version</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># Рендер страницы в картинку 300 dpi (из poppler-utils)</span></span>
+<span class="ln"><span class="ln-i">7</span>pdftoppm -r <span class="tok-n">300</span> -png -f <span class="tok-n">1</span> -l <span class="tok-n">1</span> -gray <span class="tok-str">"/data/docs/skan-dogovora.pdf"</span> /tmp/page</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># Запуск OCR с разбором по режимам раскладки</span></span>
+<span class="ln"><span class="ln-i">10</span>tesseract /tmp/page-<span class="tok-n">01</span>.png stdout -l rus+eng --psm <span class="tok-n">6</span> <span class="tok-n">2</span>&gt;/dev/null | head -<span class="tok-n">40</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-cmt">#   --psm 3  — автоматический анализ раскладки (по умолчанию): для целой страницы</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt">#   --psm 6  — один сплошной блок: для вырезанного фрагмента или колонки</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-cmt">#   --psm 4  — одна колонка текста: для документов в одну колонку</span></span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-cmt">#   --psm 11 — «разреженный» текст: для бланков, форм, каптионов к картинкам</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-cmt">#   --psm 12 — «всё, что не распознано как текст»: OSM-метка, использует --psm 11-12</span></span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-cmt"># Оценка качества движка на конкретной странице: TSV с уверенностью по каждому слову</span></span>
+<span class="ln"><span class="ln-i">19</span>tesseract /tmp/page-<span class="tok-n">01</span>.png /tmp/page -l rus --psm <span class="tok-n">3</span> tsv <span class="tok-n">2</span>&gt;/dev/null</span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-k">awk</span> -F<span class="tok-str">'\t'</span> 'NR&gt;<span class="tok-n">1</span> &amp;&amp; $<span class="tok-n">11</span>!=<span class="tok-str">""</span> &amp;&amp; $<span class="tok-n">11</span>!=<span class="tok-str">"-1"</span> {n++; s+=$<span class="tok-n">11</span>; <span class="tok-k">if</span> ($<span class="tok-n">11</span>&lt;<span class="tok-n">70</span>) low++}</span>
+<span class="ln"><span class="ln-i">21</span>             END {printf <span class="tok-str">"слов: %d, средняя уверенность: %.1f, ниже 70: %d (%.1f%%)\n"</span>,</span>
+<span class="ln"><span class="ln-i">22</span>                  n, s/n, low, <span class="tok-n">100</span>*low/n}' /tmp/page.tsv</span>
+</code></pre></div>
+<p>Средняя уверенность — полезная метрика, потому что она позволяет <strong>отделять плохие страницы от нормальных и отправлять их в ручную очередь</strong>, вместо того чтобы молча индексировать мусор.</p>
+<h3 id="klassy-resheniy-i-kak-vybirat">Классы решений и как выбирать</h3>
+<p>Конкретные пакеты устаревают быстрее, чем лекция успевает устареть, поэтому выбор формулируется классами: у каждого класса есть свои критерии, и решение принимается по измерению на своих страницах.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Класс</th>
+<th style="text-align:left">Что внутри</th>
+<th style="text-align:left">Критерий выбора</th>
+<th style="text-align:left">Про слабые стороны</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Библиотечный OCR на CPU</td>
+<td style="text-align:left">Tesseract, pytesseract, EasyOCR, PaddleOCR-подобные</td>
+<td style="text-align:left">качество на сканах 300 dpi, язык ru, возможность офлайна</td>
+<td style="text-align:left">раскладка и таблицы — слабое место</td>
+</tr>
+<tr>
+<td style="text-align:left">Облачные и сервисные OCR</td>
+<td style="text-align:left">Document AI, Textract-подобные, распознавание с таблицами</td>
+<td style="text-align:left">распознавание таблиц и форм, готовые координаты, договорные условия и SLA</td>
+<td style="text-align:left">деньги за страницу, ПДн уезжают наружу, привязка к вендору</td>
+</tr>
+<tr>
+<td style="text-align:left">Layout-модели + классический OCR</td>
+<td style="text-align:left">два прохода: раскладка → распознавание по регионам</td>
+<td style="text-align:left">сложная вёрстка: журналы, много колонок</td>
+<td style="text-align:left">связка из двух инструментов и два места отказа</td>
+</tr>
+<tr>
+<td style="text-align:left">Мультимодальная модель</td>
+<td style="text-align:left">модель читает изображение страницы целиком</td>
+<td style="text-align:left">очень сложные документы: чертежи, схемы, рукописные правки</td>
+<td style="text-align:left">медленно, дорого, нестабильно между версиями</td>
+</tr>
+</tbody></table></div>
+<p>Правильный вопрос не «какой пакет лучше», а <strong>«какой доля моего корпуса требует тяжёлого подхода»</strong>. Обычно это 3–10 % документов, и тогда выгоднее держать простой быстрый пайплайн на 90 % и отдельный дорогой маршрут для остатка.</p>
+<h2 id="predobrabotka-gde-vyigrysh-bolshe-chem-v-smene-dvizhka">Предобработка: где выигрыш больше, чем в смене движка</h2>
+<p>Один из самых устойчивых выводов практики OCR: <strong>большая часть улучшения даётся не сменой движка, а подготовкой картинки</strong>. Каждый из четырёх шагов ниже стоит копейки по ресурсам и даёт заметный прирост, если сделано до распознавания.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Шаг</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:center">Прирост точности</th>
+<th style="text-align:left">Когда обязателен</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Рендер в 300 dpi</strong></td>
+<td style="text-align:left">страница → картинка нужного разрешения</td>
+<td style="text-align:center">большой</td>
+<td style="text-align:left">всегда для сканов; для текстового слоя не нужен</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Обрезка полей</strong></td>
+<td style="text-align:left">убрать пустые края и сканерный фон</td>
+<td style="text-align:center">средний</td>
+<td style="text-align:left">всегда</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Выравнивание (deskew)</strong></td>
+<td style="text-align:left">повернуть страницу на угол, под которым она сканировалась</td>
+<td style="text-align:center"><strong>большой</strong></td>
+<td style="text-align:left">всегда: 2–4° ломают распознавание строк</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Бинаризация</strong></td>
+<td style="text-align:left">свести к чистому чёрно-белому, убрать серый фон</td>
+<td style="text-align:center">средний</td>
+<td style="text-align:left">сканы, фото, ч/б копиры</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Поворот на 90/180°</strong></td>
+<td style="text-align:left">страница лежит боком</td>
+<td style="text-align:center">большой</td>
+<td style="text-align:left">всегда, дешёво через <code>--psm 0</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Удаление шума</strong></td>
+<td style="text-align:left">медианный фильтр, despeckle</td>
+<td style="text-align:center">малый</td>
+<td style="text-align:left">только грязные сканы</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/imgprep.py — предобработка страницы перед OCR</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> pymupdf</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">def</span> <span class="tok-fn">render_page</span>(page, dpi: int = <span class="tok-n">300</span>) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-str">""</span>"PDF-страница -&gt; серое изображение. Для чисто текстовых страниц это шаг в никуда,</span>
+<span class="ln"><span class="ln-i">7</span>    для сканов — обязательный: модель работает по картинке, а не по текстовому слою.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">8</span>    zoom = dpi / <span class="tok-n">72</span></span>
+<span class="ln"><span class="ln-i">9</span>    pix = page.<span class="tok-fn">get_pixmap</span>(matrix=pymupdf.<span class="tok-fn">Matrix</span>(zoom, zoom), colorspace=pymupdf.csGRAY)</span>
+<span class="ln"><span class="ln-i">10</span>    img = np.<span class="tok-fn">frombuffer</span>(pix.samples, dtype=np.uint8).<span class="tok-fn">reshape</span>(pix.height, pix.width)</span>
+<span class="ln"><span class="ln-i">11</span>    <span class="tok-k">return</span> img</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">def</span> <span class="tok-fn">estimate_skew</span>(img: np.ndarray) -&gt; float:</span>
+<span class="ln"><span class="ln-i">15</span>    <span class="tok-str">""</span>"Оценка наклона через минимальную площадь прямоугольника по текстовым пикселям.</span>
+<span class="ln"><span class="ln-i">16</span>    Работает на бинаризованном изображении; возвращает угол в градусах.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">17</span>    <span class="tok-k">import</span> cv2</span>
+<span class="ln"><span class="ln-i">18</span>    binary = cv2.<span class="tok-fn">threshold</span>(img, <span class="tok-n">0</span>, <span class="tok-n">255</span>, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[<span class="tok-n">1</span>]</span>
+<span class="ln"><span class="ln-i">19</span>    coords = np.<span class="tok-fn">column_stack</span>(np.<span class="tok-fn">where</span>(binary &gt; <span class="tok-n">0</span>))</span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-k">if</span> <span class="tok-fn">len</span>(coords) &lt; <span class="tok-n">100</span>:</span>
+<span class="ln"><span class="ln-i">21</span>        <span class="tok-k">return</span> <span class="tok-n">0.0</span></span>
+<span class="ln"><span class="ln-i">22</span>    angle = cv2.<span class="tok-fn">minAreaRect</span>(coords.<span class="tok-fn">astype</span>(np.float32))[-<span class="tok-n">1</span>]</span>
+<span class="ln"><span class="ln-i">23</span>    <span class="tok-k">return</span> angle - <span class="tok-n">90</span> <span class="tok-k">if</span> angle &lt; -<span class="tok-n">45</span> <span class="tok-k">else</span> angle</span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-k">def</span> <span class="tok-fn">preprocess</span>(img: np.ndarray, deskew: bool = True, binarize: bool = True) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">27</span>    <span class="tok-str">""</span>"Полный конвейер предобработки. Порядок важен: сначала выравнивание по исходному</span>
+<span class="ln"><span class="ln-i">28</span>    изображению, потом бинаризация — обрезка текста и смена фона портят оценку наклона.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">29</span>    <span class="tok-k">import</span> cv2</span>
+<span class="ln"><span class="ln-i">30</span>    <span class="tok-k">if</span> deskew:</span>
+<span class="ln"><span class="ln-i">31</span>        angle = <span class="tok-fn">estimate_skew</span>(img)</span>
+<span class="ln"><span class="ln-i">32</span>        <span class="tok-k">if</span> <span class="tok-fn">abs</span>(angle) &gt; <span class="tok-n">0.2</span>:                       <span class="tok-cmt"># меньше — не трогаем, чтобы не мылить</span></span>
+<span class="ln"><span class="ln-i">33</span>            h, w = img.shape</span>
+<span class="ln"><span class="ln-i">34</span>            m = cv2.<span class="tok-fn">getRotationMatrix2D</span>((w / <span class="tok-n">2</span>, h / <span class="tok-n">2</span>), angle, <span class="tok-n">1.0</span>)</span>
+<span class="ln"><span class="ln-i">35</span>            img = cv2.<span class="tok-fn">warpAffine</span>(img, m, (w, h), flags=cv2.INTER_CUBIC,</span>
+<span class="ln"><span class="ln-i">36</span>                                 borderMode=cv2.BORDER_REPLICATE)</span>
+<span class="ln"><span class="ln-i">37</span>    <span class="tok-k">if</span> binarize:</span>
+<span class="ln"><span class="ln-i">38</span>        img = cv2.<span class="tok-fn">adaptiveThreshold</span>(img, <span class="tok-n">255</span>, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,</span>
+<span class="ln"><span class="ln-i">39</span>                                    cv2.THRESH_BINARY, <span class="tok-n">31</span>, <span class="tok-n">15</span>)</span>
+<span class="ln"><span class="ln-i">40</span>    <span class="tok-k">return</span> img</span>
+<span class="ln"><span class="ln-i">41</span></span>
+<span class="ln"><span class="ln-i">42</span></span>
+<span class="ln"><span class="ln-i">43</span><span class="tok-k">def</span> <span class="tok-fn">crop_margins</span>(img: np.ndarray, pad: int = <span class="tok-n">10</span>) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">44</span>    <span class="tok-str">"""Убрать пустые поля: они замедляют распознавание и иногда читаются как мусор."""</span></span>
+<span class="ln"><span class="ln-i">45</span>    <span class="tok-k">import</span> cv2</span>
+<span class="ln"><span class="ln-i">46</span>    binary = cv2.<span class="tok-fn">threshold</span>(img, <span class="tok-n">0</span>, <span class="tok-n">255</span>, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[<span class="tok-n">1</span>]</span>
+<span class="ln"><span class="ln-i">47</span>    ys, xs = np.<span class="tok-fn">where</span>(binary &gt; <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">48</span>    <span class="tok-k">if</span> <span class="tok-fn">len</span>(xs) == <span class="tok-n">0</span>:</span>
+<span class="ln"><span class="ln-i">49</span>        <span class="tok-k">return</span> img</span>
+<span class="ln"><span class="ln-i">50</span>    h, w = img.shape</span>
+<span class="ln"><span class="ln-i">51</span>    <span class="tok-k">return</span> img[<span class="tok-fn">max</span>(ys.<span class="tok-fn">min</span>() - pad, <span class="tok-n">0</span>):<span class="tok-fn">min</span>(ys.<span class="tok-fn">max</span>() + pad, h),</span>
+<span class="ln"><span class="ln-i">52</span>               <span class="tok-fn">max</span>(xs.<span class="tok-fn">min</span>() - pad, <span class="tok-n">0</span>):<span class="tok-fn">min</span>(xs.<span class="tok-fn">max</span>() + pad, w)]</span>
+<span class="ln"><span class="ln-i">53</span></span>
+<span class="ln"><span class="ln-i">54</span></span>
+<span class="ln"><span class="ln-i">55</span><span class="tok-k">def</span> <span class="tok-fn">ocr_page</span>(img: np.ndarray, lang: str = <span class="tok-str">"rus+eng"</span>, psm: int = <span class="tok-n">3</span>) -&gt; str:</span>
+<span class="ln"><span class="ln-i">56</span>    <span class="tok-str">"""Вызов OCR. В проде это внешний процесс, здесь — через pytesseract."""</span></span>
+<span class="ln"><span class="ln-i">57</span>    <span class="tok-k">import</span> cv2, pytesseract</span>
+<span class="ln"><span class="ln-i">58</span>    hocr = pytesseract.<span class="tok-fn">image_to_data</span>(</span>
+<span class="ln"><span class="ln-i">59</span>        cv2.<span class="tok-fn">imencode</span>(<span class="tok-str">".png"</span>, img)[<span class="tok-n">1</span>].<span class="tok-fn">tobytes</span>(),</span>
+<span class="ln"><span class="ln-i">60</span>        lang=lang, config=f<span class="tok-str">"--psm {psm}"</span>,</span>
+<span class="ln"><span class="ln-i">61</span>        output_type=pytesseract.Output.DICT,</span>
+<span class="ln"><span class="ln-i">62</span>    )</span>
+<span class="ln"><span class="ln-i">63</span>    lines: dict[tuple[int, int, int], list[str]] = {}</span>
+<span class="ln"><span class="ln-i">64</span>    <span class="tok-k">for</span> i, text <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(hocr[<span class="tok-str">"text"</span>]):</span>
+<span class="ln"><span class="ln-i">65</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> text.<span class="tok-fn">strip</span>():</span>
+<span class="ln"><span class="ln-i">66</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">67</span>        <span class="tok-cmt"># Ключ строки: (номер блока, номер абзаца, номер строки) — это и есть группировка</span></span>
+<span class="ln"><span class="ln-i">68</span>        key = (hocr[<span class="tok-str">"block_num"</span>][i], hocr[<span class="tok-str">"par_num"</span>][i], hocr[<span class="tok-str">"line_num"</span>][i])</span>
+<span class="ln"><span class="ln-i">69</span>        lines.<span class="tok-fn">setdefault</span>(key, []).<span class="tok-fn">append</span>(text)</span>
+<span class="ln"><span class="ln-i">70</span>    <span class="tok-k">return</span> <span class="tok-str">"\n"</span>.<span class="tok-fn">join</span>(<span class="tok-str">" "</span>.<span class="tok-fn">join</span>(words) <span class="tok-k">for</span> _, words <span class="tok-k">in</span> <span class="tok-fn">sorted</span>(lines.<span class="tok-fn">items</span>()))</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Порядок в конвейере менять нельзя. Оценка наклона делается по исходному изображению: после бинаризации с агрессивным порогом и после обрезки полей текстовые пиксели теряются, и движок «уверенно» выравнивает страницу на 7°, потому что находит диагональную линию в подчёркивании таблицы. Классическая ошибка — поставить бинаризацию первой ради «чистоты» картинки и получить разъехавшийся текст.</p></div></div>
+<h2 id="struktura-dokumenta-glavnoe-chto-reshaet">Структура документа: главное, что решает</h2>
+<p>Разбор текста без структуры даёт RAG, который ищет, но не рассуждает. Модель, увидевшая фрагмент, понимает, о чём он, но не понимает, <strong>где он находится</strong>: это определение раздела, это его вывод, это пункт договора со ссылкой на предыдущий. Разметка заголовков решает именно эту проблему и стоит дешевле любой замены модели.</p>
+<p>Почему это важно именно в RAG:</p>
+<ul><li><strong>эмбеддинг становится точнее</strong> — заголовок раздела смещает вектор в сторону темы, и два раздела с похожим текстом («Лимиты API» и «Лимиты памяти») перестают быть неразличимы;</li><li><strong>цитата становится адресной</strong> — «раздел 3.2, страница 14» вместо «страница 14»;</li><li><strong>чанк перестаёт резать смысл</strong> — разделы естественный границы, и <a href="../../lectures/mlops/06-rag-pipeline.html">чанкинг по структуре</a> становится рабочим режимом по умолчанию;</li><li><strong>модель видит иерархию</strong> — «3.2 Требования к отвопотению» в начале фрагмента подсказывает, чего ждать дальше.</li></ul>
+<p>Как извлекать заголовки, по убыванию надёжности:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ</th>
+<th style="text-align:center">Надёжность</th>
+<th style="text-align:left">Когда работает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Встроенная структура (PDF bookmarks, <code>get_toc()</code>)</td>
+<td style="text-align:center">высокая</td>
+<td style="text-align:left">документы, свёрстанные в Word или InDesign</td>
+</tr>
+<tr>
+<td style="text-align:left">Стили PDF (<code>/P &lt;&lt;/&lt;&lt;/MCID 0/B 12&gt;&gt;/R 34 /P &lt;&lt;/MCID 0&gt;&gt;/P 34&gt;&gt;/Span &lt;&lt;/ActualText&gt;&gt;&gt;</code>)</td>
+<td style="text-align:center">высокая</td>
+<td style="text-align:left">родные PDF — тег <code>/Heading1</code> можно вытащить напрямую</td>
+</tr>
+<tr>
+<td style="text-align:left">Размер шрифта и жирность</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">любой текстовый PDF, включая выгрузки из 1С</td>
+</tr>
+<tr>
+<td style="text-align:left">Эвристика по строке: короткая, без точки в конце, следующая строка длиннее</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">сканы после OCR, markdown</td>
+</tr>
+<tr>
+<td style="text-align:left">Пунктуация и «ПРИКАЗЫВАЮ»</td>
+<td style="text-align:center">низкая</td>
+<td style="text-align:left">только как последний довод</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/structure.py — заголовки, абзацы и таблицы из PDF со шрифтовыми признаками</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> re</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">from</span> dataclasses <span class="tok-k">import</span> dataclass, field</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">import</span> pymupdf</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>BULLET = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"^\s*([-•*–—]|\d+[.)])\s+"</span>)</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>@dataclass</span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-k">class</span> Block:</span>
+<span class="ln"><span class="ln-i">12</span>    text: str</span>
+<span class="ln"><span class="ln-i">13</span>    page: int</span>
+<span class="ln"><span class="ln-i">14</span>    size: float          <span class="tok-cmt"># средний кегль, pt</span></span>
+<span class="ln"><span class="ln-i">15</span>    bold: bool</span>
+<span class="ln"><span class="ln-i">16</span>    bbox: tuple[float, float, float, float]</span>
+<span class="ln"><span class="ln-i">17</span>    level: int = <span class="tok-n">0</span>       <span class="tok-cmt"># 0 — не заголовок</span></span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-k">def</span> <span class="tok-fn">page_blocks</span>(page: <span class="tok-str">"pymupdf.Page"</span>) -&gt; list[Block]:</span>
+<span class="ln"><span class="ln-i">21</span>    out: list[Block] = []</span>
+<span class="ln"><span class="ln-i">22</span>    data = page.<span class="tok-fn">get_text</span>(<span class="tok-str">"dict"</span>)</span>
+<span class="ln"><span class="ln-i">23</span>    <span class="tok-k">for</span> b <span class="tok-k">in</span> data[<span class="tok-str">"blocks"</span>]:</span>
+<span class="ln"><span class="ln-i">24</span>        <span class="tok-k">if</span> b[<span class="tok-str">"type"</span>] != <span class="tok-n">0</span>:                 <span class="tok-cmt"># 1 — изображение: текста здесь нет вовсе</span></span>
+<span class="ln"><span class="ln-i">25</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">26</span>        <span class="tok-k">for</span> line <span class="tok-k">in</span> b[<span class="tok-str">"lines"</span>]:</span>
+<span class="ln"><span class="ln-i">27</span>            spans = line[<span class="tok-str">"spans"</span>]</span>
+<span class="ln"><span class="ln-i">28</span>            text = <span class="tok-str">""</span>.<span class="tok-fn">join</span>(s[<span class="tok-str">"text"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> spans).<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">29</span>            <span class="tok-k">if</span> <span class="tok-k">not</span> text:</span>
+<span class="ln"><span class="ln-i">30</span>                <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">31</span>            sizes = [s[<span class="tok-str">"size"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> spans]</span>
+<span class="ln"><span class="ln-i">32</span>            bold = <span class="tok-fn">any</span>(<span class="tok-str">"bold"</span> <span class="tok-k">in</span> s[<span class="tok-str">"font"</span>].<span class="tok-fn">lower</span>() <span class="tok-k">for</span> s <span class="tok-k">in</span> spans)</span>
+<span class="ln"><span class="ln-i">33</span>            out.<span class="tok-fn">append</span>(<span class="tok-fn">Block</span>(text=text, page=page.number + <span class="tok-n">1</span>,</span>
+<span class="ln"><span class="ln-i">34</span>                             size=<span class="tok-fn">round</span>(<span class="tok-fn">max</span>(sizes), <span class="tok-n">1</span>), bold=bold,</span>
+<span class="ln"><span class="ln-i">35</span>                             bbox=<span class="tok-fn">tuple</span>(line[<span class="tok-str">"bbox"</span>])))</span>
+<span class="ln"><span class="ln-i">36</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">37</span></span>
+<span class="ln"><span class="ln-i">38</span></span>
+<span class="ln"><span class="ln-i">39</span><span class="tok-k">def</span> <span class="tok-fn">body_size</span>(blocks: list[Block]) -&gt; float:</span>
+<span class="ln"><span class="ln-i">40</span>    <span class="tok-str">""</span>"Кегль основного текста = самый частый кегль, а не минимальный: минимальный</span>
+<span class="ln"><span class="ln-i">41</span>    принадлежит колонтитулам и номерам страниц.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">42</span>    counts: dict[int, int] = {}</span>
+<span class="ln"><span class="ln-i">43</span>    <span class="tok-k">for</span> b <span class="tok-k">in</span> blocks:</span>
+<span class="ln"><span class="ln-i">44</span>        counts[<span class="tok-fn">int</span>(<span class="tok-fn">round</span>(b.size))] = counts.<span class="tok-fn">get</span>(<span class="tok-fn">int</span>(<span class="tok-fn">round</span>(b.size)), <span class="tok-n">0</span>) + <span class="tok-fn">len</span>(b.text)</span>
+<span class="ln"><span class="ln-i">45</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(<span class="tok-fn">max</span>(counts, key=<span class="tok-k">lambda</span> k: counts[k])) <span class="tok-k">if</span> counts <span class="tok-k">else</span> <span class="tok-n">10.0</span></span>
+<span class="ln"><span class="ln-i">46</span></span>
+<span class="ln"><span class="ln-i">47</span></span>
+<span class="ln"><span class="ln-i">48</span><span class="tok-k">def</span> <span class="tok-fn">mark_headings</span>(blocks: list[Block], min_chars: int = <span class="tok-n">4</span>) -&gt; list[Block]:</span>
+<span class="ln"><span class="ln-i">49</span>    base = <span class="tok-fn">body_size</span>(blocks)</span>
+<span class="ln"><span class="ln-i">50</span>    <span class="tok-k">for</span> b <span class="tok-k">in</span> blocks:</span>
+<span class="ln"><span class="ln-i">51</span>        stripped = b.text.<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">52</span>        looks = (<span class="tok-fn">len</span>(stripped) &lt;= <span class="tok-n">120</span> <span class="tok-k">and</span> <span class="tok-k">not</span> stripped.<span class="tok-fn">endswith</span>((<span class="tok-str">"."</span>, <span class="tok-str">";"</span>, <span class="tok-str">","</span>))</span>
+<span class="ln"><span class="ln-i">53</span>                 <span class="tok-k">and</span> <span class="tok-fn">len</span>(stripped) &gt;= min_chars <span class="tok-k">and</span> <span class="tok-k">not</span> BULLET.<span class="tok-k">match</span>(stripped))</span>
+<span class="ln"><span class="ln-i">54</span>        bigger = b.size &gt;= base + <span class="tok-n">1.5</span> <span class="tok-k">and</span> looks          <span class="tok-cmt"># уровень 1</span></span>
+<span class="ln"><span class="ln-i">55</span>        bold = b.bold <span class="tok-k">and</span> b.size &gt;= base - <span class="tok-n">0.5</span> <span class="tok-k">and</span> looks <span class="tok-cmt"># уровень 2</span></span>
+<span class="ln"><span class="ln-i">56</span>        b.level = <span class="tok-n">1</span> <span class="tok-k">if</span> bigger <span class="tok-k">else</span> (<span class="tok-n">2</span> <span class="tok-k">if</span> bold <span class="tok-k">else</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">57</span>    <span class="tok-k">return</span> blocks</span>
+<span class="ln"><span class="ln-i">58</span></span>
+<span class="ln"><span class="ln-i">59</span></span>
+<span class="ln"><span class="ln-i">60</span><span class="tok-k">def</span> <span class="tok-fn">blocks_to_sections</span>(blocks: list[Block], fallback_title: str = <span class="tok-str">"Документ"</span>) -&gt; list[dict]:</span>
+<span class="ln"><span class="ln-i">61</span>    <span class="tok-str">"""Склейка блоков в разделы: начало нового раздела — любой заголовок уровня 1."""</span></span>
+<span class="ln"><span class="ln-i">62</span>    sections, cur = [], {<span class="tok-str">"title"</span>: fallback_title, <span class="tok-str">"level"</span>: <span class="tok-n">0</span>, <span class="tok-str">"parts"</span>: [], <span class="tok-str">"pages"</span>: <span class="tok-fn">set</span>()}</span>
+<span class="ln"><span class="ln-i">63</span>    <span class="tok-k">for</span> b <span class="tok-k">in</span> <span class="tok-fn">mark_headings</span>(blocks):</span>
+<span class="ln"><span class="ln-i">64</span>        <span class="tok-k">if</span> b.level == <span class="tok-n">1</span>:</span>
+<span class="ln"><span class="ln-i">65</span>            <span class="tok-k">if</span> cur[<span class="tok-str">"parts"</span>]:</span>
+<span class="ln"><span class="ln-i">66</span>                sections.<span class="tok-fn">append</span>(cur)</span>
+<span class="ln"><span class="ln-i">67</span>            cur = {<span class="tok-str">"title"</span>: b.text.<span class="tok-fn">strip</span>(), <span class="tok-str">"level"</span>: <span class="tok-n">1</span>, <span class="tok-str">"parts"</span>: [], <span class="tok-str">"pages"</span>: {b.page}}</span>
+<span class="ln"><span class="ln-i">68</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">69</span>        cur[<span class="tok-str">"parts"</span>].<span class="tok-fn">append</span>(b.text)</span>
+<span class="ln"><span class="ln-i">70</span>        cur[<span class="tok-str">"pages"</span>].<span class="tok-fn">add</span>(b.page)</span>
+<span class="ln"><span class="ln-i">71</span>    <span class="tok-k">if</span> cur[<span class="tok-str">"parts"</span>]:</span>
+<span class="ln"><span class="ln-i">72</span>        sections.<span class="tok-fn">append</span>(cur)</span>
+<span class="ln"><span class="ln-i">73</span>    <span class="tok-k">for</span> s <span class="tok-k">in</span> sections:</span>
+<span class="ln"><span class="ln-i">74</span>        s[<span class="tok-str">"text"</span>] = <span class="tok-str">"\n"</span>.<span class="tok-fn">join</span>(s.<span class="tok-fn">pop</span>(<span class="tok-str">"parts"</span>))</span>
+<span class="ln"><span class="ln-i">75</span>        s[<span class="tok-str">"page"</span>] = <span class="tok-fn">min</span>(s[<span class="tok-str">"pages"</span>])                 <span class="tok-cmt"># страница, где раздел начинается</span></span>
+<span class="ln"><span class="ln-i">76</span>    <span class="tok-k">return</span> sections</span>
+</code></pre></div>
+<h3 id="tablicy-pochemu-ih-nado-otdavat-strukturoy">Таблицы: почему их надо отдавать структурой</h3>
+<p>Таблица — самое частое место, где «просто текст» превращается в источник выдуманных цифр. Причины две: у строки нет собственного смысла вне заголовка колонок, и модель не видит связи «ячейка стоит в колонке «Цена»».</p>
+<p>Правило: <strong>таблица не разбирается на строки, а сохраняется как таблица</strong>. В контекст уходит markdown-таблица или CSV с заголовком колонок, причём целиком, а не по частям. Для больших таблиц допустимо разбиение на части с <strong>повторением шапки</strong> в каждой части — иначе вторая половина теряет смысл.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что сделано с таблицей</th>
+<th style="text-align:left">Что получится в ответе</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Markdown-таблица с шапкой, целиком</td>
+<td style="text-align:left">точные цифры, модель цитирует ячейку</td>
+</tr>
+<tr>
+<td style="text-align:left">CSV с повтором шапки в каждом чанке</td>
+<td style="text-align:left">точные цифры, работает на больших таблицах</td>
+</tr>
+<tr>
+<td style="text-align:left">Плоский текст с разделителем в одну колонку</td>
+<td style="text-align:left">цифры без привязки к названию — выдумки</td>
+</tr>
+<tr>
+<td style="text-align:left">Каждая ячейка отдельным чанком</td>
+<td style="text-align:left">полная потеря: вектор ячейки «1200» ничего не значит</td>
+</tr>
+<tr>
+<td style="text-align:left">Таблица как картинка в мультимодальную модель</td>
+<td style="text-align:left">зависит от модели; годится для схем, не для прайсов</td>
+</tr>
+</tbody></table></div>
+<h3 id="metadannye-obyazatelny">Метаданные обязательны</h3>
+<p>Метаданные — это не «дополнительные поля», а условие эксплуатации. Без них нельзя выполнить три обязательные операции: показать источник, отфильтровать по дате и удалить данные.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Поле</th>
+<th style="text-align:left">Откуда берётся</th>
+<th style="text-align:left">Что без него невозможно</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>source_path</code> / <code>doc_id</code></td>
+<td style="text-align:left">путь на диске или идентификатор в коннекторе</td>
+<td style="text-align:left">не найти оригинал, не удалить точечно</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>title</code></td>
+<td style="text-align:left">метаданные файла, первый заголовок, заголовок окна</td>
+<td style="text-align:left">в выдаче пять чанков из «Документ»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>section</code></td>
+<td style="text-align:left">разобранная иерархия заголовков</td>
+<td style="text-align:left">цитата «где-то на странице 14»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>page</code> / <code>page_end</code></td>
+<td style="text-align:left">номер страницы из PDF</td>
+<td style="text-align:left">переход к источнику и проверка цитаты человеком</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>doc_date</code>, <code>updated_at</code></td>
+<td style="text-align:left">свойства файла или дата в тексте</td>
+<td style="text-align:left">фильтр «покажи то, что действует сейчас»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>author</code>, <code>owner</code></td>
+<td style="text-align:left">свойства документа, AD-атрибуты</td>
+<td style="text-align:left">эскалация вопроса автору</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>acl_groups</code></td>
+<td style="text-align:left">из <a href="../../lectures/mlops/05-embedding-i-vektory.html">лекции про метаданные</a></td>
+<td style="text-align:left">фильтр доступа; отсутствие — утечка</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>pipeline_version</code></td>
+<td style="text-align:left">версия кода извлечения</td>
+<td style="text-align:left">понять, почему год назад индекс отличался</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>content_hash</code></td>
+<td style="text-align:left">sha256 файла</td>
+<td style="text-align:left">дедупликация и инкрементальность</td>
+</tr>
+</tbody></table></div>
+<p>Отдельный пункт — <strong>удаление по отзыву согласия</strong>. Механизм описан в <a href="../../lectures/ru/02-personalnye-dannye-152fz.html">лекции о персональных данных</a>, и здесь важна инженерческая часть: когда сотрудник отзывает согласие, ты удаляешь не один файл, а <strong>все производные артефакты</strong> — исходник, текстовый слой, картинки страниц, чанки в векторной базе, записи в полнотекстовом индексе и в графе цитат. Без <code>doc_id</code>, связывающего все эти хранилища, процедура невыполнима, а её отсутствие — это не «недоработка», а инцидент.</p>
+<h2 id="deduplikaciya-i-versionirovanie-korpusa">Дедупликация и версионирование корпуса</h2>
+<p>Реальная папка документов почти всегда содержит <code>Регламент_v3.pdf</code>, <code>Регламент_v3 (1).pdf</code>, копию в архиве и черновик, который забыли удалить. Каждая такая копия съедает место в индексе, <strong>съедает бюджет и портит ответы</strong>: пять одинаковых чанков в выдаче, из которых reranker выбирает один, а второй источник — актуальная версия — не попадает в top-k вообще.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Стратегия</th>
+<th style="text-align:left">Что ловит</th>
+<th style="text-align:left">Ложные срабатывания</th>
+<th style="text-align:left">Действие</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">sha256 содержимого</td>
+<td style="text-align:left">точная копия, «Договор (1).pdf»</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">второй файл не индексируем</td>
+</tr>
+<tr>
+<td style="text-align:left">sha256 нормализованного текста</td>
+<td style="text-align:left">копии, отличающиеся метаданными</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">то же</td>
+</tr>
+<tr>
+<td style="text-align:left">Размер файла + первые 4 КБ</td>
+<td style="text-align:left">быстрый фильтр перед полным хешем</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">предварительный отсев</td>
+</tr>
+<tr>
+<td style="text-align:left">MinHash / simhash</td>
+<td style="text-align:left">почти-дубли: то же с парой правок</td>
+<td style="text-align:left">редкие, на шаблонных документах</td>
+<td style="text-align:left">оставить более новый, остальные — в отчёт на ручное решение</td>
+</tr>
+<tr>
+<td style="text-align:left">Дата и версия в имени</td>
+<td style="text-align:left">старые версии рядом с новыми</td>
+<td style="text-align:left">бывают исключения («черновик на согласование»)</td>
+<td style="text-align:left">архивировать, не удалять молча</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/dedup.py — точные и почти-точные дубли</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> hashlib</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> re</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">from</span> collections <span class="tok-k">import</span> defaultdict</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">from</span> datasketch <span class="tok-k">import</span> MinHash, MinHashLSH</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>_WS = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"\s+"</span>)</span>
+<span class="ln"><span class="ln-i">9</span>NUM = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"\d+|[IVXLC]"</span>)</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">def</span> <span class="tok-fn">content_hash</span>(text: str) -&gt; str:</span>
+<span class="ln"><span class="ln-i">13</span>    <span class="tok-str">"""Хеш нормализованного текста: разная вёрстка и разные метаданные дают одинаковый хеш."""</span></span>
+<span class="ln"><span class="ln-i">14</span>    norm = _WS.<span class="tok-fn">sub</span>(<span class="tok-str">" "</span>, text).<span class="tok-fn">strip</span>().<span class="tok-fn">lower</span>()</span>
+<span class="ln"><span class="ln-i">15</span>    <span class="tok-k">return</span> hashlib.<span class="tok-fn">sha256</span>(norm.<span class="tok-fn">encode</span>()).<span class="tok-fn">hexdigest</span>()</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-k">def</span> <span class="tok-fn">is_template_boilerplate</span>(text: str) -&gt; bool:</span>
+<span class="ln"><span class="ln-i">19</span>    <span class="tok-str">""</span>"Шапка регламента, повторяющаяся на каждой странице: в эмбеддинг она не должна</span>
+<span class="ln"><span class="ln-i">20</span>    попадать, но в подсчёте дубликатов участвует.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">21</span>    lines = [l.<span class="tok-fn">strip</span>() <span class="tok-k">for</span> l <span class="tok-k">in</span> text.<span class="tok-fn">splitlines</span>() <span class="tok-k">if</span> l.<span class="tok-fn">strip</span>()]</span>
+<span class="ln"><span class="ln-i">22</span>    <span class="tok-k">return</span> <span class="tok-fn">len</span>(lines) &gt;= <span class="tok-n">3</span> <span class="tok-k">and</span> <span class="tok-fn">len</span>({<span class="tok-fn">len</span>(l) <span class="tok-k">for</span> l <span class="tok-k">in</span> lines[:<span class="tok-n">3</span>]}) == <span class="tok-n">1</span> <span class="tok-k">and</span> <span class="tok-fn">len</span>(lines[<span class="tok-n">0</span>]) &lt; <span class="tok-n">60</span></span>
+<span class="ln"><span class="ln-i">23</span></span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span><span class="tok-k">def</span> <span class="tok-fn">find_duplicates</span>(texts: dict[str, str], num_perm: int = <span class="tok-n">128</span>, threshold: float = <span class="tok-n">0.9</span>) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">26</span>    <span class="tok-str">""</span>"texts: doc_id -&gt; текст. Возвращает: exact[doc_id] -&gt; master_doc_id,</span>
+<span class="ln"><span class="ln-i">27</span>    near[doc_id] -&gt; (master_doc_id, jaccard). Мастер выбирается по правилу явным,</span>
+<span class="ln"><span class="ln-i">28</span>    чтобы результат не зависел от порядка обхода файлов.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">29</span>    exact: dict[str, str] = {}</span>
+<span class="ln"><span class="ln-i">30</span>    by_hash: dict[str, list[str]] = <span class="tok-fn">defaultdict</span>(list)</span>
+<span class="ln"><span class="ln-i">31</span>    <span class="tok-k">for</span> doc_id, text <span class="tok-k">in</span> texts.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">32</span>        by_hash[<span class="tok-fn">content_hash</span>(text)].<span class="tok-fn">append</span>(doc_id)</span>
+<span class="ln"><span class="ln-i">33</span>    <span class="tok-k">for</span> group <span class="tok-k">in</span> by_hash.<span class="tok-fn">values</span>():</span>
+<span class="ln"><span class="ln-i">34</span>        <span class="tok-k">if</span> <span class="tok-fn">len</span>(group) &gt; <span class="tok-n">1</span>:</span>
+<span class="ln"><span class="ln-i">35</span>            master = <span class="tok-fn">sorted</span>(group)[<span class="tok-n">0</span>]</span>
+<span class="ln"><span class="ln-i">36</span>            <span class="tok-k">for</span> d <span class="tok-k">in</span> group:</span>
+<span class="ln"><span class="ln-i">37</span>                exact[d] = master</span>
+<span class="ln"><span class="ln-i">38</span></span>
+<span class="ln"><span class="ln-i">39</span>    lsh = <span class="tok-fn">MinHashLSH</span>(threshold=threshold, num_perm=num_perm)</span>
+<span class="ln"><span class="ln-i">40</span>    <span class="tok-k">for</span> doc_id, text <span class="tok-k">in</span> texts.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">41</span>        tokens = <span class="tok-fn">set</span>(NUM.<span class="tok-fn">sub</span>(<span class="tok-str">"#"</span>, w) <span class="tok-k">for</span> w <span class="tok-k">in</span> _WS.<span class="tok-fn">sub</span>(<span class="tok-str">" "</span>, text).<span class="tok-fn">lower</span>().<span class="tok-fn">split</span>())</span>
+<span class="ln"><span class="ln-i">42</span>        mh = <span class="tok-fn">MinHash</span>(num_perm=num_perm)</span>
+<span class="ln"><span class="ln-i">43</span>        <span class="tok-k">for</span> t <span class="tok-k">in</span> tokens:</span>
+<span class="ln"><span class="ln-i">44</span>            mh.<span class="tok-fn">update</span>(t.<span class="tok-fn">encode</span>())</span>
+<span class="ln"><span class="ln-i">45</span>        lsh.<span class="tok-fn">insert</span>(doc_id, mh)</span>
+<span class="ln"><span class="ln-i">46</span></span>
+<span class="ln"><span class="ln-i">47</span>    near: dict[str, tuple[str, float]] = {}</span>
+<span class="ln"><span class="ln-i">48</span>    <span class="tok-k">for</span> doc_id <span class="tok-k">in</span> texts:</span>
+<span class="ln"><span class="ln-i">49</span>        <span class="tok-k">if</span> doc_id <span class="tok-k">in</span> exact:</span>
+<span class="ln"><span class="ln-i">50</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">51</span>        tokens = <span class="tok-fn">set</span>(NUM.<span class="tok-fn">sub</span>(<span class="tok-str">"#"</span>, w) <span class="tok-k">for</span> w <span class="tok-k">in</span> _WS.<span class="tok-fn">sub</span>(<span class="tok-str">" "</span>, texts[doc_id]).<span class="tok-fn">lower</span>().<span class="tok-fn">split</span>())</span>
+<span class="ln"><span class="ln-i">52</span>        mh = <span class="tok-fn">MinHash</span>(num_perm=num_perm)</span>
+<span class="ln"><span class="ln-i">53</span>        <span class="tok-k">for</span> t <span class="tok-k">in</span> tokens:</span>
+<span class="ln"><span class="ln-i">54</span>            mh.<span class="tok-fn">update</span>(t.<span class="tok-fn">encode</span>())</span>
+<span class="ln"><span class="ln-i">55</span>        candidates = [c <span class="tok-k">for</span> c <span class="tok-k">in</span> lsh.<span class="tok-fn">query</span>(mh) <span class="tok-k">if</span> c != doc_id <span class="tok-k">and</span> c <span class="tok-k">not</span> <span class="tok-k">in</span> near]</span>
+<span class="ln"><span class="ln-i">56</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> candidates:</span>
+<span class="ln"><span class="ln-i">57</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">58</span>        best = <span class="tok-fn">max</span>(candidates,</span>
+<span class="ln"><span class="ln-i">59</span>                   key=<span class="tok-k">lambda</span> c: <span class="tok-fn">len</span>(tokens &amp; <span class="tok-fn">set</span>(NUM.<span class="tok-fn">sub</span>(<span class="tok-str">"#"</span>, w) <span class="tok-k">for</span> w <span class="tok-k">in</span></span>
+<span class="ln"><span class="ln-i">60</span>                                                  _WS.<span class="tok-fn">sub</span>(<span class="tok-str">" "</span>, texts[c]).<span class="tok-fn">lower</span>().<span class="tok-fn">split</span>()))</span>
+<span class="ln"><span class="ln-i">61</span>                   / <span class="tok-fn">max</span>(<span class="tok-fn">len</span>(tokens | <span class="tok-fn">set</span>(NUM.<span class="tok-fn">sub</span>(<span class="tok-str">"#"</span>, w) <span class="tok-k">for</span> w <span class="tok-k">in</span></span>
+<span class="ln"><span class="ln-i">62</span>                                           _WS.<span class="tok-fn">sub</span>(<span class="tok-str">" "</span>, texts[c]).<span class="tok-fn">lower</span>().<span class="tok-fn">split</span>())), <span class="tok-n">1</span>))</span>
+<span class="ln"><span class="ln-i">63</span>        near[doc_id] = (best, <span class="tok-fn">round</span>(best, <span class="tok-n">3</span>))</span>
+<span class="ln"><span class="ln-i">64</span>    <span class="tok-k">return</span> {<span class="tok-str">"exact"</span>: exact, <span class="tok-str">"near"</span>: near}</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>У почти-дублей нельзя применять порог вслепую. Два приложения к разным договорам, отличающиеся одним абзацем, дадут сходство 0.92, но удаление одного из них — потеря юридически значимого документа. Правило безопасное: <strong>точный дубль удаляем автоматически, почти-дубль — только помечаем и отправляем человеку</strong>. Порог 0.9 для технической документации нормален; для договоров и нормативки он должен быть выше 0.95, а решение принимает человек.</p></div></div>
+<h2 id="inkrementalnaya-pereindeksaciya-manifest-korpusa">Инкрементальная переиндексация: манифест корпуса</h2>
+<p>Манифест — это таблица «что сейчас должно быть в индексе». Без него инкрементальность превращается в набор скриптов, а удаление файла приводит к тихой порче индекса.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/manifest.py — сверка источника и индекса: добавить, обновить, удалить</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> json</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> sqlite3</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">from</span> pathlib <span class="tok-k">import</span> Path</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>MANIFEST_DB = <span class="tok-fn">Path</span>(<span class="tok-str">"/var/lib/rag/manifest.sqlite"</span>)</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>SCHEMA = <span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">9</span>CREATE TABLE IF NOT EXISTS <span class="tok-fn">manifest</span> (</span>
+<span class="ln"><span class="ln-i">10</span>    doc_id           TEXT PRIMARY KEY,</span>
+<span class="ln"><span class="ln-i">11</span>    source_path      TEXT NOT NULL,</span>
+<span class="ln"><span class="ln-i">12</span>    content_sha256   TEXT NOT NULL,      -- хеш ИСХОДНОГО файла</span>
+<span class="ln"><span class="ln-i">13</span>    text_sha256      TEXT,               -- хеш извлечённого текста</span>
+<span class="ln"><span class="ln-i">14</span>    pipeline_version TEXT NOT NULL,      -- изменился код извлечения -&gt; всё пересобираем</span>
+<span class="ln"><span class="ln-i">15</span>    indexed_at       TEXT NOT NULL,</span>
+<span class="ln"><span class="ln-i">16</span>    chunk_ids        TEXT NOT NULL       -- JSON-массив, чтобы удалить ровно свои чанки</span>
+<span class="ln"><span class="ln-i">17</span>);</span>
+<span class="ln"><span class="ln-i">18</span>CREATE INDEX IF NOT EXISTS ix_manifest_hash ON <span class="tok-fn">manifest</span>(content_sha256);</span>
+<span class="ln"><span class="ln-i">19</span><span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-k">def</span> <span class="tok-fn">open_manifest</span>() -&gt; sqlite3.Connection:</span>
+<span class="ln"><span class="ln-i">23</span>    conn = sqlite3.<span class="tok-fn">connect</span>(MANIFEST_DB)</span>
+<span class="ln"><span class="ln-i">24</span>    conn.<span class="tok-fn">executescript</span>(SCHEMA)</span>
+<span class="ln"><span class="ln-i">25</span>    <span class="tok-k">return</span> conn</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span><span class="tok-k">def</span> <span class="tok-fn">plan</span>(conn: sqlite3.Connection, discovered: dict[str, dict], pipeline_version: str) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">29</span>    <span class="tok-str">""</span>"discovered: doc_id -&gt; {path, content_sha256}. Возвращает три списка решений.</span>
+<span class="ln"><span class="ln-i">30</span>    Ключевая строка — третья: файла уже нет в источнике, значит его чанки обязаны</span>
+<span class="ln"><span class="ln-i">31</span>    исчезнуть из векторной базы. Это самая частая тихая ошибка инкрементальной индексации.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">32</span>    known = {r[<span class="tok-str">"doc_id"</span>]: r <span class="tok-k">for</span> r <span class="tok-k">in</span> conn.<span class="tok-fn">execute</span>(</span>
+<span class="ln"><span class="ln-i">33</span>        <span class="tok-str">"SELECT doc_id, source_path, content_sha256, pipeline_version FROM manifest"</span>)}</span>
+<span class="ln"><span class="ln-i">34</span></span>
+<span class="ln"><span class="ln-i">35</span>    add, update, delete = [], [], []</span>
+<span class="ln"><span class="ln-i">36</span>    <span class="tok-k">for</span> doc_id, info <span class="tok-k">in</span> discovered.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">37</span>        row = known.<span class="tok-fn">get</span>(doc_id)</span>
+<span class="ln"><span class="ln-i">38</span>        <span class="tok-k">if</span> row <span class="tok-k">is</span> None:</span>
+<span class="ln"><span class="ln-i">39</span>            add.<span class="tok-fn">append</span>(doc_id)</span>
+<span class="ln"><span class="ln-i">40</span>        <span class="tok-k">elif</span> row[<span class="tok-str">"content_sha256"</span>] != info[<span class="tok-str">"content_sha256"</span>]:</span>
+<span class="ln"><span class="ln-i">41</span>            update.<span class="tok-fn">append</span>(doc_id)</span>
+<span class="ln"><span class="ln-i">42</span>        <span class="tok-k">elif</span> row[<span class="tok-str">"pipeline_version"</span>] != pipeline_version:</span>
+<span class="ln"><span class="ln-i">43</span>            update.<span class="tok-fn">append</span>(doc_id)          <span class="tok-cmt"># сменился код извлечения — текст тоже другой</span></span>
+<span class="ln"><span class="ln-i">44</span>    <span class="tok-k">for</span> doc_id <span class="tok-k">in</span> known:</span>
+<span class="ln"><span class="ln-i">45</span>        <span class="tok-k">if</span> doc_id <span class="tok-k">not</span> <span class="tok-k">in</span> discovered:</span>
+<span class="ln"><span class="ln-i">46</span>            delete.<span class="tok-fn">append</span>(doc_id)</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-k">return</span> {<span class="tok-str">"add"</span>: add, <span class="tok-str">"update"</span>: update, <span class="tok-str">"delete"</span>: delete}</span>
+<span class="ln"><span class="ln-i">48</span></span>
+<span class="ln"><span class="ln-i">49</span></span>
+<span class="ln"><span class="ln-i">50</span><span class="tok-k">def</span> <span class="tok-fn">drop_chunks</span>(vector_db, chunk_ids: list[str]) -&gt; None:</span>
+<span class="ln"><span class="ln-i">51</span>    <span class="tok-str">""</span>"Удаление из индекса по списку чанков документа. Без этого шага удалённый</span>
+<span class="ln"><span class="ln-i">52</span>    документ продолжает отвечать на запросы — индекс о нём ничего не знает.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">53</span>    <span class="tok-k">from</span> qdrant_client <span class="tok-k">import</span> models</span>
+<span class="ln"><span class="ln-i">54</span>    <span class="tok-k">for</span> i <span class="tok-k">in</span> <span class="tok-fn">range</span>(<span class="tok-n">0</span>, <span class="tok-fn">len</span>(chunk_ids), <span class="tok-n">256</span>):</span>
+<span class="ln"><span class="ln-i">55</span>        batch = chunk_ids[i:i + <span class="tok-n">256</span>]</span>
+<span class="ln"><span class="ln-i">56</span>        vector_db.<span class="tok-fn">delete</span>(collection_name=COLLECTION, points_selector=models.<span class="tok-fn">PointIdsList</span>(points=batch))</span>
+</code></pre></div>
+<p>Заметка про скорость: манифест на sqlite даёт проверку «что изменилось» за миллисекунды на корпусе любого размера и не требует отдельной инфраструктуры. На корпусе от миллиона документов имеет смысл переходить на postgres, но менять придётся только три функции.</p>
+<h2 id="kachestvo-izvlecheniya-metriki-kotorye-nuzhno-meryat">Качество извлечения: метрики, которые нужно мерять</h2>
+<p>Пайплайн загрузки не падает — он просто перестаёт давать качественный текст, и это не видно ни в логах, ни на дашборде ошибок. Метрики у него свои, и они отвечают на вопрос «жив ли конвейер», а не «были ли исключения».</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метрика</th>
+<th style="text-align:left">Что показывает</th>
+<th style="text-align:right">Порог тревоги</th>
+<th style="text-align:left">Где считается</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>pages_text_ratio</code></td>
+<td style="text-align:left">доля страниц с распознанным текстом</td>
+<td style="text-align:right">&lt; 0.9</td>
+<td style="text-align:left">на пайплайне</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ocr_pages_ratio</code></td>
+<td style="text-align:left">доля страниц, прошедших через OCR</td>
+<td style="text-align:right">резкий рост</td>
+<td style="text-align:left">на пайплайне</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ocr_mean_confidence</code></td>
+<td style="text-align:left">средняя уверенность распознавания</td>
+<td style="text-align:right">&lt; 85</td>
+<td style="text-align:left">по TSV движка</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>empty_chunks_ratio</code></td>
+<td style="text-align:left">доля чанков короче 80 токенов</td>
+<td style="text-align:right">&gt; 0.05</td>
+<td style="text-align:left">после чанкинга</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>chunk_tokens_p50 / p95</code></td>
+<td style="text-align:left">распределение размера чанков</td>
+<td style="text-align:right">p95 &gt; 1500</td>
+<td style="text-align:left">после чанкинга</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>tables_as_tables_ratio</code></td>
+<td style="text-align:left">доля таблиц, сохранённых таблицей</td>
+<td style="text-align:right">&lt; 0.8</td>
+<td style="text-align:left">после извлечения</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>dup_documents_ratio</code></td>
+<td style="text-align:left">доля документов-дублей</td>
+<td style="text-align:right">&gt; 0.02</td>
+<td style="text-align:left">после дедупликации</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>index_docs_gauge</code></td>
+<td style="text-align:left">документов в индексе против ожидаемого</td>
+<td style="text-align:right">расхождение &gt; 5%</td>
+<td style="text-align:left">на индексаторе</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/ingest_metrics.py — отчёт по качеству извлечения</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> json</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> statistics</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">def</span> <span class="tok-fn">ingest_report</span>(records: list[dict]) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-str">""</span>"records: по одной на документ — {doc_id, n_pages, n_text_pages, n_ocr_pages,</span>
+<span class="ln"><span class="ln-i">8</span>    n_tables, n_table_rows, n_chunks, n_empty_chunks, chunk_tokens, confidence}.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-k">def</span> <span class="tok-fn">ratio</span>(num, den):</span>
+<span class="ln"><span class="ln-i">10</span>        <span class="tok-k">return</span> <span class="tok-fn">round</span>(num / den, <span class="tok-n">4</span>) <span class="tok-k">if</span> den <span class="tok-k">else</span> <span class="tok-n">0.0</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>    chunks = <span class="tok-fn">sum</span>(r[<span class="tok-str">"n_chunks"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records)</span>
+<span class="ln"><span class="ln-i">13</span>    tokens = [t <span class="tok-k">for</span> r <span class="tok-k">in</span> records <span class="tok-k">for</span> t <span class="tok-k">in</span> r[<span class="tok-str">"chunk_tokens"</span>]]</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-k">return</span> {</span>
+<span class="ln"><span class="ln-i">15</span>        <span class="tok-str">"documents"</span>: <span class="tok-fn">len</span>(records),</span>
+<span class="ln"><span class="ln-i">16</span>        <span class="tok-str">"pages_text_ratio"</span>: <span class="tok-fn">ratio</span>(<span class="tok-fn">sum</span>(r[<span class="tok-str">"n_text_pages"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records),</span>
+<span class="ln"><span class="ln-i">17</span>                                  <span class="tok-fn">sum</span>(r[<span class="tok-str">"n_pages"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records)),</span>
+<span class="ln"><span class="ln-i">18</span>        <span class="tok-str">"ocr_pages_ratio"</span>: <span class="tok-fn">ratio</span>(<span class="tok-fn">sum</span>(r[<span class="tok-str">"n_ocr_pages"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records),</span>
+<span class="ln"><span class="ln-i">19</span>                                 <span class="tok-fn">sum</span>(r[<span class="tok-str">"n_pages"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records)),</span>
+<span class="ln"><span class="ln-i">20</span>        <span class="tok-str">"ocr_mean_confidence"</span>: <span class="tok-fn">round</span>(statistics.<span class="tok-fn">fmean</span>(</span>
+<span class="ln"><span class="ln-i">21</span>            [r[<span class="tok-str">"confidence"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records <span class="tok-k">if</span> r.<span class="tok-fn">get</span>(<span class="tok-str">"confidence"</span>) <span class="tok-k">is</span> <span class="tok-k">not</span> None] <span class="tok-k">or</span> [<span class="tok-n">0</span>]), <span class="tok-n">1</span>),</span>
+<span class="ln"><span class="ln-i">22</span>        <span class="tok-str">"empty_chunks_ratio"</span>: <span class="tok-fn">ratio</span>(<span class="tok-fn">sum</span>(r[<span class="tok-str">"n_empty_chunks"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records), chunks),</span>
+<span class="ln"><span class="ln-i">23</span>        <span class="tok-str">"chunk_tokens_p50"</span>: <span class="tok-fn">int</span>(statistics.<span class="tok-fn">median</span>(tokens)) <span class="tok-k">if</span> tokens <span class="tok-k">else</span> <span class="tok-n">0</span>,</span>
+<span class="ln"><span class="ln-i">24</span>        <span class="tok-str">"chunk_tokens_p95"</span>: <span class="tok-fn">int</span>(<span class="tok-fn">sorted</span>(tokens)[<span class="tok-fn">int</span>(<span class="tok-fn">len</span>(tokens) * <span class="tok-n">0.95</span>) - <span class="tok-n">1</span>]) <span class="tok-k">if</span> tokens <span class="tok-k">else</span> <span class="tok-n">0</span>,</span>
+<span class="ln"><span class="ln-i">25</span>        <span class="tok-str">"tables_as_tables_ratio"</span>: <span class="tok-fn">ratio</span>(<span class="tok-fn">sum</span>(r[<span class="tok-str">"n_table_rows"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records),</span>
+<span class="ln"><span class="ln-i">26</span>                                        <span class="tok-fn">sum</span>(r[<span class="tok-str">"n_tables"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> records)),</span>
+<span class="ln"><span class="ln-i">27</span>        <span class="tok-str">"alerts"</span>: [],</span>
+<span class="ln"><span class="ln-i">28</span>    }</span>
+<span class="ln"><span class="ln-i">29</span></span>
+<span class="ln"><span class="ln-i">30</span></span>
+<span class="ln"><span class="ln-i">31</span><span class="tok-k">def</span> <span class="tok-fn">check_alerts</span>(rep: dict) -&gt; list[str]:</span>
+<span class="ln"><span class="ln-i">32</span>    <span class="tok-str">"""Пороговые проверки: то, что должно уйти в алерт, а не остаться в логе."""</span></span>
+<span class="ln"><span class="ln-i">33</span>    rules = [</span>
+<span class="ln"><span class="ln-i">34</span>        (<span class="tok-str">"pages_text_ratio"</span>, <span class="tok-str">"&lt;"</span>, <span class="tok-n">0.90</span>, <span class="tok-str">"массовая потеря текстового слоя: сломался извлекатель"</span>),</span>
+<span class="ln"><span class="ln-i">35</span>        (<span class="tok-str">"empty_chunks_ratio"</span>, <span class="tok-str">"&gt;"</span>, <span class="tok-n">0.05</span>, <span class="tok-str">"растёт доля пустых чанков: проверь OCR и разметку"</span>),</span>
+<span class="ln"><span class="ln-i">36</span>        (<span class="tok-str">"tables_as_tables_ratio"</span>, <span class="tok-str">"&lt;"</span>, <span class="tok-n">0.80</span>, <span class="tok-str">"таблицы перестали распознаваться как таблицы"</span>),</span>
+<span class="ln"><span class="ln-i">37</span>        (<span class="tok-str">"dup_documents_ratio"</span>, <span class="tok-str">"&gt;"</span>, <span class="tok-n">0.02</span>, <span class="tok-str">"в корпусе просели дубли"</span>),</span>
+<span class="ln"><span class="ln-i">38</span>    ]</span>
+<span class="ln"><span class="ln-i">39</span>    out = []</span>
+<span class="ln"><span class="ln-i">40</span>    <span class="tok-k">for</span> metric, op, limit, why <span class="tok-k">in</span> rules:</span>
+<span class="ln"><span class="ln-i">41</span>        v = rep.<span class="tok-fn">get</span>(metric)</span>
+<span class="ln"><span class="ln-i">42</span>        <span class="tok-k">if</span> v <span class="tok-k">is</span> None:</span>
+<span class="ln"><span class="ln-i">43</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">44</span>        <span class="tok-k">if</span> (op == <span class="tok-str">"&lt;"</span> <span class="tok-k">and</span> v &lt; limit) <span class="tok-k">or</span> (op == <span class="tok-str">"&gt;"</span> <span class="tok-k">and</span> v &gt; limit):</span>
+<span class="ln"><span class="ln-i">45</span>            out.<span class="tok-fn">append</span>(f<span class="tok-str">"{metric}={v} (порог {op} {limit}): {why}"</span>)</span>
+<span class="ln"><span class="ln-i">46</span>    <span class="tok-k">return</span> out</span>
+</code></pre></div>
+<p>Метрики экспортируются в node_exporter тем же способом, что и в <a href="../../lectures/mlops/04-dannye-i-pipeliney.html">лекции про данные и пайплайны</a>: текстовый файл с метриками, алерт на росте <code>ocr_pages_ratio</code> и падении <code>index_docs_gauge</code>.</p>
+<h2 id="praktika-ot-papki-s-pdf-do-jsonl-chankov">Практика: от папки с PDF до JSONL чанков</h2>
+<p>Полный конвейер, который можно положить в cron и забыть. Результат — файл чанков, который дальше идёт в эмбеддинг и индекс без единой правки.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">#!/usr/bin/env python3</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># /opt/rag-pipeline/ingest.py — папка с PDF → JSONL чанков с метаданными и ссылками на страницы.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># Использование: python3 ingest.py --src /data/docs --out /var/lib/rag/chunks.jsonl [--ocr auto]</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">import</span> argparse</span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">import</span> hashlib</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">import</span> json</span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">import</span> re</span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">import</span> subprocess</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">import</span> tempfile</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">from</span> pathlib <span class="tok-k">import</span> Path</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">import</span> pymupdf</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>PIPELINE_VERSION = <span class="tok-str">"ingest-1.4.0"</span>      <span class="tok-cmt"># меняется при правке кода извлечения -&gt; пересборка</span></span>
+<span class="ln"><span class="ln-i">16</span>MIN_CHUNK_CHARS = <span class="tok-n">200</span></span>
+<span class="ln"><span class="ln-i">17</span>MAX_CHUNK_CHARS = <span class="tok-n">3500</span></span>
+<span class="ln"><span class="ln-i">18</span>BOILERPLATE = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"^\s*(?:страница|page)?\s*-?\d+\s*(?:из|/|-)?\s*-?\d*\s*$"</span>, re.I)</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span><span class="tok-k">def</span> <span class="tok-fn">sha256_file</span>(path: Path) -&gt; str:</span>
+<span class="ln"><span class="ln-i">22</span>    h = hashlib.<span class="tok-fn">sha256</span>()</span>
+<span class="ln"><span class="ln-i">23</span>    <span class="tok-k">with</span> path.<span class="tok-fn">open</span>(<span class="tok-str">"rb"</span>) <span class="tok-k">as</span> f:</span>
+<span class="ln"><span class="ln-i">24</span>        <span class="tok-k">for</span> block <span class="tok-k">in</span> <span class="tok-fn">iter</span>(<span class="tok-k">lambda</span>: f.<span class="tok-fn">read</span>(<span class="tok-n">1</span> &lt;&lt; <span class="tok-n">20</span>), b<span class="tok-str">""</span>):</span>
+<span class="ln"><span class="ln-i">25</span>            h.<span class="tok-fn">update</span>(block)</span>
+<span class="ln"><span class="ln-i">26</span>    <span class="tok-k">return</span> h.<span class="tok-fn">hexdigest</span>()</span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span><span class="tok-k">def</span> <span class="tok-fn">page_text_layer</span>(page: <span class="tok-str">"pymupdf.Page"</span>) -&gt; tuple[str, float]:</span>
+<span class="ln"><span class="ln-i">30</span>    <span class="tok-str">""</span>"Текстовый слой страницы и оценка его пригодности: сколько знаков на квадрат</span>
+<span class="ln"><span class="ln-i">31</span>    километр страницы. Возвращает (текст, доля_площади_текста).<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">32</span>    raw = page.<span class="tok-fn">get_text</span>(<span class="tok-str">"text"</span>)</span>
+<span class="ln"><span class="ln-i">33</span>    area = <span class="tok-fn">max</span>(page.rect.width * page.rect.height, <span class="tok-n">1.0</span>)</span>
+<span class="ln"><span class="ln-i">34</span>    text_area = <span class="tok-fn">sum</span>((b[<span class="tok-n">2</span>] - b[<span class="tok-n">0</span>]) * (b[<span class="tok-n">3</span>] - b[<span class="tok-n">1</span>])</span>
+<span class="ln"><span class="ln-i">35</span>                    <span class="tok-k">for</span> b <span class="tok-k">in</span> page.<span class="tok-fn">get_text</span>(<span class="tok-str">"blocks"</span>) <span class="tok-k">if</span> b[<span class="tok-n">6</span>] == <span class="tok-n">0</span> <span class="tok-k">and</span> b[<span class="tok-n">4</span>].<span class="tok-fn">strip</span>())</span>
+<span class="ln"><span class="ln-i">36</span>    <span class="tok-k">return</span> raw, <span class="tok-fn">round</span>(text_area / area, <span class="tok-n">3</span>)</span>
+<span class="ln"><span class="ln-i">37</span></span>
+<span class="ln"><span class="ln-i">38</span></span>
+<span class="ln"><span class="ln-i">39</span><span class="tok-k">def</span> <span class="tok-fn">strip_boilerplate</span>(text: str) -&gt; str:</span>
+<span class="ln"><span class="ln-i">40</span>    lines = [ln.<span class="tok-fn">rstrip</span>() <span class="tok-k">for</span> ln <span class="tok-k">in</span> text.<span class="tok-fn">splitlines</span>()]</span>
+<span class="ln"><span class="ln-i">41</span>    <span class="tok-k">return</span> <span class="tok-str">"\n"</span>.<span class="tok-fn">join</span>(ln <span class="tok-k">for</span> ln <span class="tok-k">in</span> lines <span class="tok-k">if</span> ln.<span class="tok-fn">strip</span>() <span class="tok-k">and</span> <span class="tok-k">not</span> BOILERPLATE.<span class="tok-k">match</span>(ln)).<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">42</span></span>
+<span class="ln"><span class="ln-i">43</span></span>
+<span class="ln"><span class="ln-i">44</span><span class="tok-k">def</span> <span class="tok-fn">ocr_page</span>(pixmap: <span class="tok-str">"pymupdf.Pixmap"</span>, lang: str = <span class="tok-str">"rus+eng"</span>, psm: int = <span class="tok-n">3</span>) -&gt; str:</span>
+<span class="ln"><span class="ln-i">45</span>    <span class="tok-str">""</span>"Рендер в <span class="tok-n">300</span> dpi -&gt; предобработка -&gt; OCR. Порядок обязателен: выравнивание,</span>
+<span class="ln"><span class="ln-i">46</span>    потом обрезка, потом бинаризация, и только затем распознавание.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-k">import</span> cv2</span>
+<span class="ln"><span class="ln-i">48</span>    <span class="tok-k">from</span> imgprep <span class="tok-k">import</span> preprocess, crop_margins</span>
+<span class="ln"><span class="ln-i">49</span></span>
+<span class="ln"><span class="ln-i">50</span>    img = np.<span class="tok-fn">frombuffer</span>(pixmap.samples, dtype=np.uint8).<span class="tok-fn">reshape</span>(pixmap.height, pixmap.width)</span>
+<span class="ln"><span class="ln-i">51</span>    img = <span class="tok-fn">preprocess</span>(img, deskew=True, binarize=True)</span>
+<span class="ln"><span class="ln-i">52</span>    img = <span class="tok-fn">crop_margins</span>(img)</span>
+<span class="ln"><span class="ln-i">53</span>    ok, buf = cv2.<span class="tok-fn">imencode</span>(<span class="tok-str">".png"</span>, img)</span>
+<span class="ln"><span class="ln-i">54</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> ok:</span>
+<span class="ln"><span class="ln-i">55</span>        <span class="tok-k">return</span> <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">56</span>    <span class="tok-k">with</span> tempfile.<span class="tok-fn">NamedTemporaryFile</span>(suffix=<span class="tok-str">".png"</span>, delete=False) <span class="tok-k">as</span> tmp:</span>
+<span class="ln"><span class="ln-i">57</span>        tmp.<span class="tok-fn">write</span>(buf.<span class="tok-fn">tobytes</span>())</span>
+<span class="ln"><span class="ln-i">58</span>        path = tmp.name</span>
+<span class="ln"><span class="ln-i">59</span>    <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">60</span>        <span class="tok-cmt"># --psm 0: определить ориентацию страницы, прежде чем её распознавать</span></span>
+<span class="ln"><span class="ln-i">61</span>        osd = subprocess.<span class="tok-fn">run</span>([<span class="tok-str">"tesseract"</span>, path, <span class="tok-str">"stdout"</span>, <span class="tok-str">"--psm"</span>, <span class="tok-str">"0"</span>],</span>
+<span class="ln"><span class="ln-i">62</span>                             capture_output=True, text=True, timeout=<span class="tok-n">30</span>).stdout</span>
+<span class="ln"><span class="ln-i">63</span>        <span class="tok-k">if</span> <span class="tok-str">"Rotate"</span> <span class="tok-k">in</span> osd:</span>
+<span class="ln"><span class="ln-i">64</span>            img = cv2.<span class="tok-fn">rotate</span>(img, cv2.ROTATE_90_CLOCKWISE)</span>
+<span class="ln"><span class="ln-i">65</span>            ok, buf = cv2.<span class="tok-fn">imencode</span>(<span class="tok-str">".png"</span>, img)</span>
+<span class="ln"><span class="ln-i">66</span>            path2 = path + <span class="tok-str">"-r.png"</span></span>
+<span class="ln"><span class="ln-i">67</span>            <span class="tok-fn">Path</span>(path2).<span class="tok-fn">write_bytes</span>(buf.<span class="tok-fn">tobytes</span>())</span>
+<span class="ln"><span class="ln-i">68</span>            path = path2</span>
+<span class="ln"><span class="ln-i">69</span>        out = subprocess.<span class="tok-fn">run</span>([<span class="tok-str">"tesseract"</span>, path, <span class="tok-str">"stdout"</span>, <span class="tok-str">"-l"</span>, lang, <span class="tok-str">"--psm"</span>, <span class="tok-fn">str</span>(psm)],</span>
+<span class="ln"><span class="ln-i">70</span>                             capture_output=True, text=True, timeout=<span class="tok-n">180</span>).stdout</span>
+<span class="ln"><span class="ln-i">71</span>        <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">72</span>    <span class="tok-k">finally</span>:</span>
+<span class="ln"><span class="ln-i">73</span>        <span class="tok-k">for</span> p <span class="tok-k">in</span> <span class="tok-fn">Path</span>(path).parent.<span class="tok-fn">glob</span>(<span class="tok-fn">Path</span>(path).name + <span class="tok-str">"*"</span>):</span>
+<span class="ln"><span class="ln-i">74</span>            p.<span class="tok-fn">unlink</span>(missing_ok=True)</span>
+<span class="ln"><span class="ln-i">75</span></span>
+<span class="ln"><span class="ln-i">76</span></span>
+<span class="ln"><span class="ln-i">77</span><span class="tok-k">def</span> <span class="tok-fn">page_headings</span>(page: <span class="tok-str">"pymupdf.Page"</span>, body_size: float) -&gt; list[tuple[int, str]]:</span>
+<span class="ln"><span class="ln-i">78</span>    <span class="tok-str">"""Заголовки страницы по размеру шрифта: строка крупнее основного текста."""</span></span>
+<span class="ln"><span class="ln-i">79</span>    out = []</span>
+<span class="ln"><span class="ln-i">80</span>    <span class="tok-k">for</span> b <span class="tok-k">in</span> page.<span class="tok-fn">get_text</span>(<span class="tok-str">"dict"</span>)[<span class="tok-str">"blocks"</span>]:</span>
+<span class="ln"><span class="ln-i">81</span>        <span class="tok-k">if</span> b[<span class="tok-str">"type"</span>] != <span class="tok-n">0</span>:</span>
+<span class="ln"><span class="ln-i">82</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">83</span>        <span class="tok-k">for</span> line <span class="tok-k">in</span> b[<span class="tok-str">"lines"</span>]:</span>
+<span class="ln"><span class="ln-i">84</span>            text = <span class="tok-str">""</span>.<span class="tok-fn">join</span>(s[<span class="tok-str">"text"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> line[<span class="tok-str">"spans"</span>]).<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">85</span>            size = <span class="tok-fn">max</span>(s[<span class="tok-str">"size"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> line[<span class="tok-str">"spans"</span>])</span>
+<span class="ln"><span class="ln-i">86</span>            <span class="tok-k">if</span> text <span class="tok-k">and</span> <span class="tok-n">3</span> &lt; <span class="tok-fn">len</span>(text) &lt;= <span class="tok-n">120</span> <span class="tok-k">and</span> <span class="tok-k">not</span> text.<span class="tok-fn">endswith</span>((<span class="tok-str">"."</span>, <span class="tok-str">";"</span>)) <span class="tok-k">and</span> size &gt;= body_size + <span class="tok-n">1.5</span>:</span>
+<span class="ln"><span class="ln-i">87</span>                out.<span class="tok-fn">append</span>((line[<span class="tok-str">"bbox"</span>][<span class="tok-n">1</span>], text))</span>
+<span class="ln"><span class="ln-i">88</span>    <span class="tok-k">return</span> <span class="tok-fn">sorted</span>(out)</span>
+<span class="ln"><span class="ln-i">89</span></span>
+<span class="ln"><span class="ln-i">90</span></span>
+<span class="ln"><span class="ln-i">91</span><span class="tok-k">def</span> <span class="tok-fn">document_body_size</span>(doc: <span class="tok-str">"pymupdf.Document"</span>) -&gt; float:</span>
+<span class="ln"><span class="ln-i">92</span>    <span class="tok-str">"""Кегль основного текста по всему документу: самый частый, а не минимальный."""</span></span>
+<span class="ln"><span class="ln-i">93</span>    counts: dict[int, int] = {}</span>
+<span class="ln"><span class="ln-i">94</span>    <span class="tok-k">for</span> page <span class="tok-k">in</span> doc:</span>
+<span class="ln"><span class="ln-i">95</span>        <span class="tok-k">for</span> b <span class="tok-k">in</span> page.<span class="tok-fn">get_text</span>(<span class="tok-str">"dict"</span>)[<span class="tok-str">"blocks"</span>]:</span>
+<span class="ln"><span class="ln-i">96</span>            <span class="tok-k">if</span> b[<span class="tok-str">"type"</span>] != <span class="tok-n">0</span>:</span>
+<span class="ln"><span class="ln-i">97</span>                <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">98</span>            <span class="tok-k">for</span> line <span class="tok-k">in</span> b[<span class="tok-str">"lines"</span>]:</span>
+<span class="ln"><span class="ln-i">99</span>                text = <span class="tok-str">""</span>.<span class="tok-fn">join</span>(s[<span class="tok-str">"text"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> line[<span class="tok-str">"spans"</span>]).<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">100</span>                <span class="tok-k">if</span> <span class="tok-fn">len</span>(text) &lt; <span class="tok-n">30</span>:</span>
+<span class="ln"><span class="ln-i">101</span>                    <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">102</span>                k = <span class="tok-fn">int</span>(<span class="tok-fn">round</span>(<span class="tok-fn">max</span>(s[<span class="tok-str">"size"</span>] <span class="tok-k">for</span> s <span class="tok-k">in</span> line[<span class="tok-str">"spans"</span>])))</span>
+<span class="ln"><span class="ln-i">103</span>                counts[k] = counts.<span class="tok-fn">get</span>(k, <span class="tok-n">0</span>) + <span class="tok-fn">len</span>(text)</span>
+<span class="ln"><span class="ln-i">104</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(<span class="tok-fn">max</span>(counts, key=<span class="tok-k">lambda</span> k: counts[k])) <span class="tok-k">if</span> counts <span class="tok-k">else</span> <span class="tok-n">10.0</span></span>
+<span class="ln"><span class="ln-i">105</span></span>
+<span class="ln"><span class="ln-i">106</span></span>
+<span class="ln"><span class="ln-i">107</span><span class="tok-k">def</span> <span class="tok-fn">extract_pdf</span>(path: Path, ocr_mode: str, lang: str) -&gt; tuple[list[dict], dict]:</span>
+<span class="ln"><span class="ln-i">108</span>    doc = pymupdf.<span class="tok-fn">open</span>(path)</span>
+<span class="ln"><span class="ln-i">109</span>    stats = {<span class="tok-str">"n_pages"</span>: <span class="tok-fn">len</span>(doc), <span class="tok-str">"n_text_pages"</span>: <span class="tok-n">0</span>, <span class="tok-str">"n_ocr_pages"</span>: <span class="tok-n">0</span>, <span class="tok-str">"n_tables"</span>: <span class="tok-n">0</span>}</span>
+<span class="ln"><span class="ln-i">110</span>    body = <span class="tok-fn">document_body_size</span>(doc)</span>
+<span class="ln"><span class="ln-i">111</span>    title = (doc.metadata <span class="tok-k">or</span> {}).<span class="tok-fn">get</span>(<span class="tok-str">"title"</span>) <span class="tok-k">or</span> <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">112</span>    toc = doc.<span class="tok-fn">get_toc</span>(simple=True)                      <span class="tok-cmt"># закладки: самые надёжные заголовки</span></span>
+<span class="ln"><span class="ln-i">113</span>    sections: list[dict] = []</span>
+<span class="ln"><span class="ln-i">114</span>    current = {<span class="tok-str">"title"</span>: title <span class="tok-k">or</span> path.stem, <span class="tok-str">"level"</span>: <span class="tok-n">1</span>, <span class="tok-str">"parts"</span>: [], <span class="tok-str">"pages"</span>: []}</span>
+<span class="ln"><span class="ln-i">115</span></span>
+<span class="ln"><span class="ln-i">116</span>    <span class="tok-k">for</span> page <span class="tok-k">in</span> doc:</span>
+<span class="ln"><span class="ln-i">117</span>        text, coverage = <span class="tok-fn">page_text_layer</span>(page)</span>
+<span class="ln"><span class="ln-i">118</span>        used_ocr = False</span>
+<span class="ln"><span class="ln-i">119</span>        <span class="tok-k">if</span> ocr_mode == <span class="tok-str">"always"</span> <span class="tok-k">or</span> (ocr_mode == <span class="tok-str">"auto"</span> <span class="tok-k">and</span> <span class="tok-fn">len</span>(text.<span class="tok-fn">strip</span>()) &lt; <span class="tok-n">80</span>):</span>
+<span class="ln"><span class="ln-i">120</span>            <span class="tok-cmt"># мало текста при большой площади = перед нами скан или картинка</span></span>
+<span class="ln"><span class="ln-i">121</span>            <span class="tok-k">if</span> coverage &lt; <span class="tok-n">0.05</span> <span class="tok-k">or</span> ocr_mode == <span class="tok-str">"always"</span>:</span>
+<span class="ln"><span class="ln-i">122</span>                pixmap = page.<span class="tok-fn">get_pixmap</span>(dpi=<span class="tok-n">300</span>, colorspace=pymupdf.csGRAY)</span>
+<span class="ln"><span class="ln-i">123</span>                text = <span class="tok-fn">ocr_page</span>(pixmap, lang=lang)</span>
+<span class="ln"><span class="ln-i">124</span>                used_ocr = True</span>
+<span class="ln"><span class="ln-i">125</span>                stats[<span class="tok-str">"n_ocr_pages"</span>] += <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">126</span>        stats[<span class="tok-str">"n_text_pages"</span>] += <span class="tok-n">0</span> <span class="tok-k">if</span> used_ocr <span class="tok-k">else</span> <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">127</span>        stats[<span class="tok-str">"n_tables"</span>] += <span class="tok-fn">len</span>(page.<span class="tok-fn">find_tables</span>().tables) <span class="tok-k">if</span> <span class="tok-fn">hasattr</span>(page, <span class="tok-str">"find_tables"</span>) <span class="tok-k">else</span> <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">128</span></span>
+<span class="ln"><span class="ln-i">129</span>        clean = <span class="tok-fn">strip_boilerplate</span>(text)</span>
+<span class="ln"><span class="ln-i">130</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> clean:</span>
+<span class="ln"><span class="ln-i">131</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">132</span></span>
+<span class="ln"><span class="ln-i">133</span>        <span class="tok-k">for</span> _, head <span class="tok-k">in</span> <span class="tok-fn">page_headings</span>(page, body):</span>
+<span class="ln"><span class="ln-i">134</span>            <span class="tok-k">if</span> current[<span class="tok-str">"parts"</span>]:</span>
+<span class="ln"><span class="ln-i">135</span>                sections.<span class="tok-fn">append</span>(current)</span>
+<span class="ln"><span class="ln-i">136</span>            current = {<span class="tok-str">"title"</span>: head, <span class="tok-str">"level"</span>: <span class="tok-n">1</span>, <span class="tok-str">"parts"</span>: [], <span class="tok-str">"pages"</span>: [page.number + <span class="tok-n">1</span>]}</span>
+<span class="ln"><span class="ln-i">137</span>        current[<span class="tok-str">"parts"</span>].<span class="tok-fn">append</span>(clean)</span>
+<span class="ln"><span class="ln-i">138</span>        current[<span class="tok-str">"pages"</span>].<span class="tok-fn">append</span>(page.number + <span class="tok-n">1</span>)</span>
+<span class="ln"><span class="ln-i">139</span></span>
+<span class="ln"><span class="ln-i">140</span>    <span class="tok-k">if</span> current[<span class="tok-str">"parts"</span>]:</span>
+<span class="ln"><span class="ln-i">141</span>        sections.<span class="tok-fn">append</span>(current)</span>
+<span class="ln"><span class="ln-i">142</span>    <span class="tok-k">for</span> sec <span class="tok-k">in</span> sections:</span>
+<span class="ln"><span class="ln-i">143</span>        sec[<span class="tok-str">"text"</span>] = <span class="tok-str">"\n\n"</span>.<span class="tok-fn">join</span>(sec.<span class="tok-fn">pop</span>(<span class="tok-str">"parts"</span>))</span>
+<span class="ln"><span class="ln-i">144</span>        sec[<span class="tok-str">"page_start"</span>] = <span class="tok-fn">min</span>(sec[<span class="tok-str">"pages"</span>])</span>
+<span class="ln"><span class="ln-i">145</span>        sec[<span class="tok-str">"page_end"</span>] = <span class="tok-fn">max</span>(sec[<span class="tok-str">"pages"</span>])</span>
+<span class="ln"><span class="ln-i">146</span>        sec[<span class="tok-str">"page"</span>] = sec[<span class="tok-str">"page_start"</span>]</span>
+<span class="ln"><span class="ln-i">147</span>    <span class="tok-k">return</span> sections, stats</span>
+<span class="ln"><span class="ln-i">148</span></span>
+<span class="ln"><span class="ln-i">149</span></span>
+<span class="ln"><span class="ln-i">150</span><span class="tok-k">def</span> <span class="tok-fn">split_long</span>(text: str, max_chars: int = MAX_CHUNK_CHARS) -&gt; list[str]:</span>
+<span class="ln"><span class="ln-i">151</span>    <span class="tok-str">"""Аварийный разрез слишком большого раздела: по абзацам, с одним абзацем переноса."""</span></span>
+<span class="ln"><span class="ln-i">152</span>    parts, cur, tail = [], [], <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">153</span>    <span class="tok-k">for</span> para <span class="tok-k">in</span> text.<span class="tok-fn">split</span>(<span class="tok-str">"\n\n"</span>):</span>
+<span class="ln"><span class="ln-i">154</span>        cur.<span class="tok-fn">append</span>(para)</span>
+<span class="ln"><span class="ln-i">155</span>        <span class="tok-k">if</span> <span class="tok-fn">len</span>(<span class="tok-str">"\n\n"</span>.<span class="tok-fn">join</span>(cur)) &gt;= max_chars:</span>
+<span class="ln"><span class="ln-i">156</span>            parts.<span class="tok-fn">append</span>(<span class="tok-str">"\n\n"</span>.<span class="tok-fn">join</span>(cur))</span>
+<span class="ln"><span class="ln-i">157</span>            tail = cur[-<span class="tok-n">1</span>][:<span class="tok-n">400</span>]</span>
+<span class="ln"><span class="ln-i">158</span>            cur = [tail] <span class="tok-k">if</span> tail <span class="tok-k">else</span> []</span>
+<span class="ln"><span class="ln-i">159</span>    <span class="tok-k">if</span> cur:</span>
+<span class="ln"><span class="ln-i">160</span>        parts.<span class="tok-fn">append</span>(<span class="tok-str">"\n\n"</span>.<span class="tok-fn">join</span>(cur))</span>
+<span class="ln"><span class="ln-i">161</span>    <span class="tok-k">return</span> [p <span class="tok-k">for</span> p <span class="tok-k">in</span> parts <span class="tok-k">if</span> <span class="tok-fn">len</span>(p.<span class="tok-fn">strip</span>()) &gt;= MIN_CHUNK_CHARS]</span>
+<span class="ln"><span class="ln-i">162</span></span>
+<span class="ln"><span class="ln-i">163</span></span>
+<span class="ln"><span class="ln-i">164</span><span class="tok-k">def</span> <span class="tok-fn">ingest_file</span>(path: Path, src_root: Path, ocr_mode: str, lang: str) -&gt; tuple[list[dict], dict]:</span>
+<span class="ln"><span class="ln-i">165</span>    sections, stats = <span class="tok-fn">extract_pdf</span>(path, ocr_mode, lang)</span>
+<span class="ln"><span class="ln-i">166</span>    file_hash = <span class="tok-fn">sha256_file</span>(path)</span>
+<span class="ln"><span class="ln-i">167</span>    doc_id = <span class="tok-fn">str</span>(path.<span class="tok-fn">relative_to</span>(src_root)).<span class="tok-fn">replace</span>(<span class="tok-str">"\\"</span>, <span class="tok-str">"/"</span>)</span>
+<span class="ln"><span class="ln-i">168</span>    props = pymupdf.<span class="tok-fn">open</span>(path).metadata <span class="tok-k">or</span> {}</span>
+<span class="ln"><span class="ln-i">169</span>    doc_title = (props.<span class="tok-fn">get</span>(<span class="tok-str">"title"</span>) <span class="tok-k">or</span> <span class="tok-str">""</span>).<span class="tok-fn">strip</span>() <span class="tok-k">or</span> path.stem</span>
+<span class="ln"><span class="ln-i">170</span>    meta_base = {</span>
+<span class="ln"><span class="ln-i">171</span>        <span class="tok-str">"doc_id"</span>: doc_id,</span>
+<span class="ln"><span class="ln-i">172</span>        <span class="tok-str">"source_path"</span>: <span class="tok-fn">str</span>(path),</span>
+<span class="ln"><span class="ln-i">173</span>        <span class="tok-str">"content_sha256"</span>: file_hash,</span>
+<span class="ln"><span class="ln-i">174</span>        <span class="tok-str">"pipeline_version"</span>: PIPELINE_VERSION,</span>
+<span class="ln"><span class="ln-i">175</span>        <span class="tok-str">"title"</span>: doc_title,</span>
+<span class="ln"><span class="ln-i">176</span>        <span class="tok-str">"doc_date"</span>: (props.<span class="tok-fn">get</span>(<span class="tok-str">"creationDate"</span>) <span class="tok-k">or</span> <span class="tok-str">""</span>)[:<span class="tok-n">8</span>] <span class="tok-k">or</span> None,</span>
+<span class="ln"><span class="ln-i">177</span>        <span class="tok-str">"author"</span>: props.<span class="tok-fn">get</span>(<span class="tok-str">"author"</span>) <span class="tok-k">or</span> None,</span>
+<span class="ln"><span class="ln-i">178</span>    }</span>
+<span class="ln"><span class="ln-i">179</span>    out, n = [], <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">180</span>    <span class="tok-k">for</span> sec <span class="tok-k">in</span> sections:</span>
+<span class="ln"><span class="ln-i">181</span>        <span class="tok-k">for</span> piece <span class="tok-k">in</span> <span class="tok-fn">split_long</span>(sec[<span class="tok-str">"text"</span>]):</span>
+<span class="ln"><span class="ln-i">182</span>            <span class="tok-k">if</span> <span class="tok-fn">len</span>(piece.<span class="tok-fn">strip</span>()) &lt; MIN_CHUNK_CHARS:</span>
+<span class="ln"><span class="ln-i">183</span>                <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">184</span>            n += <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">185</span>            out.<span class="tok-fn">append</span>({</span>
+<span class="ln"><span class="ln-i">186</span>                <span class="tok-str">"chunk_id"</span>: f<span class="tok-str">"{doc_id}::p{sec['page']:03d}::{n:04d}"</span>,</span>
+<span class="ln"><span class="ln-i">187</span>                <span class="tok-str">"doc_id"</span>: doc_id,</span>
+<span class="ln"><span class="ln-i">188</span>                <span class="tok-str">"text"</span>: piece,</span>
+<span class="ln"><span class="ln-i">189</span>                <span class="tok-str">"metadata"</span>: {**meta_base,</span>
+<span class="ln"><span class="ln-i">190</span>                             <span class="tok-str">"section"</span>: sec[<span class="tok-str">"title"</span>],</span>
+<span class="ln"><span class="ln-i">191</span>                             <span class="tok-str">"page"</span>: sec[<span class="tok-str">"page"</span>],</span>
+<span class="ln"><span class="ln-i">192</span>                             <span class="tok-str">"page_end"</span>: sec[<span class="tok-str">"page_end"</span>],</span>
+<span class="ln"><span class="ln-i">193</span>                             <span class="tok-str">"anchor"</span>: f<span class="tok-str">"{path.name}#page={sec['page']}"</span>,</span>
+<span class="ln"><span class="ln-i">194</span>                             <span class="tok-str">"n_chars"</span>: <span class="tok-fn">len</span>(piece)},</span>
+<span class="ln"><span class="ln-i">195</span>            })</span>
+<span class="ln"><span class="ln-i">196</span>    <span class="tok-k">return</span> out, stats</span>
+<span class="ln"><span class="ln-i">197</span></span>
+<span class="ln"><span class="ln-i">198</span></span>
+<span class="ln"><span class="ln-i">199</span><span class="tok-k">def</span> <span class="tok-fn">main</span>() -&gt; int:</span>
+<span class="ln"><span class="ln-i">200</span>    ap = argparse.<span class="tok-fn">ArgumentParser</span>()</span>
+<span class="ln"><span class="ln-i">201</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--src"</span>, required=True)</span>
+<span class="ln"><span class="ln-i">202</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--out"</span>, required=True)</span>
+<span class="ln"><span class="ln-i">203</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--ocr"</span>, choices=[<span class="tok-str">"auto"</span>, <span class="tok-str">"always"</span>, <span class="tok-str">"never"</span>], default=<span class="tok-str">"auto"</span>)</span>
+<span class="ln"><span class="ln-i">204</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--lang"</span>, default=<span class="tok-str">"rus+eng"</span>)</span>
+<span class="ln"><span class="ln-i">205</span>    args = ap.<span class="tok-fn">parse_args</span>()</span>
+<span class="ln"><span class="ln-i">206</span></span>
+<span class="ln"><span class="ln-i">207</span>    src, out_path = <span class="tok-fn">Path</span>(args.src), <span class="tok-fn">Path</span>(args.out)</span>
+<span class="ln"><span class="ln-i">208</span>    stats_rows, total, skipped = [], <span class="tok-n">0</span>, <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">209</span>    out_path.parent.<span class="tok-fn">mkdir</span>(parents=True, exist_ok=True)</span>
+<span class="ln"><span class="ln-i">210</span>    <span class="tok-k">with</span> out_path.<span class="tok-fn">open</span>(<span class="tok-str">"w"</span>, encoding=<span class="tok-str">"utf-8"</span>) <span class="tok-k">as</span> fh:</span>
+<span class="ln"><span class="ln-i">211</span>        <span class="tok-k">for</span> pdf <span class="tok-k">in</span> <span class="tok-fn">sorted</span>(src.<span class="tok-fn">rglob</span>(<span class="tok-str">"*.pdf"</span>)):</span>
+<span class="ln"><span class="ln-i">212</span>            <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">213</span>                chunks, stats = <span class="tok-fn">ingest_file</span>(pdf, src, args.ocr, args.lang)</span>
+<span class="ln"><span class="ln-i">214</span>            <span class="tok-k">except</span> Exception <span class="tok-k">as</span> exc:                      <span class="tok-cmt"># один битый файл не роняет прогон</span></span>
+<span class="ln"><span class="ln-i">215</span>                skipped += <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">216</span>                stats_rows.<span class="tok-fn">append</span>({<span class="tok-str">"doc_id"</span>: pdf.name, <span class="tok-str">"n_pages"</span>: <span class="tok-n">0</span>, <span class="tok-str">"n_text_pages"</span>: <span class="tok-n">0</span>,</span>
+<span class="ln"><span class="ln-i">217</span>                                   <span class="tok-str">"n_ocr_pages"</span>: <span class="tok-n">0</span>, <span class="tok-str">"n_tables"</span>: <span class="tok-n">0</span>, <span class="tok-str">"n_chunks"</span>: <span class="tok-n">0</span>,</span>
+<span class="ln"><span class="ln-i">218</span>                                   <span class="tok-str">"n_empty_chunks"</span>: <span class="tok-n">0</span>, <span class="tok-str">"chunk_tokens"</span>: [], <span class="tok-str">"error"</span>: <span class="tok-fn">str</span>(exc)[:<span class="tok-n">200</span>]})</span>
+<span class="ln"><span class="ln-i">219</span>                <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">220</span>            <span class="tok-k">for</span> c <span class="tok-k">in</span> chunks:</span>
+<span class="ln"><span class="ln-i">221</span>                fh.<span class="tok-fn">write</span>(json.<span class="tok-fn">dumps</span>(c, ensure_ascii=False) + <span class="tok-str">"\n"</span>)</span>
+<span class="ln"><span class="ln-i">222</span>            total += <span class="tok-fn">len</span>(chunks)</span>
+<span class="ln"><span class="ln-i">223</span>            skipped += <span class="tok-n">1</span> <span class="tok-k">if</span> <span class="tok-k">not</span> chunks <span class="tok-k">else</span> <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">224</span>            stats_rows.<span class="tok-fn">append</span>({**stats, <span class="tok-str">"doc_id"</span>: pdf.name, <span class="tok-str">"n_chunks"</span>: <span class="tok-fn">len</span>(chunks),</span>
+<span class="ln"><span class="ln-i">225</span>                               <span class="tok-str">"n_empty_chunks"</span>: <span class="tok-fn">sum</span>(<span class="tok-n">1</span> <span class="tok-k">for</span> c <span class="tok-k">in</span> chunks</span>
+<span class="ln"><span class="ln-i">226</span>                                                     <span class="tok-k">if</span> c[<span class="tok-str">"metadata"</span>][<span class="tok-str">"n_chars"</span>] &lt; MIN_CHUNK_CHARS),</span>
+<span class="ln"><span class="ln-i">227</span>                               <span class="tok-str">"chunk_tokens"</span>: [c[<span class="tok-str">"metadata"</span>][<span class="tok-str">"n_chars"</span>] // <span class="tok-n">2</span> <span class="tok-k">for</span> c <span class="tok-k">in</span> chunks]})</span>
+<span class="ln"><span class="ln-i">228</span></span>
+<span class="ln"><span class="ln-i">229</span>    report = <span class="tok-fn">ingest_report</span>(stats_rows)</span>
+<span class="ln"><span class="ln-i">230</span>    report[<span class="tok-str">"alerts"</span>] = <span class="tok-fn">check_alerts</span>(report)</span>
+<span class="ln"><span class="ln-i">231</span>    report[<span class="tok-str">"files_skipped"</span>] = skipped</span>
+<span class="ln"><span class="ln-i">232</span>    <span class="tok-fn">print</span>(json.<span class="tok-fn">dumps</span>(report, ensure_ascii=False, indent=<span class="tok-n">2</span>))</span>
+<span class="ln"><span class="ln-i">233</span>    <span class="tok-k">return</span> <span class="tok-n">1</span> <span class="tok-k">if</span> report[<span class="tok-str">"alerts"</span>] <span class="tok-k">else</span> <span class="tok-n">0</span>          <span class="tok-cmt"># cron увидит ненулевой код и пришлёт алерт</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Запуск и использование результата</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">cd</span> /opt/rag-pipeline</span>
+<span class="ln"><span class="ln-i">3</span>pip install pymupdf numpy opencv-python-headless pillow datasketch</span>
+<span class="ln"><span class="ln-i">4</span>python3 ingest.py --src /data/docs --out /var/lib/rag/chunks.jsonl --ocr auto</span>
+<span class="ln"><span class="ln-i">5</span>wc -l /var/lib/rag/chunks.jsonl</span>
+<span class="ln"><span class="ln-i">6</span>head -<span class="tok-n">1</span> /var/lib/rag/chunks.jsonl | python3 -m json.tool</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># Дальше по конвейеру из лекции о RAG-пайплайне:</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt">#   chunks.jsonl -&gt; chunk_document() -&gt; эмбеддинги -&gt; Qdrant -&gt; поиск с top-k и rerank</span></span>
+</code></pre></div>
+<p>Метаданные <code>page</code>, <code>section</code>, <code>anchor</code> в каждом чанке — это ровно то, что потом использует <code>render_chunk_for_prompt</code> из <a href="../../lectures/mlops/06-rag-pipeline.html">лекции о RAG-пайплайне</a>: заголовок инжектится в текст перед эмбеддингом и перед генерацией, а номер страницы попадает в цитату.</p>
+<h2 id="sravnenie-podhodov-k-izvlecheniyu">Сравнение подходов к извлечению</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Подход</th>
+<th style="text-align:center">Скорость</th>
+<th style="text-align:center">Качество на чистом PDF</th>
+<th style="text-align:center">Качество на скане</th>
+<th style="text-align:center">Денежная стоимость</th>
+<th style="text-align:center">Сложность</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>pdftotext -layout</code></td>
+<td style="text-align:center">секунды на файл</td>
+<td style="text-align:center">среднее: порядок сохранён, иерархии нет</td>
+<td style="text-align:center"><strong>нулевое</strong></td>
+<td style="text-align:center">бесплатно</td>
+<td style="text-align:center">минимальная</td>
+</tr>
+<tr>
+<td style="text-align:left">PyMuPDF (блоки, шрифты, <code>find_tables</code>)</td>
+<td style="text-align:center">секунды на файл</td>
+<td style="text-align:center"><strong>высокое</strong>: заголовки, координаты, таблицы</td>
+<td style="text-align:center">нулевое</td>
+<td style="text-align:center">бесплатно</td>
+<td style="text-align:center">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Tesseract + предобработка</td>
+<td style="text-align:center">1–5 с на страницу</td>
+<td style="text-align:center">среднее (ломает хороший текст)</td>
+<td style="text-align:center">высокое на хороших сканах</td>
+<td style="text-align:center">бесплатно, только CPU</td>
+<td style="text-align:center">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">PyMuPDF + Tesseract по страницам без слоя</td>
+<td style="text-align:center">смешанная</td>
+<td style="text-align:center"><strong>высокое</strong></td>
+<td style="text-align:center">высокое</td>
+<td style="text-align:center">бесплатно</td>
+<td style="text-align:center">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Облачный OCR с разбором раскладки</td>
+<td style="text-align:center">0,5–3 с на страницу</td>
+<td style="text-align:center">среднее</td>
+<td style="text-align:center">высокое на сложных раскладках</td>
+<td style="text-align:center">от долей цента до единиц центов за страницу</td>
+<td style="text-align:center">низкая в коде, высокая в деньгах</td>
+</tr>
+<tr>
+<td style="text-align:left">Мультимодальная модель</td>
+<td style="text-align:center">5–30 с на страницу</td>
+<td style="text-align:center">среднее</td>
+<td style="text-align:center">лучшее на схемах, чертежах, формах</td>
+<td style="text-align:center">заметная сумма на корпусе</td>
+<td style="text-align:center">низкая в коде</td>
+</tr>
+</tbody></table></div>
+<p>Когда платить нейросетевым OCR — честный ответ:</p>
+<ul><li><strong>не платить</strong>, если у скана ровный текст 300 dpi, и движок даёт уверенность выше 90 %: качество уже достаточное, а деньги потрачены зря;</li><li><strong>платить за 5–15 % страниц</strong>, если это формы, многострочные таблицы, бланки с рамками и схемы — там классический движок ломается системно, и предобработка не помогает;</li><li><strong>платить за 100 % корпуса</strong> только при потоке, который не окупает отдельный пайплайн: разовые загрузки на несколько тысяч страниц, где настройка своего конвейера дороже облака.</li></ul>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Стоимость облачного распознавания считается не по страницам, а по страницам × страницам в месяц. Корпус в 20 000 страниц, обрабатываемый при каждом полном пересборе раз в месяц, — это честные 20 000 страниц; тот же корпус при ежедневной переиндексации из-за развёрнутой инкрементальности — это уже 600 000 страниц в месяц. Прежде чем выбирать дорогой распознаватель, посчитай, сколько раз в месяц ты будешь прогонять корпус заново.</p></div></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ol><li><strong>Прогнали PDF с текстовым слоем через OCR.</strong> Качество упало гарантированно: ошибки распознавания, разорванные слова, потерянная нумерация. Проверяй <code>pages_text_ratio</code> — если сканы вдруг стали 80 % корпуса, скорее всего, кто-то поменял режим.</li><li><strong>Таблицы отданы плоским текстом.</strong> Числа без шапки — источник выдуманных значений в ответе. Таблица должна уходить в контекст markdown-таблицей целиком.</li><li><strong>Колонтитулы не вырезаны.</strong> Чанки соседних страниц становятся почти одинаковыми, поиск выдаёт пять страниц одного документа. Симптом: в выдаче много «страница N».</li><li><strong>Бинаризация перед выравниванием.</strong> Движок выравнивает страницу по подчёркиванию таблицы и получает 7° наклона. Порядок: выравнивание → обрезка → бинаризация.</li><li><strong>Документ удалили из папки, а чанки остались в векторной базе.</strong> Индекс продолжает отвечать по отозванным или устаревшим данным. Разбор — <a href="../../lectures/ru/02-personalnye-dannye-152fz.html">лекция о персональных данных</a>, механика — манифест выше.</li><li><strong>Почти-дубли удаляются автоматически по порогу сходства.</strong> Одно отличие в договоре не делает документы одинаковыми. Точный дубль — автоматом, похожий — человеку.</li><li><strong>Нет метаданных страницы и раздела.</strong> Цитата превращается в «источник: документ», пользователь не может ни проверить ответ, ни удалить данные по запросу.</li><li><strong>Метрики пайплайна не выведены.</strong> Загрузка не падает — она тихо деградирует, и узнаёшь об этом от пользователей через месяц. Минимум: <code>pages_text_ratio</code>, <code>index_docs_gauge</code>, <code>ocr_pages_ratio</code>.</li><li><strong>Один файл с ошибкой роняет весь прогон.</strong> 1 200 документов, один битый PDF — и индекс не обновился ни для одного. Исключения ловятся, файл пишется в отчёт пропущенных.</li><li><strong>Презентация засунута целиком.</strong> Сорок слайдов одним чанком: в эмбеддинге усредняются десять тем, и ни один вопрос не находит нужный слайд. Слайд — это юнит, у него есть заголовок, и это идеальный чанк.</li></ol>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я различаю документы с текстовым слоем, сканы и смешанные страницы и знаю, что через OCR текстовый слой не гоняют</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею объяснить, почему «каша» из <code>pdftotext</code> ломает RAG на четырёх уровнях: чанки, таблицы, колонтитулы, цитаты</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие предобработки дают больший выигрыш, чем смена движка OCR, и в каком порядке их выполнять</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею извлекать заголовки по размеру шрифта и по закладкам PDF и понимаю, почему структура поднимает качество сильнее, чем «просто текст»</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я отдаю таблицу в контекст структурой, а не плоскими строками, и понимаю, к чему приводит разбор таблицы на строки</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я перечисляю обязательные метаданные и объясняю, без какого из них невозможны цитата, фильтр по дате и удаление данных по отзыву согласия</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я отличаю точный дубль от почти-дубля и знаю, почему второй нельзя удалять автоматически</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею по манифесту вычислить список документов на удаление и понимаю, почему без этого чанки живут в векторной базе вечно</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие метрики качества извлечения нужно вывести и по каким порогам на них строить алерт</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Возьми папку из 20 реальных PDF компании, раздели их на три группы по наличию текстового слоя, прогони извлечение, собери JSONL чанков с метаданными и ссылками на страницы, посчитай метрики качества извлечения, найди и удали дубли и почини утечку чанков при удалении документа из источника.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=rag"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «RAG · PG» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/23-dokumenty-i-ocr">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/22-prompt-engineering.html"><span>← Предыдущая</span><b>Промпт-инжиниринг как инженерная дисциплина</b></a>
+        <a class="nav-next" href="../../lectures/mlops/24-kogda-dooobuchat.html"><span>Следующая →</span><b>Когда нужно дообучение, а когда нет</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/23-dokumenty-i-ocr";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

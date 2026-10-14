@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Инциденты, разборы и runbooks — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">G. Зрелость эксплуатации</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Инциденты, разборы и runbooks</h1>
+        <p class="lead">Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз</p>
+        <div class="meta"><span class="badge">75 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">инциденты</span><span class="tag">post-mortem</span><span class="tag">runbook</span><span class="tag">дежурство</span><span class="tag">коммуникация</span><span class="tag">SRE</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#chto-schitat-incidentom-a-chto-net">Что считать инцидентом, а что — нет</a></li><li class="toc-l2"><a href="#severity-pochemu-u-kazhdogo-urovnya-svoy-kanal-i-svoya-skorost">Severity: почему у каждого уровня свой канал и своя скорость</a></li><li class="toc-l2"><a href="#dezhurstvo-kak-eto-ustroit-v-malenkoy-komande">Дежурство: как это устроить в маленькой команде</a></li><li class="toc-l2"><a href="#kommunikaciya-my-znaem-o-probleme-i-rabotaem-nad-ney">Коммуникация: «мы знаем о проблеме и работаем над ней»</a></li><li class="toc-l2"><a href="#razbor-incidenta-struktura-i-pravila">Разбор инцидента: структура и правила</a></li><li class="toc-l3"><a href="#pochemu-chelovek-oshibsya-plohoy-vyvod">Почему «человек ошибся» — плохой вывод</a></li><li class="toc-l3"><a href="#shablon-razbora">Шаблон разбора</a></li><li class="toc-l3"><a href="#gde-hranit-i-kak-shablonizirovat">Где хранить и как шаблонизировать</a></li><li class="toc-l3"><a href="#post-incident-review-i-postmortem-kogda-i-kto">Post-incident review и postmortem: когда и кто</a></li><li class="toc-l2"><a href="#kultura-strah-nakazyvat-ubivaet-soobscheniya-ob-incidentah">Культура: страх наказывать убивает сообщения об инцидентах</a></li><li class="toc-l2"><a href="#runbooks">Runbooks</a></li><li class="toc-l3"><a href="#chto-eto-i-zachem">Что это и зачем</a></li><li class="toc-l3"><a href="#gde-hranit-i-kak-podderzhivat-aktualnym">Где хранить и как поддерживать актуальным</a></li><li class="toc-l3"><a href="#primer-razbor-posle-obnovleniya-proxmox-otvalilas-replikaciya-ad">Пример: разбор «после обновления Proxmox отвалилась репликация AD»</a></li><li class="toc-l2"><a href="#svyaz-s-nablyudaemostyu-bez-metrik-razbor-eto-gadanie">Связь с наблюдаемостью: без метрик разбор — это гадание</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Это лекция для тебя как для руководителя, а не только как для инженера. Всё, что было до сих пор, про то, как построить систему. Эта — про то, что случается, когда система всё-таки ломается, и про то, что делает с отделом каждая авария. Есть две правды, которые надо услышать в начале. Первая: <strong>инцидент — это не авария, это нормальная фаза эксплуатации зрелой системы</strong>, и отношение к нему определяет, вырастет ли отдел. Вторая: <strong>цель разбора — не найти виноватого, а изменить систему так, чтобы это не повторилось</strong>. Ниже — как это выглядит на практике, от классификации до шаблона документа.</p>
+<h2 id="chto-schitat-incidentom-a-chto-net">Что считать инцидентом, а что — нет</h2>
+<p>Половина организаций теряет часы на разборы того, что разбирать не нужно. Ключ — <strong>заранее зафиксированная классификация</strong>. Если её нет, каждый случай трактуется как важный, и через полгода разборы становятся ритуалом, который никто не читает.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Категория</th>
+<th style="text-align:left">Определение</th>
+<th style="text-align:center">Требует разбора?</th>
+<th style="text-align:left">Кто классифицирует</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Инцидент</strong></td>
+<td style="text-align:left">сервис недоступен или работает с деградацией, которую замечают пользователи</td>
+<td style="text-align:center">Да, полный</td>
+<td style="text-align:left">дежурный — сразу, в момент обнаружения</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Дефект</strong></td>
+<td style="text-align:left">функция работает неправильно, но сервис доступен (неверный расчёт, кривой экспорт)</td>
+<td style="text-align:center">Да, сокращённый</td>
+<td style="text-align:left">владелец сервиса в течение дня</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Плановые работы</strong></td>
+<td style="text-align:left">обслуживание в окне, о котором сообщили заранее</td>
+<td style="text-align:center">Нет, если прошло по плану</td>
+<td style="text-align:left">инициатор работ</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Плановые работы, которые пошли не по плану</strong></td>
+<td style="text-align:left">окно вышло, пользователи заметили</td>
+<td style="text-align:center">Да, обязательно</td>
+<td style="text-align:left">инициатор работ</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Ошибочное срабатывание</strong></td>
+<td style="text-align:left">мониторинг поднял алерт, ничего не сломано</td>
+<td style="text-align:center">Да, если регулярно</td>
+<td style="text-align:left">дежурный</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Запрос на изменение</strong></td>
+<td style="text-align:left">«хочу, чтобы работало иначе»</td>
+<td style="text-align:center">Нет — это работа, а не инцидент</td>
+<td style="text-align:left">—</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Граница между инцидентом и дефектом определяется <strong>одним вопросом: заметил ли это пользователь без нашей подсказки</strong>. Если бухгалтерия сама позвонила — инцидент. Если мы сами заметили в логах, что экспорт отдаёт битые данные, и никто не жаловался, — дефект. Обе категории разбираются, но по-разному: инцидент требует communications-отчёта и usually внешнего таймлайна, дефект — короткой записи и теста, который предотвратит повтор.</p></div></div>
+<p>Важная часть классификации — <strong>фиксация момента обнаружения отдельно от момента возникновения</strong>. Между ними окно, и его длина — самый показательный метрикой зрелости процессов. Если пользователи жалуются раньше, чем мониторинг, значит, наблюдаемость <a href="../../lectures/devops/15-monitoring-concepts.html">не настроена</a>, и следующий разбор будет об одном и том же.</p>
+<h2 id="severity-pochemu-u-kazhdogo-urovnya-svoy-kanal-i-svoya-skorost">Severity: почему у каждого уровня свой канал и своя скорость</h2>
+<p>Классификация S1–S4 нужна не для бюрократии, а чтобы в три часа ночи человек принимал решения по процедуре, а не по адреналину. Каждому уровню соответствует свой темп, свой канал и свой круг людей, которых нужно оповестить.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Severity</th>
+<th style="text-align:left">Критерий</th>
+<th style="text-align:left">Влияние</th>
+<th style="text-align:left">Реакция</th>
+<th style="text-align:left">Канал</th>
+<th style="text-align:center">Кого поднимаем</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>S1</strong></td>
+<td style="text-align:left">сервис полностью недоступен или данные под угрозой</td>
+<td style="text-align:left">бизнес остановился</td>
+<td style="text-align:left">немедленно, все работают</td>
+<td style="text-align:left">звонок дежурному + отдельный канал</td>
+<td style="text-align:center">дежурный → руководитель IT → владелец бизнес-процесса</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>S2</strong></td>
+<td style="text-align:left">ключевая функция недоступна части пользователей, есть обходной путь</td>
+<td style="text-align:left">часть работы встала</td>
+<td style="text-align:left">в течение 30 минут</td>
+<td style="text-align:left">звонок дежурному</td>
+<td style="text-align:center">дежурный → руководитель IT</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>S3</strong></td>
+<td style="text-align:left">локальная деградация, есть обходной путь, заметил сам</td>
+<td style="text-align:left">неудобство</td>
+<td style="text-align:left">в рабочее время, в тот же день</td>
+<td style="text-align:left">чат</td>
+<td style="text-align:center">владелец сервиса</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>S4</strong></td>
+<td style="text-align:left">косметика, мелочь без влияния на работу</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">в бэклог</td>
+<td style="text-align:left">тикет</td>
+<td style="text-align:center">владелец сервиса</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><strong>Не повышай severity задним числом.</strong> После инцидента всегда хочется сказать «это был S2, а не S3» — потому что S3 не вызывает звонка руководителю в полночь. Число становится выше, когда приходит учёт: сколько минут, сколько людей пострадало, сколько денег. Не раньше. Иначе severity перестаёт быть инструментом и становится аргументом в споре.</p></div></div>
+<h2 id="dezhurstvo-kak-eto-ustroit-v-malenkoy-komande">Дежурство: как это устроить в маленькой команде</h2>
+<p>Один инженер в IT-отделе в 3 часа ночи — это не дежурство, это русская рулетка. Чтобы система не сломалась ночью от недосыпа, нужно разделить три роли, даже если человек во всех трёх один.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Роль</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Кто в команде из 1–3 человек</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Дежурный (первый отклик)</strong></td>
+<td style="text-align:left">подтверждает инцидент, делает первые действия по runbook, заводит таймлайн</td>
+<td style="text-align:left">по расписанию, с реальными передачами смены</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Эскалация (второй отклик)</strong></td>
+<td style="text-align:left">принимает решение, которое дежурный не может принять в одиночку: откат, переключение, остановка работ</td>
+<td style="text-align:left">второй по списку, всегда другой человек</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Решающий (командный лид)</strong></td>
+<td style="text-align:left">объявляет S1/S2 внешне, согласует с бизнесом окна и компенсации, снимает дежурство</td>
+<td style="text-align:left">руководитель IT</td>
+</tr>
+</tbody></table></div>
+<p>Ключевые договорённости, без которых круглосуточность не работает:</p>
+<ol><li><strong>Один канал на инцидент.</strong> Не «чат дежурных», не «обсуждение в личке», не «напишите в тикет». Один тред, который создаётся в момент классификации и живёт до закрытия. Всё остальное — артефакты. Канал с историей — это половина разбора.</li><li><strong>Статусная страница или статусная запись.</strong> Когда идёт S1/S2, руководитель должен иметь ссылку, которую можно показать клиенту или генеральному, не объясняя. Это не про красиво — это про то, чтобы не отвечать на вопросы в мессенджере.</li><li><strong>Передача смены.</strong> Устно или письменно: что чинили, что не доделали, на что смотрят. Если в команде один человек — смена это он сам себе, но зафиксируй это письменно.</li><li><strong>Право «разбудить».</strong> Дежурный имеет право позвонить в любое время. Это право надо объявить явно, иначе оно не используется — никто не хочет быть тем, кто разбудил.</li><li><strong>Ротация по числу, а не по должности.</strong> Если дежурит всегда главный инженер — система хрупкая: его отпуск или больничный = остановка.</li></ol>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># Дежурство: неделя 12</span>
+<span class="ln"><span class="ln-i">2</span>Mon 07.12  Петров    первый отклик   08:00–20:00, дежурный: +7-900-...</span>
+<span class="ln"><span class="ln-i">3</span>Tue 08.12  Сидоров   первый отклик   08:00–20:00, дежурный: +7-901-...</span>
+<span class="ln"><span class="ln-i">4</span>Wed 09.12  Петров    первый отклик</span>
+<span class="ln"><span class="ln-i">5</span>Thu 10.12  Сидоров   первый отклик</span>
+<span class="ln"><span class="ln-i">6</span>Fri 11.12  Обе — неделя; эскалация: руководитель IT</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>Правило: эскалация через 30 минут, если нет ответа.</span>
+<span class="ln"><span class="ln-i">9</span>        Не отвечаешь дежурному — выходи на руководителя, не жди.</span>
+</code></pre></div>
+<h2 id="kommunikaciya-my-znaem-o-probleme-i-rabotaem-nad-ney">Коммуникация: «мы знаем о проблеме и работаем над ней»</h2>
+<p>Самая частая ошибка — молчание. Не потому что это невежливо, а потому что <strong>отсутствие информации читается как отсутствие контроля</strong>: пользователь, у которого не работает, делает два вывода, и оба хуже правды — «у них всё упало» или «никто не знает, что происходит, и мне придётся чинить самому».</p>
+<p><strong>Правило, которое стоит принять как закон: сообщай рано, даже без причины.</strong> Не «когда выясним причину», а «как только обнаружили». Сообщение «Мы видим сбой входа в систему, работаем над этим, следующее обновление через 30 минут» снимает большую часть негатива, даже если причина неизвестна.</p>
+<p>Что обязательно в первом сообщении:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что указать</th>
+<th style="text-align:left">Почему</th>
+<th style="text-align:left">Пример плохо / хорошо</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Что наблюдаем</td>
+<td style="text-align:left">конкретно, не «что-то не работает»</td>
+<td style="text-align:left">Плохо: «сервисы работают нестабильно». Хорошо: «пользователи не могут войти в систему»</td>
+</tr>
+<tr>
+<td style="text-align:left">Когда началось</td>
+<td style="text-align:left">с точностью до минуты, если знаешь</td>
+<td style="text-align:left">«с 14:32» лучше, чем «недавно»</td>
+</tr>
+<tr>
+<td style="text-align:left">Масштаб</td>
+<td style="text-align:left">кто затронут</td>
+<td style="text-align:left">«часть пользователей» / «все пользователи» / «4 отдела»</td>
+</tr>
+<tr>
+<td style="text-align:left">Что делаем</td>
+<td style="text-align:left">даже если это «ищем причину»</td>
+<td style="text-align:left">«ищем причину, следующая информация через 30 минут»</td>
+</tr>
+<tr>
+<td style="text-align:left">Когда следующее обновление</td>
+<td style="text-align:left"><strong>конкретное время</strong></td>
+<td style="text-align:left">Плохо: «скоро сообщим». Хорошо: «в 15:10»</td>
+</tr>
+</tbody></table></div>
+<p>Шаблон первого сообщения:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>[Инцидент S2, начало 14:32]</span>
+<span class="ln"><span class="ln-i">2</span>Сбой: пользователи не могут войти в систему (ошибка на странице входа).</span>
+<span class="ln"><span class="ln-i">3</span>Затронуто: все пользователи, кроме тех, кто уже вошёл.</span>
+<span class="ln"><span class="ln-i">4</span>Причина: выясняется. Первое подозрение — репликация AD после плановых работ.</span>
+<span class="ln"><span class="ln-i">5</span>Что делаем: проверяем контроллеры, откатываем последнее изменение, если подтвердится.</span>
+<span class="ln"><span class="ln-i">6</span>Следующее обновление: до 15:10, даже если новостей не будет.</span>
+</code></pre></div>
+<p>Обновления, даже если ничего не изменилось, — обязательны. Молчание дольше, чем интервал, который ты сам назвал, читается как потеря контроля сильнее, чем отсутствие новостей.</p>
+<p>Кому говорить:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Аудитория</th>
+<th style="text-align:left">Что говорим</th>
+<th style="text-align:left">Ритм</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Внутренний канал</td>
+<td style="text-align:left">всё, включая гипотезы и тупики</td>
+<td style="text-align:left">по мере появления</td>
+</tr>
+<tr>
+<td style="text-align:left">Руководство</td>
+<td style="text-align:left">влияние, что делаем, когда ожидаем починить</td>
+<td style="text-align:left">раз в 30–60 мин + немедленно при эскалации</td>
+</tr>
+<tr>
+<td style="text-align:left">Пользователи</td>
+<td style="text-align:left">симптом и сроки, без технических деталей</td>
+<td style="text-align:left">раз в 30–60 мин</td>
+</tr>
+<tr>
+<td style="text-align:left">Клиенты (если SaaS)</td>
+<td style="text-align:left">то же, что пользователям, через статусную страницу</td>
+<td style="text-align:left">по регламенту S1/S2</td>
+</tr>
+</tbody></table></div>
+<h2 id="razbor-incidenta-struktura-i-pravila">Разбор инцидента: структура и правила</h2>
+<h3 id="pochemu-chelovek-oshibsya-plohoy-vyvod">Почему «человек ошибся» — плохой вывод</h3>
+<p>Это центральная мысль всей лекции, и она противоречит интуиции.</p>
+<p>«Человек ошибся» — это не корневая причина. Это описание того, что произошло в последний момент цепочки. За ним всегда стоит система, которая <strong>позволила</strong> этому человеку дойти до ошибки и <strong>не поймала</strong> её. Если человек нажал не ту кнопку в проде — значит, кнопка была доступна, интерфейс не различал опасное и безопасное, а проверки не было. Вывод «оператор ошибся» ничего не меняет в системе, а значит, не приводит ни к каким изменениям. Через полгода это повторится — с другим человеком, который прочитает тот же postmortem и решит, что теперь он осторожнее.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><strong>Хороший вывод звучит: «система позволила оператору сделать это, и ничто не помешало».</strong> Плохой — «оператор был невнимателен». Первый приводит к изменению процесса, второй — к выговору, который не меняет ничего, кроме отношений в отделе.</p></div></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Плохой action item</th>
+<th style="text-align:left">Почему он бесполезен</th>
+<th style="text-align:left">Хорошая замена</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">«Провести инструктаж сотруднику»</td>
+<td style="text-align:left">меняет знание одного человека, система та же</td>
+<td style="text-align:left">«Убрать кнопку удаления ВМ из панели на рабочем месте второго администратора; оставить в панели только у владельца инфраструктуры»</td>
+</tr>
+<tr>
+<td style="text-align:left">«Осторожнее с деструктивными командами»</td>
+<td style="text-align:left">не измеримо, не проверяемо, не выполнимо</td>
+<td style="text-align:left">«Добавить <code>--confirm</code> к удалению тома; без флага команда завершается кодом 2 и ничего не удаляет»</td>
+</tr>
+<tr>
+<td style="text-align:left">«Усилить контроль за доступом»</td>
+<td style="text-align:left">абстракция, через полгода не вспомнят</td>
+<td style="text-align:left">«Выдать дежурному sudo только на <code>systemctl restart nginx</code>, убрать <code>NOPASSWD: ALL</code>; проверить через `sudo -l -U deploy»»</td>
+</tr>
+<tr>
+<td style="text-align:left">«Не использовать Terraform так»</td>
+<td style="text-align:left">винит инструмент и человека, а не конфигурацию</td>
+<td style="text-align:left">«Добавить в CI проверку: план, содержащий удаление ресурса с тегом <code>data=true</code>, проваливает джоб»</td>
+</tr>
+<tr>
+<td style="text-align:left">«Проверить бэкап»</td>
+<td style="text-align:left">не результат, а действие без критерия</td>
+<td style="text-align:left">«Восстановить ВМ из бэкапа в отдельную среду, замерить время: цель RTO 30 минут. Отчёт в тикет IRB-201»</td>
+</tr>
+</tbody></table></div>
+<p>Разница между колонками — не стилистическая. Правая колонка содержит: конкретное изменение, способ проверить, что оно сделано, и критерий успеха. Левая — только пожелание.</p>
+<h3 id="shablon-razbora">Шаблон разбора</h3>
+<div class="codeblock" data-lang="markdown"><div class="codehead"><span class="code-lang">markdown</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># IR-2026-014 — Недоступность входа в систему после обновления Proxmox</span></span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span>| Поле | Значение |</span>
+<span class="ln"><span class="ln-i">4</span>|---|---|</span>
+<span class="ln"><span class="ln-i">5</span>| ID | IR-<span class="tok-n">2026</span>-<span class="tok-n">014</span> |</span>
+<span class="ln"><span class="ln-i">6</span>| Дата инцидента | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">14</span> |</span>
+<span class="ln"><span class="ln-i">7</span>| Обнаружен | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">14</span> <span class="tok-n">09</span>:<span class="tok-n">14</span>, автоматически (алерт на 5xx auth-proxy) |</span>
+<span class="ln"><span class="ln-i">8</span>| Длительность | <span class="tok-n">47</span> минут (<span class="tok-n">09</span>:<span class="tok-n">14</span>–<span class="tok-n">10</span>:<span class="tok-n">01</span>) |</span>
+<span class="ln"><span class="ln-i">9</span>| Severity | S2 |</span>
+<span class="ln"><span class="ln-i">10</span>| Статус | закрыт, разбор проведён <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">16</span> |</span>
+<span class="ln"><span class="ln-i">11</span>| Участники разбора | Петров (дежурный), Сидоров (эскалация), руководитель IT |</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt">## Что случилось</span></span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>Кратко, <span class="tok-n">2</span>–<span class="tok-n">3</span> предложения. Без причин и без технических подробностей.</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-cmt">## Влияние</span></span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span>- Кто затронут: все сотрудники филиала (около <span class="tok-n">180</span> человек), вход в почту и в 1С</span>
+<span class="ln"><span class="ln-i">20</span>- Что было недоступно: аутентификация через auth-<span class="tok-fn">proxy</span> (портал входа)</span>
+<span class="ln"><span class="ln-i">21</span>- Что продолжало работать: уже открытые сессии, VPN, файловый сервер</span>
+<span class="ln"><span class="ln-i">22</span>- Финансовый эффект: ~<span class="tok-n">1</span> час простоя отдела, оценка <span class="tok-n">34</span> <span class="tok-n">000</span> ₽ (отдел бухгалтерии)</span>
+<span class="ln"><span class="ln-i">23</span>- SLO: впервые за квартал не выполнен целевой уровень доступности</span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span><span class="tok-cmt">## Таймлайн (время местное)</span></span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>| Время | Событие | Кто |</span>
+<span class="ln"><span class="ln-i">28</span>|---|---|---|</span>
+<span class="ln"><span class="ln-i">29</span>| <span class="tok-n">08</span>:<span class="tok-n">00</span> | Плановые работы: обновление Proxmox до <span class="tok-n">8.2</span> на всех нодах | дежурный |</span>
+<span class="ln"><span class="ln-i">30</span>| <span class="tok-n">08</span>:<span class="tok-n">41</span> | Работы завершены, ноды перезагружены | дежурный |</span>
+<span class="ln"><span class="ln-i">31</span>| <span class="tok-n">08</span>:<span class="tok-n">44</span>–<span class="tok-n">09</span>:<span class="tok-n">14</span> | Репликация AD не синхронизируется, ошибки накапливаются. Алерта нет: метрика репликации не настроена | — |</span>
+<span class="ln"><span class="ln-i">32</span>| <span class="tok-n">09</span>:<span class="tok-n">14</span> | Алерт на 5xx auth-proxy, Telegram-канал <span class="tok-cmt">#incident-2026-014 | Prometheus |</span></span>
+<span class="ln"><span class="ln-i">33</span>| <span class="tok-n">09</span>:<span class="tok-n">18</span> | Дежурный подтвердил инцидент, создал тред, severity S2 | Петров |</span>
+<span class="ln"><span class="ln-i">34</span>| <span class="tok-n">09</span>:<span class="tok-n">25</span> | Первая гипотеза: сертификат на proxy истёк. Проверено — нет | Петров |</span>
+<span class="ln"><span class="ln-i">35</span>| <span class="tok-n">09</span>:<span class="tok-n">31</span> | Эскалация: дежурный не смог диагностировать за <span class="tok-n">10</span> минут | Петров → Сидоров |</span>
+<span class="ln"><span class="ln-i">36</span>| <span class="tok-n">09</span>:<span class="tok-n">38</span> | Сидоров: проверка DNS, сертификатов, диска — ничего | Сидоров |</span>
+<span class="ln"><span class="ln-i">37</span>| <span class="tok-n">09</span>:<span class="tok-n">41</span> | Ключевая гипотеза: репликация AD. repadmin /showrepl — очередь из <span class="tok-n">3400</span> объектов, ошибки <span class="tok-n">860</span> | Сидоров |</span>
+<span class="ln"><span class="ln-i">38</span>| <span class="tok-n">09</span>:<span class="tok-n">52</span> | Обнаружена связь: после перезагрузки ноды AD запустился раньше, чем нода Proxmox с хранилищем | Сидоров |</span>
+<span class="ln"><span class="ln-i">39</span>| <span class="tok-n">09</span>:<span class="tok-n">58</span> | Принято решение: ремонтировать один контроллер через ntdsutil IFM + перезапуск служб каталога | Сидоров, согласовано с руководителем |</span>
+<span class="ln"><span class="ln-i">40</span>| <span class="tok-n">10</span>:<span class="tok-n">01</span> | Аутентификация восстановлена. Алерты в норме | — |</span>
+<span class="ln"><span class="ln-i">41</span></span>
+<span class="ln"><span class="ln-i">42</span><span class="tok-cmt">## Корневые причины</span></span>
+<span class="ln"><span class="ln-i">43</span></span>
+<span class="ln"><span class="ln-i">44</span><span class="tok-n">1</span>. Обновление ноды Proxmox с хостами AD выполнено без проверки состояния репликации</span>
+<span class="ln"><span class="ln-i">45</span>   после перезагрузки. Механизма, который бы это проверил, в контуре нет.</span>
+<span class="ln"><span class="ln-i">46</span><span class="tok-n">2</span>. Не настроен алерт на состояние репликации AD, поэтому о проблеме узнали</span>
+<span class="ln"><span class="ln-i">47</span>   не через мониторинг, а через рост 5xx у пользователей.</span>
+<span class="ln"><span class="ln-i">48</span><span class="tok-n">3</span>. Обновление ноды с AD-хостами не было в плане работ: остановка сервисов каталога</span>
+<span class="ln"><span class="ln-i">49</span>   на время перезагрузки не была согласована как отдельный пункт.</span>
+<span class="ln"><span class="ln-i">50</span></span>
+<span class="ln"><span class="ln-i">51</span><span class="tok-cmt">## Что сработало</span></span>
+<span class="ln"><span class="ln-i">52</span></span>
+<span class="ln"><span class="ln-i">53</span>- Мониторинг auth-proxy заметил проблему за <span class="tok-n">0</span> минут после первого отказа пользователей</span>
+<span class="ln"><span class="ln-i">54</span>- Создание треда инцидента в первые <span class="tok-n">4</span> минуты удержало всю переписку в одном месте</span>
+<span class="ln"><span class="ln-i">55</span>- Команда дежурного была на связи: эскалация сработала за <span class="tok-n">13</span> минут</span>
+<span class="ln"><span class="ln-i">56</span>- Руководитель был доступен и принял решение о ремонте в рабочем режиме</span>
+<span class="ln"><span class="ln-i">57</span></span>
+<span class="ln"><span class="ln-i">58</span><span class="tok-cmt">## Что не сработало</span></span>
+<span class="ln"><span class="ln-i">59</span></span>
+<span class="ln"><span class="ln-i">60</span>- Диагностика «от симптома к причине» заняла <span class="tok-n">27</span> минут вместо целевых <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">61</span>- Нет runbook для «после обновления ноды Proxmox»</span>
+<span class="ln"><span class="ln-i">62</span>- Нет метрики очереди репликации в Grafana — пришлось заходить на хост и запускать</span>
+<span class="ln"><span class="ln-i">63</span>  repadmin вручную</span>
+<span class="ln"><span class="ln-i">64</span>- Алерты AD не интегрированы в систему мониторинга (Syslog → Loki не настроен)</span>
+<span class="ln"><span class="ln-i">65</span></span>
+<span class="ln"><span class="ln-i">66</span><span class="tok-cmt">## Что делаем</span></span>
+<span class="ln"><span class="ln-i">67</span></span>
+<span class="ln"><span class="ln-i">68</span>| <span class="tok-cmt"># | Действие | Владелец | Срок | Статус |</span></span>
+<span class="ln"><span class="ln-i">69</span>|---|---|---|---|---|</span>
+<span class="ln"><span class="ln-i">70</span>| <span class="tok-n">1</span> | Добавить в Grafana панель очереди репликации <span class="tok-fn">AD</span> (`repadmin /showrepl * /csv` в экспортёре) и алерт при очереди &gt; <span class="tok-n">1000</span> | Петров | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">20</span> | выполнено |</span>
+<span class="ln"><span class="ln-i">71</span>| <span class="tok-n">2</span> | Написать runbook «Обновление ноды Proxmox с контроллерами AD» с чек-листом и командой проверки | Сидоров | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">18</span> | выполнено |</span>
+<span class="ln"><span class="ln-i">72</span>| <span class="tok-n">3</span> | Обновления нод с хостами AD вынести в отдельную процедуру с окном работ и обязательной проверкой после | Руководитель IT | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">25</span> | в работе |</span>
+<span class="ln"><span class="ln-i">73</span>| <span class="tok-n">4</span> | Настроить сбор Syslog с контроллеров в Loki | Петров | <span class="tok-n">2026</span>-<span class="tok-n">04</span>-<span class="tok-n">10</span> | в работе |</span>
+<span class="ln"><span class="ln-i">74</span>| <span class="tok-n">5</span> | Ввести обязательный шаг «проверка post-condition» в шаблон плана работ для всех окон обслуживания | Руководитель IT | <span class="tok-n">2026</span>-<span class="tok-n">03</span>-<span class="tok-n">30</span> | выполнено |</span>
+<span class="ln"><span class="ln-i">75</span></span>
+<span class="ln"><span class="ln-i">76</span><span class="tok-cmt">## Что обсуждали</span></span>
+<span class="ln"><span class="ln-i">77</span></span>
+<span class="ln"><span class="ln-i">78</span>Разбирали без поиска виноватых. Отдельно обсудили, почему накануне работы не была</span>
+<span class="ln"><span class="ln-i">79</span>сделана проверка: в чек-листе работ такой проверки не было, а незнакомый с AD</span>
+<span class="ln"><span class="ln-i">80</span>инженер не мог догадаться, что она нужна. Это системный пробел, а не чья-то</span>
+<span class="ln"><span class="ln-i">81</span>небрежность.</span>
+</code></pre></div>
+<p>Обрати внимание на два места. Первое — <strong>момент обнаружения 09:14 и момент начала проблемы около 08:44</strong>: 30 минут разницы, и она вся ушла в никуда, потому что не было метрики репликации. Это и есть главный вывод разбора. Второе — <strong>таблица action item со владельцем и сроком</strong>. Разбор без владельца и срока — это запись в архиве.</p>
+<h3 id="gde-hranit-i-kak-shablonizirovat">Где хранить и как шаблонизировать</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ</th>
+<th style="text-align:left">Плюсы</th>
+<th style="text-align:left">Минусы</th>
+<th style="text-align:left">Когда брать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Отдельный git-репозиторий <code>incident-reports</code></td>
+<td style="text-align:left">поиск по <code>git log</code>, доступ через PR, история</td>
+<td style="text-align:left">ещё один репозиторий</td>
+<td style="text-align:left"><strong>по умолчанию</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Confluence / wiki</td>
+<td style="text-align:left">читают те, кто не открывает Git</td>
+<td style="text-align:left">нет версий, поиск хуже</td>
+<td style="text-align:left">когда аудитория шире инженеров</td>
+</tr>
+<tr>
+<td style="text-align:left">Оба: git как источник правды, вики-страница как указатель</td>
+<td style="text-align:left">дёшево</td>
+<td style="text-align:left">дублирование в двух местах</td>
+<td style="text-align:left">при большом числе разборов</td>
+</tr>
+</tbody></table></div>
+<p>Шаблон кладёшь в репозиторий как <code>docs/templates/incident-report.md</code>. Каждый разбор начинается копированием шаблона и заменой переменных — не «с нуля», потому что с нуля пишутся три абзаца вместо полного документа.</p>
+<p>Репозиторий разборов — это ещё и источник данных. Через год можно посчитать: сколько инцидентов вызвано изменениями конфигурации, сколько — отказами железа, сколько времени суммарно занимает восстановление, какие из пяти пунктов выполняются, а какие три месяца висят. Это уже <strong>метрика зрелости процесса</strong>, и она намного полезнее, чем ощущение «у нас было всего два инцидента за квартал».</p>
+<h3 id="post-incident-review-i-postmortem-kogda-i-kto">Post-incident review и postmortem: когда и кто</h3>
+<p>Термины используют по-разному, но по смыслу их два, и их не надо смешивать.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Post-incident review (PIR)</th>
+<th style="text-align:left">Postmortem (PM)</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Когда</td>
+<td style="text-align:left">сразу после закрытия инцидента, 1–3 дня</td>
+<td style="text-align:left">через 1–2 недели, когда эмоции остыли</td>
+</tr>
+<tr>
+<td style="text-align:left">Длительность</td>
+<td style="text-align:left">30–60 минут</td>
+<td style="text-align:left">1,5–3 часа</td>
+</tr>
+<tr>
+<td style="text-align:left">Кто присутствует</td>
+<td style="text-align:left">дежурный, эскалация, руководитель</td>
+<td style="text-align:left">те же + владельцы затронутых сервисов, при необходимости подрядчики</td>
+</tr>
+<tr>
+<td style="text-align:left">Про что</td>
+<td style="text-align:left">как мы реагировали: заметили ли вовремя, эскалировали ли, общались ли</td>
+<td style="text-align:left"><strong>почему</strong> произошло и что менять в системе</td>
+</tr>
+<tr>
+<td style="text-align:left">Результат</td>
+<td style="text-align:left">3–5 коротких правок в процессах связи и наблюдаемости</td>
+<td style="text-align:left">документ по шаблону выше с action item</td>
+</tr>
+<tr>
+<td style="text-align:left">Ошибка при слиянии</td>
+<td style="text-align:left">проводить PM через час — решения принимаются на эмоциях, «виноват дежурный»</td>
+<td style="text-align:left">откладывать PM «до следующего квартала» — контекст потерян</td>
+</tr>
+</tbody></table></div>
+<p>Для команды из трёх человек практический режим такой: <strong>PIR делаешь в тот же день, на 30 минут, по трём вопросам</strong> (заметили ли вовремя, что мешало реагировать, что мы скажем пользователям в следующий раз), а <strong>полный postmortem — в течение двух недель</strong>, отдельным документом. PM без PIR бесполезен — он разбирает причину, но никто не замечает, что в следующий раз обнаружат проблему так же поздно.</p>
+<h2 id="kultura-strah-nakazyvat-ubivaet-soobscheniya-ob-incidentah">Культура: страх наказывать убивает сообщения об инцидентах</h2>
+<p>Это надо сказать словами руководителя, потому что это управленческое решение, а не техническое.</p>
+<p>Когда человек боится, что за сообщение об инциденте последует разбор, он не сообщает об инциденте. Он чинит. Молча, ночью, без фиксации времени. И делает это <strong>до того, как проблема дойдёт до пользователей</strong>, — то есть, по добросовестности, работает лучше, чем при формальной эскалации. В этом, кстати, есть и опасность: он лишает команду данных для улучшения процесса, потому что разборов просто не будет. А ещё — проблема выходит за пределы его рабочего дня, он устаёт в три часа ночи, и решает её менее аккуратно, чем решил бы в офисе.</p>
+<p>Механика страха выглядится так: сотрудник знает, что за ошибку будут разбирать персонально → он перестаёт сообщать об инцидентах раньше времени → инцидент обнаруживают пользователи → инцидент становится крупнее → его разбирают жёстче → сотрудник тем более не сообщает. Это замкнутый круг, и выход из него — не «объяснить, что мы не наказываем», а <strong>процедурный</strong>:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Механизм</th>
+<th style="text-align:left">Что делает руководитель</th>
+<th style="text-align:left">Почему работает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Документ «Как мы разбираем инциденты»</td>
+<td style="text-align:left">фиксирует: разбор без поиска виноватых, проводится в команде, доступен всем</td>
+<td style="text-align:left">обещание становится процессом, а не настроением</td>
+</tr>
+<tr>
+<td style="text-align:left">Признание в разборе</td>
+<td style="text-align:left">руководитель первым называет собственную ошибку: «я не предусмотрел проверку в чек-листе»</td>
+<td style="text-align:left">даёт разрешение говорить честно; если руководитель не называет — никто не будет</td>
+</tr>
+<tr>
+<td style="text-align:left">Отчёт о выполненных action item</td>
+<td style="text-align:left">через месяц список «сделано/не сделано» с именами</td>
+<td style="text-align:left">доказывает, что разбор приводит к изменениям, а не к разносам</td>
+</tr>
+<tr>
+<td style="text-align:left">Никаких наказаний за сообщения</td>
+<td style="text-align:left">правило без исключений: сообщил об ошибке — не наказан</td>
+<td style="text-align:left">единственное условие, при котором сообщают</td>
+</tr>
+</tbody></table></div>
+<p>Отдельно — про разбор в команде. Если разбирает только руководитель, он получает версию от того, кто больше всех потерял, и урок из неё не извлекается. <strong>Разбор в комнате, где есть и тот, кто делал, и тот, кто наблюдал, и руководитель</strong>, — единственный формат, в котором рождаются честные причины.</p>
+<h2 id="runbooks">Runbooks</h2>
+<h3 id="chto-eto-i-zachem">Что это и зачем</h3>
+<p>Runbook — это заранее написанная последовательность действий для типовой аварии. Он экономит главный ресурс дежурного ночью — <strong>время на вспоминание</strong>, а оно и есть разница между 15-минутным и 47-минутным восстановлением из реального разбора выше.</p>
+<p>Формат, который работает — <strong>симптом → проверка → команда → ожидаемый результат → если не помогло → эскалация</strong>. Не «процедура по настройке сервиса», а именно «что делать, когда это случилось».</p>
+<div class="codeblock" data-lang="markdown"><div class="codehead"><span class="code-lang">markdown</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># RB-AUTH-01: Пользователи не могут войти в систему</span></span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt">## Симптомы</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>- Страница входа отдаёт <span class="tok-n">500</span> или «Нет связи с сервером»</span>
+<span class="ln"><span class="ln-i">6</span>- <span class="tok-n">401</span>/<span class="tok-n">403</span> в логах auth-proxy</span>
+<span class="ln"><span class="ln-i">7</span>- Часть пользователей не может войти, часть может (сессии живут)</span>
+<span class="ln"><span class="ln-i">8</span>- Алерт: `authproxy_5xx_rate &gt; <span class="tok-n">0.05</span>` в течение <span class="tok-n">5</span> минут</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt">## Уровень</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>S2. Дежурный делает шаги <span class="tok-n">1</span>–<span class="tok-n">3</span>. Если за <span class="tok-n">15</span> минут не восстановлено — эскалация.</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-cmt">## Диагностика</span></span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-cmt">### 1. Жив ли сам auth-proxy</span></span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span>```bash</span>
+<span class="ln"><span class="ln-i">19</span>systemctl is-active nginx</span>
+<span class="ln"><span class="ln-i">20</span>curl -sS -o /dev/null -w <span class="tok-str">'%{http_code}\n'</span> http://<span class="tok-n">127.0</span>.<span class="tok-n">0.1</span>:<span class="tok-n">8080</span>/healthz</span>
+<span class="ln"><span class="ln-i">21</span>```</span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span>Ожидаемый результат: `active`, `<span class="tok-n">200</span>`.</span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span>Если не работает — смотри RB-NGINX-<span class="tok-n">01</span> (перезапуск, свободные сокеты, конфиг).</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span><span class="tok-cmt">### 2. Не истёк ли сертификат</span></span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span>```bash</span>
+<span class="ln"><span class="ln-i">30</span>echo | openssl s_client -connect auth.example.com:<span class="tok-n">443</span> \</span>
+<span class="ln"><span class="ln-i">31</span>  -servername auth.example.com <span class="tok-n">2</span>&gt;/dev/null | openssl x509 -noout -dates</span>
+<span class="ln"><span class="ln-i">32</span>```</span>
+<span class="ln"><span class="ln-i">33</span></span>
+<span class="ln"><span class="ln-i">34</span>Ожидаемый результат: `notAfter=` — дата в будущем, минимум на <span class="tok-n">7</span> дней.</span>
+<span class="ln"><span class="ln-i">35</span></span>
+<span class="ln"><span class="ln-i">36</span><span class="tok-cmt">### 3. Жива ли репликация Active Directory (самая частая причина)</span></span>
+<span class="ln"><span class="ln-i">37</span></span>
+<span class="ln"><span class="ln-i">38</span>```bash</span>
+<span class="ln"><span class="ln-i">39</span>repadmin /replsummary</span>
+<span class="ln"><span class="ln-i">40</span>repadmin /showrepl * /csv | head -<span class="tok-n">40</span></span>
+<span class="ln"><span class="ln-i">41</span>dcdiag /e /c /v /test:dns /test:replications</span>
+<span class="ln"><span class="ln-i">42</span>```</span>
+<span class="ln"><span class="ln-i">43</span></span>
+<span class="ln"><span class="ln-i">44</span>Ожидаемый результат: очередь репликации пуста, ошибок <span class="tok-n">846</span>/<span class="tok-n">860</span> нет,</span>
+<span class="ln"><span class="ln-i">45</span>`Replication has no errors or warnings`.</span>
+<span class="ln"><span class="ln-i">46</span></span>
+<span class="ln"><span class="ln-i">47</span>Если очередь больше <span class="tok-n">1000</span> объектов — переходи к шагу <span class="tok-n">4</span>.</span>
+<span class="ln"><span class="ln-i">48</span></span>
+<span class="ln"><span class="ln-i">49</span><span class="tok-cmt">### 4. Не рассинхронизировался ли AD после работ</span></span>
+<span class="ln"><span class="ln-i">50</span></span>
+<span class="ln"><span class="ln-i">51</span>```bash</span>
+<span class="ln"><span class="ln-i">52</span><span class="tok-cmt"># на ВТОРОМ контроллере: дождаться синхронизации и подтвердить</span></span>
+<span class="ln"><span class="ln-i">53</span>repadmin /syncrep /d /e /P AD-DC-<span class="tok-n">01</span></span>
+<span class="ln"><span class="ln-i">54</span>repadmin /showrepl * /csv | grep -i <span class="tok-str">'error'</span></span>
+<span class="ln"><span class="ln-i">55</span>```</span>
+<span class="ln"><span class="ln-i">56</span></span>
+<span class="ln"><span class="ln-i">57</span>Если ошибки <span class="tok-n">846</span>/<span class="tok-n">860</span> (доступен/не может реплицировать) — проблема в связности</span>
+<span class="ln"><span class="ln-i">58</span>между контроллерами, а не в самом auth-proxy.</span>
+<span class="ln"><span class="ln-i">59</span></span>
+<span class="ln"><span class="ln-i">60</span><span class="tok-cmt">### 5. Проверить DNS и время (две минуты, которые экономят час)</span></span>
+<span class="ln"><span class="ln-i">61</span></span>
+<span class="ln"><span class="ln-i">62</span>```bash</span>
+<span class="ln"><span class="ln-i">63</span>timedatectl status                    <span class="tok-cmt"># NTP синхронизирован: yes</span></span>
+<span class="ln"><span class="ln-i">64</span>dig +short _ldap._tcp.domain.local     <span class="tok-cmt"># SRV-записи обоих контроллеров</span></span>
+<span class="ln"><span class="ln-i">65</span>```</span>
+<span class="ln"><span class="ln-i">66</span></span>
+<span class="ln"><span class="ln-i">67</span>Время на контроллерах разошлось больше чем на <span class="tok-n">5</span> минут — репликация</span>
+<span class="ln"><span class="ln-i">68</span>не запустится, ошибка будет <span class="tok-n">1358</span>/<span class="tok-n">1359</span>.</span>
+<span class="ln"><span class="ln-i">69</span></span>
+<span class="ln"><span class="ln-i">70</span><span class="tok-cmt">## Если не помогло</span></span>
+<span class="ln"><span class="ln-i">71</span></span>
+<span class="ln"><span class="ln-i">72</span><span class="tok-n">1</span>. Откатить последнее изменение конфигурации (проверить `git log` и дату деплоя)</span>
+<span class="ln"><span class="ln-i">73</span><span class="tok-n">2</span>. Переключиться на резервный: остановить auth-proxy, поднять запасной за</span>
+<span class="ln"><span class="ln-i">74</span>   `traefik` на второй ноде, если он есть в инфраструктуре</span>
+<span class="ln"><span class="ln-i">75</span><span class="tok-n">3</span>. **Эскалация к руководителю IT** — если прошло <span class="tok-n">30</span> минут с момента обнаружения</span>
+<span class="ln"><span class="ln-i">76</span></span>
+<span class="ln"><span class="ln-i">77</span><span class="tok-cmt">## Ссылки</span></span>
+<span class="ln"><span class="ln-i">78</span></span>
+<span class="ln"><span class="ln-i">79</span>- RB-NGINX-<span class="tok-n">01</span>: nginx не отвечает</span>
+<span class="ln"><span class="ln-i">80</span>- RB-AD-<span class="tok-n">01</span>: репликация AD остановилась</span>
+<span class="ln"><span class="ln-i">81</span>- Документ: почта AD: syslog в <span class="tok-fn">Loki</span> (в работе)</span>
+</code></pre></div>
+<h3 id="gde-hranit-i-kak-podderzhivat-aktualnym">Где хранить и как поддерживать актуальным</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Вопрос</th>
+<th style="text-align:left">Решение</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Где</td>
+<td style="text-align:left">git-репозиторий, рядом с кодом, к которому относится. Runbook на <code>auth-proxy</code> лежит рядом с его конфигом</td>
+</tr>
+<tr>
+<td style="text-align:left">Как найти</td>
+<td style="text-align:left">README в каждом сервисе со ссылкой на список runbook'ов; плюс индекс</td>
+</tr>
+<tr>
+<td style="text-align:left">Как проверить актуальность</td>
+<td style="text-align:left">инвентаризация: каждая команда в runbook проверяется раз в квартал, на тестовой среде</td>
+</tr>
+<tr>
+<td style="text-align:left">Как помечать</td>
+<td style="text-align:left">в шапке — дата последней проверки и версия сервиса. Runbook старше года без проверки считается подозрительным</td>
+</tr>
+<tr>
+<td style="text-align:left">Кто владелец</td>
+<td style="text-align:left">владелец сервиса, а не дежурный. Runbook — это навсегда, а не на время дежурства</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><strong>Устаревший runbook хуже его отсутствия.</strong> Если шаг устарел, дежурный выполняет его буквально — и получает новую проблему поверх старой, в худший момент, с худшей скоростью. «Инструкция лежит, но в ней написано про старый путь к базе» — это способ потерять час и доверие команды к документации. Поэтому: нет актуального runbook на инцидент — значит, дежурный импровизирует, и это честнее, чем читать устаревшее.</p>
+<p>Простой тест актуальности, который стоит делать раз в квартал на тестовой ВМ: <strong>пробежать runbook буквально, как будто инцидент случился.</strong> Если хоть одна команда не сработала — runbook красный, владелец чинит в течение недели. Это полчаса работы, которые экономят первые полчаса аварии.</p></div></div>
+<h3 id="primer-razbor-posle-obnovleniya-proxmox-otvalilas-replikaciya-ad">Пример: разбор «после обновления Proxmox отвалилась репликация AD»</h3>
+<p>Разберём целиком, потому что это самый частый инцидент у тебя в контуре: обновление гипервизора → перезагрузка нод с контроллерами домена → AD не встаёт → все пользователи вне домена.</p>
+<p><strong>Почему это происходит.</strong> При загрузке ВМ контроллером домена стартует служба каталога. Если в этот момент второй контроллер недоступен (например, его хост ещё перезагружается, или хранилище не смонтировалось), контроллер уходит в состояние «доступен без репликации», а потом в «безопасно для выключения». Первый контроллер, увидев это, начинает считать, что второй ушёл навсегда, и <strong>принимает SCHD_DISABLE — финальную, необратимую роль</strong> в терминах репликации. Домен при этом вроде жив (логин на первом контроллере работает), но второй не реплицируется, и через минуты возникают расхождения.</p>
+<p><strong>Как это выглядит снаружи.</strong> <code>dcdiag</code> показывает ошибки репликации, <code>repadmin /showrepl</code> — тысячи объектов в очереди и коды 860 (доступен, репликация не работает), а в Event Viewer на ВМ, которая «упала», — события 1941/1957: NCЗ не запускается. Всё это наблюдаемо — но <strong>только если кто-то это посмотрит</strong>. Без метрики очереди репликации узнаёшь об этом от пользователей.</p>
+<p><strong>Ключевой вывод разбора, который стоит записать:</strong> проблема не в том, что кто-то обновил Proxmox в нерабочее время. Проблема в том, что <strong>в контуре нет процедуры, которая требует проверять состояние AD после работ с хостами контроллеров</strong>, и нет мониторинга, который поднимает алерт на остановившуюся репликацию. Поэтому «обновление в нерабочее время» — это следствие отсутствия процедуры, а не причина.</p>
+<p>Отдельная мысль, которую стоит вынести в политику резервного копирования: если контроллер домена ушёл в состояние SCHD_DISABLE, восстановление — это уже не «починить», а процедура из <a href="../../lectures/devops/19-backup-i-dr.html">лекции о бэкапах и аварийном восстановлении</a> с заранее известным RTO. Именно поэтому System State Backup с IFM — не «для галочки», а то, что определяет, сколько времени займёт худший сценарий.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Быстрая проверка после любых работ с нодами контроллеров — в runbook, в чек-лист окон</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># и в post-condition шаблон плана работ.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># На КАЖДОМ контроллере:</span></span>
+<span class="ln"><span class="ln-i">4</span>dcdiag /test:dns /e /v | <span class="tok-k">grep</span> -iE <span class="tok-str">'fail|error'</span></span>
+<span class="ln"><span class="ln-i">5</span>repadmin /replsummary</span>
+<span class="ln"><span class="ln-i">6</span>repadmin /showrepl * /csv | <span class="tok-k">grep</span> -ciE <span class="tok-str">'error'</span> ;<span class="tok-cmt"># должно быть 0</span></span>
+<span class="ln"><span class="ln-i">7</span>repadmin /showrepl * /csv | <span class="tok-k">awk</span> -F, <span class="tok-str">'NR&gt;1 {print $4}'</span> | tail -<span class="tok-n">1</span> ;<span class="tok-cmt"># время последнего успешного цикла</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># Должно совпадать с текущим временем с точностью до интервала репликации (обычно 15 минут).</span></span>
+</code></pre></div>
+<h2 id="svyaz-s-nablyudaemostyu-bez-metrik-razbor-eto-gadanie">Связь с наблюдаемостью: без метрик разбор — это гадание</h2>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><strong>Разбор превращается в гадание по логам, если во время инцидента не было метрик.</strong> По дашборду восстанавливается таймлайн: «в 09:14 пошёл 5xx», «в 09:41 очередь репликации выросла до 3400». Без дашборда та же информация добывается предположениями, и разбор занимает не 30 минут, а несколько дней, и его выводы неполны — потому что следы затёрлись. Поэтому добавление метрики в контур — это инвестиция не в «наблюдаемость ради красного дашборда», а в возможность написать разбор.</p></div></div>
+<p>Что должно быть на дашборде до первого инцидента, а не после:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Вопрос, на который нужен ответ</th>
+<th style="text-align:left">Метрика</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Служит ли сервис</td>
+<td style="text-align:left">latency, error rate, saturation</td>
+</tr>
+<tr>
+<td style="text-align:left">Ходит ли трафик</td>
+<td style="text-align:left">requests, connections, bytes</td>
+</tr>
+<tr>
+<td style="text-align:left">Есть ли ресурс</td>
+<td style="text-align:left">CPU, RAM, disk, inodes</td>
+</tr>
+<tr>
+<td style="text-align:left">Жива ли репликация AD</td>
+<td style="text-align:left">очередь репликации, время последнего успешного цикла</td>
+</tr>
+<tr>
+<td style="text-align:left">Актуальны ли сертификаты</td>
+<td style="text-align:left">days until expiry</td>
+</tr>
+<tr>
+<td style="text-align:left">Не забивается ли очередь</td>
+<td style="text-align:left">длина очереди на входе в LLM-инференс</td>
+</tr>
+<tr>
+<td style="text-align:left">Хватает ли бэкапа</td>
+<td style="text-align:left">возраст последнего успешного и последнего проверенного</td>
+</tr>
+</tbody></table></div>
+<p>Часть из этих метрик у тебя уже есть в <a href="../../lectures/devops/15-monitoring-concepts.html">наблюдаемости</a> и в <a href="../../lectures/devops/18-lab-proxmox-monitoring.html">лаборатории</a>. Разборы нужны не затем, чтобы заметить проблему, а чтобы <strong>заметить раньше, чем её заметит пользователь, и превратить «увидели» в «поймали»</strong>.</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ol><li><strong>Разбор с поиском виноватого.</strong> Действие items в стиле «провести инструктаж» не меняют систему. Следующий инцидент повторяется, а доверие команды к процессу разбора падает.</li><li><strong>Культура страха.</strong> Если за сообщение об инциденте было наказание (формальное или неформальное), сообщать перестают. Разборы становятся фикцией: причина «человек ошибся» пишется по инерции, ничего не меняется.</li><li><strong>PM отложен на месяц.</strong> К моменту разбора контекст потерян: дежурный ушёл в отпуск, часть деталей стёрта, все помнят по-разному. Разборы получаются поверхностными.</li><li><strong>PM без PIR.</strong> Если не отрепетировали реакцию (заметили ли вовремя, эскалация, коммуникация), следующий инцидент снова обнаружится пользователями. PIR стоит 30 минут и предотвращает повтор сама по себе.</li><li><strong>Устаревший runbook, который выполняют буквально.</strong> Потеря времени и доверия одновременно. Runbook без даты проверки — подозрительный документ.</li><li><strong>Молчание при незнании.</strong> «Подождём, пока выясним причину» — худшая стратегия. Сообщение «знаем о проблеме, ищем причину, обновление через 30 минут» снимает больше напряжения, чем самый быстрый фикс.</li><li><strong>Severity задним числом.</strong> «Это был не S2, а S3, поэтому не звонил» — самое частое и самое разрушительное. Severity фиксируется при обнаружении, а не по итогам.</li><li><strong>Разбор, где неявно виноват дежурный.</strong> Если дежурный был один и не справился — это не факт для разбора, это следствие того, что у него не было runbook и метрик. Так и пишите.</li><li><strong>Хранить разборы «в почте».</strong> Почта не индексируется, не версионируется и через год не находится по запросу «покажи все инциденты с AD за последний год».</li><li><strong>Действие items без владельца и срока.</strong> Через месяц все пять пунктов «в работе», через три — все забыты. Владелец и дата — обязательные поля, а не опция.</li><li><strong>Нет публичного контакта для аварий.</strong> Когда S1/S2 случается, а дежурного нет в системе мониторинга (уведомления на личную почту, сидят на выключенном телефоне) — инцидент обнаруживают пользователи. Это не «инцидент», это отсутствие системы обнаружения.</li></ol>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я умею классифицировать событие как инцидент, дефект или плановые работы и знаю, кто решает это в момент</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю критерии S1–S4 и могу сказать, почему у каждого уровня свой канал и свой темп</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я организовал дежурство с тремя ролями (дежурный, эскалация, решающий) и с правилом «сообщай рано даже без причины»</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею написать разбор по шаблону: таймлайн, влияние, корневые причины, что сработало и что нет, action item с владельцем и сроком</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я объясняю, почему «человек ошибся» — плохой вывод, и могу переписать плохой action item в хороший</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю разницу между post-incident review и postmortem и когда проводится каждый</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу написать runbook в формате «симптом → проверка → команда → ожидаемый результат → если не помогло» и понимаю, почему устаревший runbook хуже отсутствия</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, что без метрик разбор превращается в гадание, и знаю, какие метрики должны быть на дашборде до первого инцидента</span></label></li></ul>
+<p>Дальше — деньги: <a href="../../lectures/devops/30-finops.html">FinOps: контроль затрат на инфраструктуру</a>.</p></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Опиши разбор реального инцидента по шаблону из лекции: таймлайн, влияние, корневые причины (не «человек ошибся»), что сработало и что нет, три action item с владельцем и датой; затем напиши runbook на симптом «пользователи не могут залогиниться» и проверь его на тестовой ВМ с AD.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=incident"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Инцидент · постмортем» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/29-incidenty-i-postmortem">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/28-testirovanie-infrastruktury.html"><span>← Предыдущая</span><b>Тестирование инфраструктуры</b></a>
+        <a class="nav-next" href="../../lectures/devops/30-finops.html"><span>Следующая →</span><b>FinOps: контроль затрат на инфраструктуру</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/29-incidenty-i-postmortem";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

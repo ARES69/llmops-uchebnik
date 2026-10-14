@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пайплайны LLMOps — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">J. LLMOps в продакшне</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Пайплайны LLMOps</h1>
+        <p class="lead">Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом</p>
+        <div class="meta"><span class="badge">85 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">llmops</span><span class="tag">реестры моделей</span><span class="tag">реестры промптов</span><span class="tag">ci/cd</span><span class="tag">версионирование</span><span class="tag">канареечные релизы</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#pochemu-obychnogo-cicd-nedostatochno">Почему обычного CI/CD недостаточно</a></li><li class="toc-l2"><a href="#chetyre-vida-versioniruemyh-artefaktov">Четыре вида версионируемых артефактов</a></li><li class="toc-l2"><a href="#reestr-modeley">Реестр моделей</a></li><li class="toc-l2"><a href="#reestr-promptov">Реестр промптов</a></li><li class="toc-l2"><a href="#pochemu-prompt-v-peremennoy-okruzheniya-eto-ne-versiya">Почему промпт в переменной окружения — это не версия</a></li><li class="toc-l2"><a href="#princip-vosproizvodimosti-otveta">Принцип воспроизводимости ответа</a></li><li class="toc-l2"><a href="#polnyy-konveyer">Полный конвейер</a></li><li class="toc-l2"><a href="#okruzheniya-razlichie-ne-v-konfiguracii-a-v-dannyh">Окружения: различие не в конфигурации, а в данных</a></li><li class="toc-l2"><a href="#strategii-raskatki-shadow-canary-ab-rolling">Стратегии раскатки: shadow, canary, A/B, rolling</a></li><li class="toc-l2"><a href="#avtomaticheskiy-otkat-po-metrikam-kachestva">Автоматический откат по метрикам качества</a></li><li class="toc-l2"><a href="#procedura-reliza-odnoy-stroki-prompta">Процедура релиза одной строки промпта</a></li><li class="toc-l2"><a href="#versionirovanie-vesov-kogda-nuzhen-svoy-chekpoynt">Версионирование весов: когда нужен свой чекпойнт</a></li><li class="toc-l2"><a href="#audit-i-sroki-hraneniya">Аудит и сроки хранения</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Ты уже умеешь собирать Docker-образ, гонять тесты, катать в Kubernetes и откатывать по health-check'у. Всё это работает для кода, у которого есть единственный артефакт — бинарник, — и для кода, где «правильно» проверяется тестом с эталоном. LLM-система ломает обе опоры одновременно: <strong>артефактов у неё минимум четыре</strong> (промпт, модель, данные/индекс, конфигурация), и <strong>ни один тест с эталоном не говорит, что релиз хорош</strong>.</p>
+<p>Предыдущие две лекции дали измеримость (<a href="../../lectures/mlops/15-ocenka-llm.html">оценка</a>) и видимость (<a href="../../lectures/mlops/16-nablyudaemost-llm.html">наблюдаемость</a>). Эта превращает их в конвейер: изменения в любом артефакте проходят через оценку качества и выкатываются не сразу в прод, а через shadow и canary с автоматическим откатом. Твоя роль здесь — задать процедуру и сделать так, чтобы она исполнялась без твоего участия на каждом шаге.</p>
+<h2 id="pochemu-obychnogo-cicd-nedostatochno">Почему обычного CI/CD недостаточно</h2>
+<p>Классический конвейер умеет проверять одно: «если юнит-тесты зелёные, можно деплоить». Для LLM-системы список вещей, которые ломают качество, шире списка файлов, которые меняет коммит.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Изменение</th>
+<th style="text-align:center">Меняет ли код</th>
+<th style="text-align:center">Ломает ли качество</th>
+<th style="text-align:center">Классический CI это заметит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Текст промпта</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да, регулярно</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Модель или её версия (<code>-2024-07-18</code>)</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>temperature</code>, <code>top_k</code>, <code>top_p</code></td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да, при больших значениях</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Размер и стратегия чанкинга</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да, резко</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Модель эмбеддингов (новая версия)</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да, индекс становится несовместимым</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Reranker или его версия</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Состав базы знаний</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Промпт вендора «уплыл» на стороне API</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:center">да, и без твоего участия</td>
+<td style="text-align:center"><strong>нет</strong></td>
+</tr>
+</tbody></table></div>
+<p>Из восьми строк шесть — то, что обычный пайплайн не видит вообще. Вывод, который надо принять до того, как начнёшь планировать: <strong>триггером релиза в LLM-системе является не коммит кода, а изменение любого версионируемого артефакта</strong>. Все остальные шесть строк обязаны приводить к тем же проверкам, что и изменение промпта. Это и есть содержательное отличие LLMOps от DevOps-конвейера.</p>
+<h2 id="chetyre-vida-versioniruemyh-artefaktov">Четыре вида версионируемых артефактов</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Артефакт</th>
+<th style="text-align:left">Что внутри</th>
+<th style="text-align:left">Где хранится версия</th>
+<th style="text-align:left">Что должно попасть в реестр</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Промпты</strong></td>
+<td style="text-align:left">системный, task-промпт, промпт-судья, промпты агента</td>
+<td style="text-align:left">git-репозиторий, теги</td>
+<td style="text-align:left">текст, хеш, автор, дата, результат оценки</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Модели</strong></td>
+<td style="text-align:left">имя, тег/ревизия, веса, квантизация</td>
+<td style="text-align:left">реестр моделей (свой или MLflow/MLHub)</td>
+<td style="text-align:left">чекпойнт, метрики, требуемая инфраструктура</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Данные и индекс</strong></td>
+<td style="text-align:left">корпус, снапшот эмбеддингов, схема метаданных</td>
+<td style="text-align:left">хранилище снапшотов</td>
+<td style="text-align:left"><code>index_snapshot</code>, <code>embed_model</code>, <code>chunker</code>, размер, хеш</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Конфигурация</strong></td>
+<td style="text-align:left"><code>temperature</code>, <code>top_k</code>, лимиты, таймауты, флаги фич</td>
+<td style="text-align:left">git рядом с промптами</td>
+<td style="text-align:left">полный снимок конфигурации релиза</td>
+</tr>
+</tbody></table></div>
+<p>Связка между ними — не «общая ветка», а <strong>один идентификатор релиза</strong>, который проставляется везде: в тегах git, в имени образа, в лейблах Prometheus, в тегах трасс Langfuse, в шапке отчёта об оценке. Без этого единого идентификатора любой разбор превращается в детективную работу: «а какая версия промпта была в тот вторник?».</p>
+<h2 id="reestr-modeley">Реестр моделей</h2>
+<p>Реестр моделей — это ответ на вопрос «откуда взялась эта модель и что с ней уже было». Минимальный реестр можно вести в YAML рядом с промптами; когда моделей станет больше десятка — переезжай в MLflow (модель-реестр) или в ваш внутренний каталог.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># registry/models.yaml — реестр моделей. Версионируется в git рядом с промптами.</span></span>
+<span class="ln"><span class="ln-i">2</span>schema_version: <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">3</span>models:</span>
+<span class="ln"><span class="ln-i">4</span>  - id: chat-main</span>
+<span class="ln"><span class="ln-i">5</span>    provider: openai</span>
+<span class="ln"><span class="ln-i">6</span>    ref: gpt-4o-mini-<span class="tok-n">2024</span>-<span class="tok-n">07</span>-<span class="tok-n">18</span>        <span class="tok-cmt"># ИМЕННО ревизия, не «gpt-4o-mini»!</span></span>
+<span class="ln"><span class="ln-i">7</span>    kind: hosted</span>
+<span class="ln"><span class="ln-i">8</span>    role: основной генератор ответов</span>
+<span class="ln"><span class="ln-i">9</span>    params:</span>
+<span class="ln"><span class="ln-i">10</span>      temperature: <span class="tok-n">0.1</span></span>
+<span class="ln"><span class="ln-i">11</span>      top_p: <span class="tok-n">1.0</span></span>
+<span class="ln"><span class="ln-i">12</span>      max_tokens: <span class="tok-n">800</span></span>
+<span class="ln"><span class="ln-i">13</span>      timeout_s: <span class="tok-n">30</span></span>
+<span class="ln"><span class="ln-i">14</span>      max_retries: <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">15</span>    cost:                              <span class="tok-cmt"># зафиксировано на момент регистрации</span></span>
+<span class="ln"><span class="ln-i">16</span>      input_per_1m_usd: <span class="tok-n">0.15</span></span>
+<span class="ln"><span class="ln-i">17</span>      output_per_1m_usd: <span class="tok-n">0.60</span></span>
+<span class="ln"><span class="ln-i">18</span>    fallback: chat-fallback</span>
+<span class="ln"><span class="ln-i">19</span>    eval:                              <span class="tok-cmt"># результаты последней оценки — часть реестра</span></span>
+<span class="ln"><span class="ln-i">20</span>      golden_run: <span class="tok-str">"2025-06-11T09:20Z"</span></span>
+<span class="ln"><span class="ln-i">21</span>      groundedness: <span class="tok-n">0.881</span></span>
+<span class="ln"><span class="ln-i">22</span>      citation_valid: <span class="tok-n">0.94</span></span>
+<span class="ln"><span class="ln-i">23</span>      regression_vs_baseline: +<span class="tok-n">0.004</span></span>
+<span class="ln"><span class="ln-i">24</span>      status: approved                  <span class="tok-cmt"># approved | deprecated | blocked</span></span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span>  - id: chat-fallback</span>
+<span class="ln"><span class="ln-i">27</span>    provider: openai</span>
+<span class="ln"><span class="ln-i">28</span>    ref: gpt-4o-mini</span>
+<span class="ln"><span class="ln-i">29</span>    kind: hosted</span>
+<span class="ln"><span class="ln-i">30</span>    role: дешёвый резерв на случай таймаута и 5xx</span>
+<span class="ln"><span class="ln-i">31</span>    params: {temperature: <span class="tok-n">0.2</span>, max_tokens: <span class="tok-n">600</span>}</span>
+<span class="ln"><span class="ln-i">32</span>    cost: {input_per_1m_usd: <span class="tok-n">0.15</span>, output_per_1m_usd: <span class="tok-n">0.60</span>}</span>
+<span class="ln"><span class="ln-i">33</span>    eval: {status: deprecated}         <span class="tok-cmt"># deprecated: не раскатываем, только гасим инциденты</span></span>
+<span class="ln"><span class="ln-i">34</span></span>
+<span class="ln"><span class="ln-i">35</span>  - id: embed-ru-v3</span>
+<span class="ln"><span class="ln-i">36</span>    provider: bge-m3                   <span class="tok-cmt"># своё железо, см. лекцию про масштабирование</span></span>
+<span class="ln"><span class="ln-i">37</span>    ref: bge-m3-fp16-<span class="tok-n">2025</span>-<span class="tok-n">03</span></span>
+<span class="ln"><span class="ln-i">38</span>    kind: self-hosted</span>
+<span class="ln"><span class="ln-i">39</span>    role: эмбеддинги для индекса знаний</span>
+<span class="ln"><span class="ln-i">40</span>    runtime: {vram_gb: <span class="tok-n">24</span>, quant: <span class="tok-str">"fp16"</span>, replicas: <span class="tok-n">2</span>}</span>
+<span class="ln"><span class="ln-i">41</span>    cost: {per_1m_texts_usd: <span class="tok-n">0.0</span>}      <span class="tok-cmt"># свой GPU: считаем в амортизации, не здесь</span></span>
+<span class="ln"><span class="ln-i">42</span>    eval: {status: approved}</span>
+<span class="ln"><span class="ln-i">43</span></span>
+<span class="ln"><span class="ln-i">44</span>  - id: rerank-v2</span>
+<span class="ln"><span class="ln-i">45</span>    provider: bge-reranker-v2-m3</span>
+<span class="ln"><span class="ln-i">46</span>    ref: <span class="tok-n">2025</span>-<span class="tok-n">02</span></span>
+<span class="ln"><span class="ln-i">47</span>    kind: self-hosted</span>
+<span class="ln"><span class="ln-i">48</span>    role: переупорядочивание найденных чанков</span>
+<span class="ln"><span class="ln-i">49</span>    runtime: {vram_gb: <span class="tok-n">8</span>, replicas: <span class="tok-n">1</span>}</span>
+<span class="ln"><span class="ln-i">50</span>    eval: {status: approved}</span>
+</code></pre></div>
+<p>Практические правила реестра:</p>
+<ul><li><strong>только закреплённые ревизии</strong>, никогда «плавающий» алиас: <code>gpt-4o-mini</code> без даты в проде — это не версия, это обещание, которое вендор нарушит без предупреждения;</li><li><strong><code>eval</code> внутри записи модели</strong> — обязателен. Модель без результата оценки не имеет права попасть в прод;</li><li><strong><code>fallback</code> объявляется явно</strong> и сам проходит проверки. Отдельная сущность: дешёвый резерв, который молча ловит 30% трафика во время инцидента, — источник «мы не знали, что качество упало»;</li><li><strong>статусы <code>deprecated</code> и <code>blocked</code></strong> важнее, чем кажется. <code>blocked</code> — после провала оценки качества: модель исключается из ротации автоматически.</li></ul>
+<h2 id="reestr-promptov">Реестр промптов</h2>
+<p>Промпт — это код, который никогда не компилируется, но ломает прод так же, как код. Значит, и относиться к нему надо как к коду. Структура репозитория, которую использует большинство команд:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>prompt-registry/</span>
+<span class="ln"><span class="ln-i">2</span>├── prompts/</span>
+<span class="ln"><span class="ln-i">3</span>│   ├── answer.system.yaml           # системный промпт бота</span>
+<span class="ln"><span class="ln-i">4</span>│   ├── answer.task.yaml             # task-шаблон: {question} {context} {few_shot}</span>
+<span class="ln"><span class="ln-i">5</span>│   ├── rag.rerank_query.yaml        # промпт переформулирования запроса</span>
+<span class="ln"><span class="ln-i">6</span>│   ├── agent.planner.yaml</span>
+<span class="ln"><span class="ln-i">7</span>│   ├── judge.groundedness.yaml      # промпты LLM-судьи — из лекции про оценку</span>
+<span class="ln"><span class="ln-i">8</span>│   └── guards.pii.yaml              # инструкции и запреты для защитного слоя</span>
+<span class="ln"><span class="ln-i">9</span>├── eval/</span>
+<span class="ln"><span class="ln-i">10</span>│   ├── golden.jsonl                 # тест-набор</span>
+<span class="ln"><span class="ln-i">11</span>│   ├── gates.yaml                   # пороги</span>
+<span class="ln"><span class="ln-i">12</span>│   └── run_eval.py</span>
+<span class="ln"><span class="ln-i">13</span>├── config/</span>
+<span class="ln"><span class="ln-i">14</span>│   └── production.yaml              # model refs, top_k, temperature, лимиты</span>
+<span class="ln"><span class="ln-i">15</span>├── registry/models.yaml             # реестр моделей</span>
+<span class="ln"><span class="ln-i">16</span>├── .gitlab-ci.yml</span>
+<span class="ln"><span class="ln-i">17</span>└── CHANGELOG.md</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># prompts/answer.system.yaml — единственный источник правды о поведении бота</span></span>
+<span class="ln"><span class="ln-i">2</span>id: answer.system</span>
+<span class="ln"><span class="ln-i">3</span>version: <span class="tok-n">7</span></span>
+<span class="ln"><span class="ln-i">4</span>status: production                   <span class="tok-cmt"># draft | staging | production | deprecated</span></span>
+<span class="ln"><span class="ln-i">5</span>description: &gt;</span>
+<span class="ln"><span class="ln-i">6</span>  Системный промпт внутреннего ассистента по регламентам компании.</span>
+<span class="ln"><span class="ln-i">7</span>  Ключевое изменение в v7: явный запрет отвечать при отсутствии данных</span>
+<span class="ln"><span class="ln-i">8</span>  (поправил <span class="tok-n">18</span>% неподкреплённых утверждений на вопросах про договоры).</span>
+<span class="ln"><span class="ln-i">9</span>model_compatible: [chat-main, chat-fallback]</span>
+<span class="ln"><span class="ln-i">10</span>author: a.ivanova</span>
+<span class="ln"><span class="ln-i">11</span>reviewed_by: tech-lead</span>
+<span class="ln"><span class="ln-i">12</span>date: <span class="tok-n">2025</span>-<span class="tok-n">06</span>-<span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">13</span>eval:</span>
+<span class="ln"><span class="ln-i">14</span>  run: <span class="tok-str">"2025-06-11T09:20Z"</span></span>
+<span class="ln"><span class="ln-i">15</span>  groundedness: <span class="tok-n">0.881</span></span>
+<span class="ln"><span class="ln-i">16</span>  citation_valid: <span class="tok-n">0.94</span></span>
+<span class="ln"><span class="ln-i">17</span>  regression_vs_baseline: +<span class="tok-n">0.004</span></span>
+<span class="ln"><span class="ln-i">18</span>  approved: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">19</span>sha256: <span class="tok-str">"9f2c1a...e7"</span>                 <span class="tok-cmt"># считается в CI и проверяется, что совпадает</span></span>
+<span class="ln"><span class="ln-i">20</span>content: |</span>
+<span class="ln"><span class="ln-i">21</span>  Ты — внутренний ассистент по регламентам компании. Отвечай ТОЛЬКО</span>
+<span class="ln"><span class="ln-i">22</span>  на основе переданного контекста.</span>
+<span class="ln"><span class="ln-i">23</span></span>
+<span class="ln"><span class="ln-i">24</span>  Обязательные правила:</span>
+<span class="ln"><span class="ln-i">25</span>  <span class="tok-n">1</span>. Каждое фактическое утверждение должно опираться на фрагмент из контекста.</span>
+<span class="ln"><span class="ln-i">26</span>  <span class="tok-n">2</span>. Если в контексте нет ответа — прямо скажи: «В регламентах этого нет» и</span>
+<span class="ln"><span class="ln-i">27</span>     назови, куда обратиться. Не делай предположений. Это правило важнее</span>
+<span class="ln"><span class="ln-i">28</span>     любой полноты ответа.</span>
+<span class="ln"><span class="ln-i">29</span>  <span class="tok-n">3</span>. Если в контексте несколько документов, а указать один нельзя — скажи это.</span>
+<span class="ln"><span class="ln-i">30</span>  <span class="tok-n">4</span>. Формат ответа: JSON по схеме ниже. Ничего вне JSON.</span>
+<span class="ln"><span class="ln-i">31</span></span>
+<span class="ln"><span class="ln-i">32</span>  Схема ответа:</span>
+<span class="ln"><span class="ln-i">33</span>  {<span class="tok-str">"answer"</span>: <span class="tok-str">"string"</span>, <span class="tok-str">"sources"</span>: [{<span class="tok-str">"doc_id"</span>: <span class="tok-str">"string"</span>, <span class="tok-str">"chunk_id"</span>: <span class="tok-str">"string"</span>}]}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Релиз промпта = тег в git. Тот же механизм, что и для кода, никакой магии.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">cd</span> prompt-registry</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">git</span> checkout -b prompt/answer-system-v7</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># ... правки, коммит, PR с автосогласованием из CHANGELOG</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">git</span> add prompts/answer.system.yaml &amp;&amp; <span class="tok-k">git</span> commit -m <span class="tok-str">"answer.system v7: запрет ответа без данных"</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">git</span> push origin prompt/answer-system-v7</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># оценка на golden set локально, ДО мержа</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">export</span> CANDIDATE_MODEL=<span class="tok-str">"gpt-4o-mini-2024-07-18"</span> JUDGE_MODEL=<span class="tok-str">"gpt-4o-2024-08-06"</span></span>
+<span class="ln"><span class="ln-i">10</span>python eval/run_eval.py --golden eval/golden.jsonl --prompt-set prompts/ --out report.json</span>
+<span class="ln"><span class="ln-i">11</span>python eval/check_gates.py --report report.json --gates eval/gates.yaml || <span class="tok-k">echo</span> <span class="tok-str">"порог не пройден — не мержим"</span></span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># мерж и тег релиза промптов</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">git</span> tag -a prompts-v7 -m <span class="tok-str">"answer.system v7 approved (groundedness 0.881)"</span></span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-k">git</span> push origin prompts-v7</span>
+</code></pre></div>
+<p>Теги здесь — не украшение. Тег <code>prompts-v7</code> — это <strong>имя релиза</strong>, которое потом живёт в имени образа <code>ragapi:prompts-v7-2f9c1a</code>, в лейбле <code>prompt_version</code> метрик и в теге трасс. Один идентификатор, сквозной прослеживаемость от PR до графика в Grafana.</p>
+<h2 id="pochemu-prompt-v-peremennoy-okruzheniya-eto-ne-versiya">Почему промпт в переменной окружения — это не версия</h2>
+<p>Отдельный разбор, потому что это самая частая архитектурная ошибка в таких проектах, и она выглядит безобидно.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Так делают почти все — и это ошибка</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># .env в репозитории или в Helm-values без истории</span></span>
+<span class="ln"><span class="ln-i">3</span>ANSWER_SYSTEM_PROMPT=<span class="tok-str">"Ты — ассистент. Отвечай кратко. Если не знаешь — скажи прямо."</span></span>
+</code></pre></div>
+<p>Что не так не с синтаксисом, а с управляемостью:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Свойство</th>
+<th style="text-align:left">Промпт в git</th>
+<th style="text-align:left">Промпт в env/ConfigMap</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">История изменений</td>
+<td style="text-align:left">есть, с автором и объяснением</td>
+<td style="text-align:left">потеряна при перезаписи</td>
+</tr>
+<tr>
+<td style="text-align:left">Рецензирование</td>
+<td style="text-align:left">PR, как у кода</td>
+<td style="text-align:left">«кто это поменял и почему?» — без ответа</td>
+</tr>
+<tr>
+<td style="text-align:left">Откат к версии</td>
+<td style="text-align:left"><code>git checkout prompts-vX</code></td>
+<td style="text-align:left">ищешь в бэкапе ConfigMap</td>
+</tr>
+<tr>
+<td style="text-align:left">Связь с оценкой качества</td>
+<td style="text-align:left">результат оценки лежит рядом, в YAML</td>
+<td style="text-align:left">результат повис в отчёте без привязки</td>
+</tr>
+<tr>
+<td style="text-align:left">Разбор инцидента</td>
+<td style="text-align:left">находишь тег, читаешь текст той эпохи</td>
+<td style="text-align:left">находишь «примерно такой же»</td>
+</tr>
+<tr>
+<td style="text-align:left">Дрейф окружений</td>
+<td style="text-align:left">промпт одинаковый везде</td>
+<td style="text-align:left">dev/staging/prod незаметно разъезжаются</td>
+</tr>
+</tbody></table></div>
+<p>Второй, менее очевидный вред: <strong>незаметный дрейф</strong>. ConfigMap обновляется, поды перезакатываются по своему расписанию, через месяц стенд отвечает одним текстом, а прод другим — и никто не может сказать, когда и почему они разошлись. При этом, с точки зрения тестов, всё зелёное, потому что тестируется одно и то же.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Правило, которое стоит закрепить на уровне регламента команды: <strong>конфигурация окружения содержит только то, что различается между средами</strong> (адреса, лимиты, флаги). Всё, что определяет поведение и качество ответа — промпт, модель, ревизия эмбеддингов, top_k, chunk_size — лежит в реестре и версионируется. Если параметр влияет на то, что пользователь видит, он не имеет права жить в Helm-values.</p></div></div>
+<h2 id="princip-vosproizvodimosti-otveta">Принцип воспроизводимости ответа</h2>
+<p>Формулировка, которую надо уметь защитить перед руководством: <strong>любой ответ должен быть воспроизводим по идентификатору релиза</strong>. Зная запрос и <code>release_id</code>, можно восстановить точные входные данные, промпт, модель и конфигурацию — и получить тот же ответ.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># releases/release.yaml — манифест релиза. Пишется автоматически в CI.</span></span>
+<span class="ln"><span class="ln-i">2</span>release_id: ragapi-<span class="tok-n">2025</span>-<span class="tok-n">06</span>-<span class="tok-n">12</span>-<span class="tok-n">01</span></span>
+<span class="ln"><span class="ln-i">3</span>git_sha: 2f9c1a7</span>
+<span class="ln"><span class="ln-i">4</span>prompt_set_tag: prompts-v7</span>
+<span class="ln"><span class="ln-i">5</span>model_ref: gpt-4o-mini-<span class="tok-n">2024</span>-<span class="tok-n">07</span>-<span class="tok-n">18</span></span>
+<span class="ln"><span class="ln-i">6</span>config_hash: sha256:44b1...</span>
+<span class="ln"><span class="ln-i">7</span>index:</span>
+<span class="ln"><span class="ln-i">8</span>  snapshot: idx-<span class="tok-n">2025</span>-<span class="tok-n">06</span>-<span class="tok-n">09</span>-<span class="tok-n">1830</span></span>
+<span class="ln"><span class="ln-i">9</span>  embed_model: bge-m3-fp16-<span class="tok-n">2025</span>-<span class="tok-n">03</span></span>
+<span class="ln"><span class="ln-i">10</span>  chunk_size: <span class="tok-n">512</span></span>
+<span class="ln"><span class="ln-i">11</span>  chunk_overlap: <span class="tok-n">64</span></span>
+<span class="ln"><span class="ln-i">12</span>  documents_count: <span class="tok-n">18432</span></span>
+<span class="ln"><span class="ln-i">13</span>  embed_sha256: <span class="tok-str">"1d7b...a0"</span></span>
+<span class="ln"><span class="ln-i">14</span>retrieval: {top_k: <span class="tok-n">20</span>, reranker: bge-reranker-v2-m3, rerank_keep: <span class="tok-n">5</span>}</span>
+<span class="ln"><span class="ln-i">15</span>eval:</span>
+<span class="ln"><span class="ln-i">16</span>  golden_run: <span class="tok-str">"2025-06-11T09:20Z"</span></span>
+<span class="ln"><span class="ln-i">17</span>  groundedness: <span class="tok-n">0.881</span></span>
+<span class="ln"><span class="ln-i">18</span>  baseline: main</span>
+<span class="ln"><span class="ln-i">19</span>  gates_passed: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">20</span>approved_by: tech-lead</span>
+</code></pre></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/replay.py — воспроизведение ответа из прода по release_id и trace_id.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Это инструмент расследования: жалоба → точная конфигурация → тот же ответ.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> json, subprocess, sys, argparse, hashlib</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">from</span> pathlib <span class="tok-k">import</span> Path</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">def</span> <span class="tok-fn">load_release</span>(release_id: str) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">7</span>    path = <span class="tok-fn">Path</span>(<span class="tok-str">"releases"</span>) / f<span class="tok-str">"{release_id}.yaml"</span></span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> path.<span class="tok-fn">exists</span>():</span>
+<span class="ln"><span class="ln-i">9</span>        sys.<span class="tok-fn">exit</span>(f<span class="tok-str">"Нет манифеста релиза {release_id}"</span>)</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-k">import</span> yaml</span>
+<span class="ln"><span class="ln-i">11</span>    <span class="tok-k">return</span> yaml.<span class="tok-fn">safe_load</span>(path.<span class="tok-fn">read_text</span>(encoding=<span class="tok-str">"utf-8"</span>))</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">def</span> <span class="tok-fn">restore_context</span>(release: dict, chunk_ids: list[str]) -&gt; str:</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-str">""</span>"Достаём из снапшота индекса ровно те чанки, которые попали в контекст.</span>
+<span class="ln"><span class="ln-i">15</span>    Снапшот неизменяем — поэтому результат воспроизводим, а не приблизителен.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">16</span>    <span class="tok-k">import</span> yaml</span>
+<span class="ln"><span class="ln-i">17</span>    snap = <span class="tok-fn">Path</span>(<span class="tok-str">"snapshots"</span>) / f<span class="tok-str">"{release['index']['snapshot']}.yaml"</span></span>
+<span class="ln"><span class="ln-i">18</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> snap.<span class="tok-fn">exists</span>():</span>
+<span class="ln"><span class="ln-i">19</span>        sys.<span class="tok-fn">exit</span>(f<span class="tok-str">"Снапшот {snap} не найден — храни его вечно, а не пока есть место"</span>)</span>
+<span class="ln"><span class="ln-i">20</span>    store = {c[<span class="tok-str">"chunk_id"</span>]: c <span class="tok-k">for</span> c <span class="tok-k">in</span> yaml.<span class="tok-fn">safe_load</span>(snap.<span class="tok-fn">read_text</span>(encoding=<span class="tok-str">"utf-8"</span>))}</span>
+<span class="ln"><span class="ln-i">21</span>    missing = [c <span class="tok-k">for</span> c <span class="tok-k">in</span> chunk_ids <span class="tok-k">if</span> c <span class="tok-k">not</span> <span class="tok-k">in</span> store]</span>
+<span class="ln"><span class="ln-i">22</span>    <span class="tok-k">if</span> missing:</span>
+<span class="ln"><span class="ln-i">23</span>        sys.<span class="tok-fn">exit</span>(f<span class="tok-str">"Чанки {missing} отсутствуют в снапшоте — версия индекса не та"</span>)</span>
+<span class="ln"><span class="ln-i">24</span>    <span class="tok-k">return</span> <span class="tok-str">"\n\n"</span>.<span class="tok-fn">join</span>(store[c][<span class="tok-str">"text"</span>] <span class="tok-k">for</span> c <span class="tok-k">in</span> chunk_ids)</span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-k">def</span> <span class="tok-fn">main</span>():</span>
+<span class="ln"><span class="ln-i">27</span>    ap = argparse.<span class="tok-fn">ArgumentParser</span>()</span>
+<span class="ln"><span class="ln-i">28</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--trace-id"</span>, required=True)</span>
+<span class="ln"><span class="ln-i">29</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--release-id"</span>, default=None)</span>
+<span class="ln"><span class="ln-i">30</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--compare"</span>, help=<span class="tok-str">"другой release_id для сравнения"</span>)</span>
+<span class="ln"><span class="ln-i">31</span>    a = ap.<span class="tok-fn">parse_args</span>()</span>
+<span class="ln"><span class="ln-i">32</span></span>
+<span class="ln"><span class="ln-i">33</span>    trace = json.<span class="tok-fn">load</span>(<span class="tok-fn">open</span>(f<span class="tok-str">"traces/{a.trace_id}.json"</span>, encoding=<span class="tok-str">"utf-8"</span>))</span>
+<span class="ln"><span class="ln-i">34</span>    release = <span class="tok-fn">load_release</span>(a.release_id <span class="tok-k">or</span> trace[<span class="tok-str">"metadata"</span>][<span class="tok-str">"release_id"</span>])</span>
+<span class="ln"><span class="ln-i">35</span>    chunk_ids = [s <span class="tok-k">for</span> s <span class="tok-k">in</span> trace[<span class="tok-str">"spans"</span>]</span>
+<span class="ln"><span class="ln-i">36</span>                 <span class="tok-k">if</span> s[<span class="tok-str">"name"</span>] == <span class="tok-str">"rag.rerank"</span> <span class="tok-k">for</span> s <span class="tok-k">in</span> s.<span class="tok-fn">get</span>(<span class="tok-str">"output"</span>, {}).<span class="tok-fn">get</span>(<span class="tok-str">"kept"</span>, [])]</span>
+<span class="ln"><span class="ln-i">37</span></span>
+<span class="ln"><span class="ln-i">38</span>    <span class="tok-k">import</span> yaml</span>
+<span class="ln"><span class="ln-i">39</span>    prompt_set = yaml.<span class="tok-fn">safe_load</span>(subprocess.<span class="tok-fn">run</span>(</span>
+<span class="ln"><span class="ln-i">40</span>        [<span class="tok-str">"git"</span>, <span class="tok-str">"show"</span>, f<span class="tok-str">"{release['prompt_set_tag']}:prompts/answer.system.yaml"</span>],</span>
+<span class="ln"><span class="ln-i">41</span>        capture_output=True, text=True, check=True).stdout)</span>
+<span class="ln"><span class="ln-i">42</span></span>
+<span class="ln"><span class="ln-i">43</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"release      : {release['release_id']}"</span>)</span>
+<span class="ln"><span class="ln-i">44</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"prompt tag   : {release['prompt_set_tag']}  sha={prompt_set['sha256'][:12]}"</span>)</span>
+<span class="ln"><span class="ln-i">45</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"model        : {release['model_ref']}"</span>)</span>
+<span class="ln"><span class="ln-i">46</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"index        : {release['index']['snapshot']}  embed={release['index']['embed_model']}"</span>)</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"context      : {len(chunk_ids)} чанков, восстановлен из снапшота"</span>)</span>
+<span class="ln"><span class="ln-i">48</span></span>
+<span class="ln"><span class="ln-i">49</span>    context = <span class="tok-fn">restore_context</span>(release, chunk_ids)</span>
+<span class="ln"><span class="ln-i">50</span>    query = trace[<span class="tok-str">"input"</span>][<span class="tok-str">"query"</span>]</span>
+<span class="ln"><span class="ln-i">51</span>    original = trace[<span class="tok-str">"spans"</span>][-<span class="tok-n">1</span>].<span class="tok-fn">get</span>(<span class="tok-str">"output"</span>, {}).<span class="tok-fn">get</span>(<span class="tok-str">"answer"</span>, <span class="tok-str">""</span>)</span>
+<span class="ln"><span class="ln-i">52</span></span>
+<span class="ln"><span class="ln-i">53</span>    <span class="tok-cmt"># здесь вызываешь production-функцию с параметрами из манифеста:</span></span>
+<span class="ln"><span class="ln-i">54</span>    <span class="tok-cmt"># replayed = answer(query=query, context=context, model=release["model_ref"],</span></span>
+<span class="ln"><span class="ln-i">55</span>    <span class="tok-cmt">#                   temperature=release["config"]["temperature"], seed=7)</span></span>
+<span class="ln"><span class="ln-i">56</span>    replayed = original            <span class="tok-cmt"># подставь реальный вызов вместо заглушки</span></span>
+<span class="ln"><span class="ln-i">57</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"оригинал   : {original}\nвоспроизвед: {replayed}\n"</span>)</span>
+<span class="ln"><span class="ln-i">58</span>    <span class="tok-k">if</span> replayed != original:</span>
+<span class="ln"><span class="ln-i">59</span>        <span class="tok-fn">print</span>(<span class="tok-str">"ВНИМАНИЕ: ответ изменился — воспроизводимость нарушена. Ищи недетерминизм: "</span></span>
+<span class="ln"><span class="ln-i">60</span>              <span class="tok-str">"temperature &gt; 0, другой снапшот индекса, плавающий тег модели."</span>)</span>
+<span class="ln"><span class="ln-i">61</span></span>
+<span class="ln"><span class="ln-i">62</span><span class="tok-k">if</span> __name__ == <span class="tok-str">"__main__"</span>:</span>
+<span class="ln"><span class="ln-i">63</span>    <span class="tok-fn">main</span>()</span>
+</code></pre></div>
+<p>Хранение снапшотов индекса — отдельная статья расходов, и на ней экономят чаще всего, а зря: <strong>снапшот без срока годности превращает расследование в «не смогли воспроизвести, отвечайте на звонки сами»</strong>. Практика: снапшоты по релизам, которые были в проде, — вечно; промежуточные (dev, staging, непрошедшие canary) — 14 дней.</p>
+<h2 id="polnyy-konveyer">Полный конвейер</h2>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>PR: промпт | индекс | конфиг | код</span>
+<span class="ln"><span class="ln-i">2</span>        │</span>
+<span class="ln"><span class="ln-i">3</span>        ▼</span>
+<span class="ln"><span class="ln-i">4</span>[1] Линт и юнит-тесты ────────────────────────────── фаст, дёшево, на каждый коммит</span>
+<span class="ln"><span class="ln-i">5</span>        │</span>
+<span class="ln"><span class="ln-i">6</span>        ▼</span>
+<span class="ln"><span class="ln-i">7</span>[2] Оценка на golden set (LLM-судья) ── гейты по категориям ── порог не пройден → СТОП</span>
+<span class="ln"><span class="ln-i">8</span>        │</span>
+<span class="ln"><span class="ln-i">9</span>        ▼</span>
+<span class="ln"><span class="ln-i">10</span>[3] Сборка образа + манифест релиза (release.yaml)</span>
+<span class="ln"><span class="ln-i">11</span>        │</span>
+<span class="ln"><span class="ln-i">12</span>        ▼</span>
+<span class="ln"><span class="ln-i">13</span>[4] Деплой в STAGING ── прод-данные в read-only, свой индекс-снапшот</span>
+<span class="ln"><span class="ln-i">14</span>        │</span>
+<span class="ln"><span class="ln-i">15</span>        ▼</span>
+<span class="ln"><span class="ln-i">16</span>[5] SHADOW ── зеркалирование 100% трафика, ответы не отдаются ── сравнение качества</span>
+<span class="ln"><span class="ln-i">17</span>        │</span>
+<span class="ln"><span class="ln-i">18</span>        ▼</span>
+<span class="ln"><span class="ln-i">19</span>[6] CANARY 1% → 5% → 25% → 100%   ── автоматический откат по метрикам на каждом шаге</span>
+<span class="ln"><span class="ln-i">20</span>        │</span>
+<span class="ln"><span class="ln-i">21</span>        ▼</span>
+<span class="ln"><span class="ln-i">22</span>[7] ПРОД ── пост-релизный мониторинг 24 ч ── при провале автооткат</span>
+<span class="ln"><span class="ln-i">23</span>        │</span>
+<span class="ln"><span class="ln-i">24</span>        ▼</span>
+<span class="ln"><span class="ln-i">25</span>        └─► [обновление baseline оценки] ──► главная ветка</span>
+</code></pre></div>
+<p>Стадия 2 — та самая, которой нет в обычном CI/CD, и она самая дорогая. Стадия 5 — та, которой тоже нет: она единственная даёт сравнение «до/после» на <strong>реальном распределении</strong>, а не на 100 вопросах.</p>
+<h2 id="okruzheniya-razlichie-ne-v-konfiguracii-a-v-dannyh">Окружения: различие не в конфигурации, а в данных</h2>
+<p>Типичная ошибка в проектах: dev, staging и prod отличаются только <code>model_ref</code>, а база знаний одна и та же. В итоге staging показывает качество, невозможное в проде, и наоборот.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что</th>
+<th style="text-align:left">dev</th>
+<th style="text-align:left">staging</th>
+<th style="text-align:left">prod</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Промпт</td>
+<td style="text-align:left">ветка, можно ломать</td>
+<td style="text-align:left">кандидатная версия</td>
+<td style="text-align:left">только версия из тега</td>
+</tr>
+<tr>
+<td style="text-align:left">Индекс</td>
+<td style="text-align:left">маленький срез, можно пересобирать</td>
+<td style="text-align:left"><strong>снапшот прода-индекса</strong></td>
+<td style="text-align:left">свой снапшот, обновляется по регламенту</td>
+</tr>
+<tr>
+<td style="text-align:left">Модель</td>
+<td style="text-align:left">дешёвая, можно ошибаться</td>
+<td style="text-align:left">как в проде, та же ревизия</td>
+<td style="text-align:left">из реестра</td>
+</tr>
+<tr>
+<td style="text-align:left">Квоты и rate limits</td>
+<td style="text-align:left">искусственно занижены</td>
+<td style="text-align:left">как в проде</td>
+<td style="text-align:left">боевые</td>
+</tr>
+<tr>
+<td style="text-align:left">Данные пользователей</td>
+<td style="text-align:left">синтетика</td>
+<td style="text-align:left"><strong>обезличенная копия прода</strong></td>
+<td style="text-align:left">реальные</td>
+</tr>
+<tr>
+<td style="text-align:left">Доступ</td>
+<td style="text-align:left">все разработчики</td>
+<td style="text-align:left">разработчики + QA + аналитики</td>
+<td style="text-align:left">поддержка по заявке</td>
+</tr>
+<tr>
+<td style="text-align:left">Чего нельзя</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">ничего из перечисленного</td>
+</tr>
+</tbody></table></div>
+<p>Отдельный и важный момент: <strong>staging должен использовать read-only копию продакшн-данных</strong>, иначе он деградирует в тестовый стенд. При этом персональные данные в нём обязаны быть обезличены по процедуре из <a href="../../lectures/mlops/16-nablyudaemost-llm.html">наблюдаемости</a> — иначе ты завёл в контур второй источник персональных данных.</p>
+<h2 id="strategii-raskatki-shadow-canary-ab-rolling">Стратегии раскатки: shadow, canary, A/B, rolling</h2>
+<p>Четыре разных инструмента, которые часто путают. Различие — в том, <strong>кто получает ответ</strong>.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Стратегия</th>
+<th style="text-align:left">Кто получает новый ответ</th>
+<th style="text-align:left">Что измеряешь</th>
+<th style="text-align:center">Риск для пользователя</th>
+<th style="text-align:left">Когда применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Shadow</strong></td>
+<td style="text-align:left">никто, старый ответ</td>
+<td style="text-align:left">качество и стоимость новой версии на реальном трафике</td>
+<td style="text-align:center">нулевой</td>
+<td style="text-align:left">смена промпта, модели, чанкинга</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Canary</strong></td>
+<td style="text-align:left">малая доля (1–10%)</td>
+<td style="text-align:left">качество и стабильность на реальных пользователях</td>
+<td style="text-align:center">малый, но реальный</td>
+<td style="text-align:left">любой релиз в прод</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>A/B</strong></td>
+<td style="text-align:left">детерминированная доля, делённая по признаку</td>
+<td style="text-align:left"><strong>продуктовый эффект</strong>: доля успешных задач, повторные вопросы, удержание</td>
+<td style="text-align:center">равный для обеих групп</td>
+<td style="text-align:left">когда вопрос не в стабильности, а в «какая версия лучше для бизнеса»</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Rolling</strong></td>
+<td style="text-align:left">все, по очереди</td>
+<td style="text-align:left">только стабильность, качество не измеряется</td>
+<td style="text-align:center">средний</td>
+<td style="text-align:left">рутинные обновления инфраструктуры, НЕ для ИИ-артефактов</td>
+</tr>
+</tbody></table></div>
+<p>Главное различие canary и A/B: <strong>canary отвечает на вопрос «не сломаем ли мы», A/B — «какой вариант лучше для пользователя»</strong>. Для промпта почти всегда нужен сначала canary, а A/B имеет смысл только когда у тебя есть продуктовая метрика, которая честно реагирует — повторные формулировки вопроса, доля завершённых задач, оценка поддержки.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># deploy/istio/canary.yaml — маршрутизация по заголовку, который ставит Envoy-фильтр.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Прод-трафик делится заголовком x-canary-cookie, который выдаётся только 1% сессий.</span></span>
+<span class="ln"><span class="ln-i">3</span>apiVersion: networking.istio.io/v1beta1</span>
+<span class="ln"><span class="ln-i">4</span>kind: VirtualService</span>
+<span class="ln"><span class="ln-i">5</span>metadata:</span>
+<span class="ln"><span class="ln-i">6</span>  name: ragapi</span>
+<span class="ln"><span class="ln-i">7</span>spec:</span>
+<span class="ln"><span class="ln-i">8</span>  http:</span>
+<span class="ln"><span class="ln-i">9</span>    - match:</span>
+<span class="ln"><span class="ln-i">10</span>        - headers:</span>
+<span class="ln"><span class="ln-i">11</span>            x-canary:</span>
+<span class="ln"><span class="ln-i">12</span>              exact: <span class="tok-str">"true"</span></span>
+<span class="ln"><span class="ln-i">13</span>      route:</span>
+<span class="ln"><span class="ln-i">14</span>        - destination:</span>
+<span class="ln"><span class="ln-i">15</span>            host: ragapi</span>
+<span class="ln"><span class="ln-i">16</span>            subset: canary</span>
+<span class="ln"><span class="ln-i">17</span>          weight: <span class="tok-n">100</span></span>
+<span class="ln"><span class="ln-i">18</span>    - route:</span>
+<span class="ln"><span class="ln-i">19</span>        - destination:</span>
+<span class="ln"><span class="ln-i">20</span>            host: ragapi</span>
+<span class="ln"><span class="ln-i">21</span>            subset: stable</span>
+<span class="ln"><span class="ln-i">22</span>          weight: <span class="tok-n">100</span></span>
+<span class="ln"><span class="ln-i">23</span>---</span>
+<span class="ln"><span class="ln-i">24</span>apiVersion: networking.istio.io/v1beta1</span>
+<span class="ln"><span class="ln-i">25</span>kind: DestinationRule</span>
+<span class="ln"><span class="ln-i">26</span>metadata:</span>
+<span class="ln"><span class="ln-i">27</span>  name: ragapi</span>
+<span class="ln"><span class="ln-i">28</span>spec:</span>
+<span class="ln"><span class="ln-i">29</span>  host: ragapi</span>
+<span class="ln"><span class="ln-i">30</span>  subsets:</span>
+<span class="ln"><span class="ln-i">31</span>    - name: stable</span>
+<span class="ln"><span class="ln-i">32</span>      labels: {version: stable}</span>
+<span class="ln"><span class="ln-i">33</span>    - name: canary</span>
+<span class="ln"><span class="ln-i">34</span>      labels: {version: canary}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># .gitlab-ci.yml — стадия раскатки с автоматическим откатом</span></span>
+<span class="ln"><span class="ln-i">2</span>deploy:canary:</span>
+<span class="ln"><span class="ln-i">3</span>  stage: deploy</span>
+<span class="ln"><span class="ln-i">4</span>  script:</span>
+<span class="ln"><span class="ln-i">5</span>    - kubectl apply -f deploy/istio/canary.yaml</span>
+<span class="ln"><span class="ln-i">6</span>    - kubectl set env deployment/ragapi canary ENABLE_V3=<span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">7</span>    - kubectl rollout status deployment/ragapi-canary --timeout=5m</span>
+<span class="ln"><span class="ln-i">8</span>    - ./ops/traffic.sh set <span class="tok-n">5</span>                  <span class="tok-cmt"># поднять долю canary</span></span>
+<span class="ln"><span class="ln-i">9</span>    - sleep <span class="tok-n">600</span>                              <span class="tok-cmt"># 10 минут накопления — не меньше</span></span>
+<span class="ln"><span class="ln-i">10</span>    - ./ops/canary_gate.py --window 10m --release <span class="tok-str">"$CI_COMMIT_SHA"</span></span>
+<span class="ln"><span class="ln-i">11</span>    - ./ops/traffic.sh set <span class="tok-n">25</span></span>
+<span class="ln"><span class="ln-i">12</span>    - sleep <span class="tok-n">900</span></span>
+<span class="ln"><span class="ln-i">13</span>    - ./ops/canary_gate.py --window 15m --release <span class="tok-str">"$CI_COMMIT_SHA"</span></span>
+<span class="ln"><span class="ln-i">14</span>    - ./ops/traffic.sh set <span class="tok-n">100</span></span>
+<span class="ln"><span class="ln-i">15</span>  environment: {name: production}</span>
+<span class="ln"><span class="ln-i">16</span>  when: manual</span>
+</code></pre></div>
+<h2 id="avtomaticheskiy-otkat-po-metrikam-kachestva">Автоматический откат по метрикам качества</h2>
+<p>Ключевая идея: <strong>откат должен быть не процедурой в голове дежурного, а командой, которая вызывается автоматически</strong>. Механизм ровно тот же, что в <a href="../../lectures/devops/11-kubernetes-prodvans.html">Kubernetes</a> с откатом по health-check'у, только вместо health-check'а — метрики качества.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># ops/canary_gate.py — ворота качества. Ненулевой exit = пайплайн падает = откат.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> argparse, json, os, subprocess, sys, urllib.parse, urllib.request</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>PROM = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PROM_URL"</span>, <span class="tok-str">"http://prometheus.monitoring.svc:9090"</span>)</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">def</span> <span class="tok-fn">query</span>(expr: str) -&gt; float:</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-k">with</span> urllib.request.<span class="tok-fn">urlopen</span>(f<span class="tok-str">"{PROM}/api/v1/query?query={urllib.parse.quote(expr)}"</span>,</span>
+<span class="ln"><span class="ln-i">8</span>                                timeout=<span class="tok-n">10</span>) <span class="tok-k">as</span> r:</span>
+<span class="ln"><span class="ln-i">9</span>        data = json.<span class="tok-fn">load</span>(r)[<span class="tok-str">"data"</span>][<span class="tok-str">"result"</span>]</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(data[<span class="tok-n">0</span>][<span class="tok-str">"value"</span>][<span class="tok-n">1</span>]) <span class="tok-k">if</span> data <span class="tok-k">else</span> <span class="tok-fn">float</span>(<span class="tok-str">"nan"</span>)</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>GATES = {</span>
+<span class="ln"><span class="ln-i">13</span>    <span class="tok-cmt"># метрика -&gt; (promql, оператор, порог, минимальный объём выборки)</span></span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-str">"citation_rate"</span>: (<span class="tok-str">"sum(rate(llm_answer_total{has_citation=\"true\",prompt_version=\"%s\"}[{w}]))"</span></span>
+<span class="ln"><span class="ln-i">15</span>                      <span class="tok-str">"/ clamp_min(sum(rate(llm_answer_total{prompt_version=\"%s\"}[{w}])), 0.001)"</span>,</span>
+<span class="ln"><span class="ln-i">16</span>                      <span class="tok-str">"&lt;"</span>, <span class="tok-n">0.80</span>, <span class="tok-n">200</span>),</span>
+<span class="ln"><span class="ln-i">17</span>    <span class="tok-str">"unsupported_ratio"</span>: (<span class="tok-str">"increase(llm_unsupported_claim_total{prompt_version=\"%s\"}[{w}])"</span></span>
+<span class="ln"><span class="ln-i">18</span>                          <span class="tok-str">"/ clamp_min(increase(llm_answer_total{prompt_version=\"%s\"}[{w}]), 1)"</span>,</span>
+<span class="ln"><span class="ln-i">19</span>                          <span class="tok-str">"&lt;"</span>, <span class="tok-n">0.15</span>, <span class="tok-n">200</span>),</span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-str">"ttft_p95"</span>: (<span class="tok-str">"histogram_quantile(0.95, sum by (le) "</span></span>
+<span class="ln"><span class="ln-i">21</span>                 <span class="tok-str">"(rate(llm_ttft_seconds_bucket{prompt_version=\"%s\"}[{w}])))"</span>,</span>
+<span class="ln"><span class="ln-i">22</span>                 <span class="tok-str">"&lt;"</span>, <span class="tok-n">8.0</span>, <span class="tok-n">50</span>),</span>
+<span class="ln"><span class="ln-i">23</span>    <span class="tok-str">"cost_p95"</span>: (<span class="tok-str">"histogram_quantile(0.95, sum by (le) "</span></span>
+<span class="ln"><span class="ln-i">24</span>                 <span class="tok-str">"(rate(llm_request_cost_usd_sum{prompt_version=\"%s\"}[{w}])"</span></span>
+<span class="ln"><span class="ln-i">25</span>                 <span class="tok-str">" / rate(llm_request_cost_usd_count{prompt_version=\"%s\"}[{w}])))"</span>,</span>
+<span class="ln"><span class="ln-i">26</span>                 <span class="tok-str">"&lt;"</span>, <span class="tok-n">0.010</span>, <span class="tok-n">50</span>),</span>
+<span class="ln"><span class="ln-i">27</span>}</span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span><span class="tok-k">def</span> <span class="tok-fn">main</span>():</span>
+<span class="ln"><span class="ln-i">30</span>    ap = argparse.<span class="tok-fn">ArgumentParser</span>()</span>
+<span class="ln"><span class="ln-i">31</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--release"</span>, required=True, help=<span class="tok-str">"prompt_version новой версии"</span>)</span>
+<span class="ln"><span class="ln-i">32</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--baseline"</span>, default=<span class="tok-str">"main"</span>)</span>
+<span class="ln"><span class="ln-i">33</span>    ap.<span class="tok-fn">add_argument</span>(<span class="tok-str">"--window"</span>, default=<span class="tok-str">"15m"</span>)</span>
+<span class="ln"><span class="ln-i">34</span>    a = ap.<span class="tok-fn">parse_args</span>()</span>
+<span class="ln"><span class="ln-i">35</span></span>
+<span class="ln"><span class="ln-i">36</span>    failed = []</span>
+<span class="ln"><span class="ln-i">37</span>    <span class="tok-k">for</span> name, (tpl, op, threshold, min_samples) <span class="tok-k">in</span> GATES.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">38</span>        volume = <span class="tok-fn">query</span>(f<span class="tok-str">'sum(increase(llm_answer_total{{prompt_version="{a.release}"}}[{a.window}]))'</span>)</span>
+<span class="ln"><span class="ln-i">39</span>        <span class="tok-k">if</span> volume &lt; min_samples:</span>
+<span class="ln"><span class="ln-i">40</span>            <span class="tok-fn">print</span>(f<span class="tok-str">"SKIP  {name}: выборка {volume} &lt; {min_samples} — решение откладывается"</span>)</span>
+<span class="ln"><span class="ln-i">41</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">42</span>        value = <span class="tok-fn">query</span>(tpl.<span class="tok-fn">replace</span>(<span class="tok-str">"{w}"</span>, a.window) % ((a.release,) * tpl.<span class="tok-fn">count</span>(<span class="tok-str">"%s"</span>)))</span>
+<span class="ln"><span class="ln-i">43</span>        ok = value &lt; threshold <span class="tok-k">if</span> op == <span class="tok-str">"&lt;"</span> <span class="tok-k">else</span> value &gt; threshold</span>
+<span class="ln"><span class="ln-i">44</span>        <span class="tok-fn">print</span>(f<span class="tok-str">"{'OK  ' if ok else 'FAIL'} {name} = {value:.4f} (порог {op} {threshold})"</span>)</span>
+<span class="ln"><span class="ln-i">45</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> ok:</span>
+<span class="ln"><span class="ln-i">46</span>            failed.<span class="tok-fn">append</span>(name)</span>
+<span class="ln"><span class="ln-i">47</span></span>
+<span class="ln"><span class="ln-i">48</span>    <span class="tok-cmt"># сравнение с baseline: регрессия в 2 раза хуже, чем у текущей версии</span></span>
+<span class="ln"><span class="ln-i">49</span>    delta = <span class="tok-fn">query</span>(<span class="tok-str">'sum(increase(llm_unsupported_claim_total{prompt_version="%s"}[%s]))'</span></span>
+<span class="ln"><span class="ln-i">50</span>                  <span class="tok-str">'/ clamp_min(increase(llm_answer_total{prompt_version="%s"}[%s]), 1)'</span></span>
+<span class="ln"><span class="ln-i">51</span>                  % (a.release, a.window, a.release, a.window)) - \</span>
+<span class="ln"><span class="ln-i">52</span>            <span class="tok-fn">query</span>(<span class="tok-str">'sum(increase(llm_unsupported_claim_total{prompt_version="%s"}[%s]))'</span></span>
+<span class="ln"><span class="ln-i">53</span>                  <span class="tok-str">'/ clamp_min(increase(llm_answer_total{prompt_version="%s"}[%s]), 1)'</span></span>
+<span class="ln"><span class="ln-i">54</span>                  % (a.baseline, a.window, a.baseline, a.window))</span>
+<span class="ln"><span class="ln-i">55</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"{'OK  ' if delta &lt;= 0.05 else 'FAIL'} delta_vs_baseline = {delta:+.4f}"</span>)</span>
+<span class="ln"><span class="ln-i">56</span></span>
+<span class="ln"><span class="ln-i">57</span>    <span class="tok-k">if</span> failed:</span>
+<span class="ln"><span class="ln-i">58</span>        subprocess.<span class="tok-fn">run</span>([<span class="tok-str">"kubectl"</span>, <span class="tok-str">"set"</span>, <span class="tok-str">"env"</span>, <span class="tok-str">"deployment/ragapi"</span>,</span>
+<span class="ln"><span class="ln-i">59</span>                        <span class="tok-str">"canary"</span>, <span class="tok-str">"ENABLE_V3=false"</span>], check=True)</span>
+<span class="ln"><span class="ln-i">60</span>        subprocess.<span class="tok-fn">run</span>([<span class="tok-str">"./ops/traffic.sh"</span>, <span class="tok-str">"set"</span>, <span class="tok-str">"0"</span>], check=False)</span>
+<span class="ln"><span class="ln-i">61</span>        <span class="tok-fn">print</span>(f<span class="tok-str">"\nОТКАТ выполнен автоматически. Причины: {', '.join(failed)}"</span>, file=sys.stderr)</span>
+<span class="ln"><span class="ln-i">62</span>        sys.<span class="tok-fn">exit</span>(<span class="tok-n">1</span>)</span>
+<span class="ln"><span class="ln-i">63</span>    <span class="tok-fn">print</span>(<span class="tok-str">"\nГейты пройдены — продолжаем раскатку."</span>)</span>
+<span class="ln"><span class="ln-i">64</span></span>
+<span class="ln"><span class="ln-i">65</span><span class="tok-k">if</span> __name__ == <span class="tok-str">"__main__"</span>:</span>
+<span class="ln"><span class="ln-i">66</span>    <span class="tok-fn">main</span>()</span>
+</code></pre></div>
+<p>Обрати внимание на <code>min_samples</code>: при малой выборке гейт <strong>пропускается, а не залипает</strong>. Это принципиально — иначе на 1% трафика canary накапливает статистику сутки, и весь процесс стопорится. Плата за это: короткие релизы требуют ручного подтверждения.</p>
+<h2 id="procedura-reliza-odnoy-stroki-prompta">Процедура релиза одной строки промпта</h2>
+<p>Самый показательный случай: правка одной фразы в системном промпте. Полный цикл — от первого символа до прода.</p>
+<ol><li><strong>Формулировка задачи.</strong> Не «улучшить промпт», а «на категории <code>договор</code> groundedness 0.55 при целевом 0.85; на остальных категориях не просесть». Без целевой цифры разговор превращатся в спор о вкусе.</li><li><strong>Ветка и PR.</strong> <code>git checkout -b prompt/answer-system-v8</code>. В описании PR — метрика, которую чиним, и категория запросов.</li><li><strong>Локальный прогон на golden set.</strong> <code>python eval/run_eval.py --golden eval/golden.jsonl --prompt-set prompts/</code>. Смотришь не только среднее, но и разбивку по категориям: правка почти всегда чинит одну и ломает другую.</li><li><strong>Проверка на категориях, которых правка не касалась.</strong> Отдельный вызов <code>--only-categories "отпуск,зарплата"</code> — страховка от «сломал соседнее».</li><li><strong>PR с результатами.</strong> Таблица «было / стало» прикладывается к PR. Ревьюеру-человеку не нужно запускать оценку, чтобы принять решение.</li><li><strong>Мерж + тег.</strong> <code>git tag -a prompts-v8 -m "..." &amp;&amp; git push origin prompts-v8</code>. Этот тег — имя релиза.</li><li><strong>Сборка и стенд.</strong> Образ с тегом <code>prompts-v8-&lt;sha&gt;</code>, деплой в staging на снапшоте прод-индекса.</li><li><strong>Shadow 30–60 минут.</strong> Зеркалирование всего трафика без отдачи ответа. Проверяешь: доля ответов без цитаты, стоимость, время. Если стоимость выросла вдвое — правка добавила текст в промпт, и это надо обсудить, а не катить.</li><li><strong>Canary 1% → 5% на 15 минут каждая ступень.</strong> <code>canary_gate.py</code> решает сам. Провал — автоматический откат и разбор, никаких «подождём, может выровняется».</li><li><strong>25% на час</strong>, затем 100%.</li><li><strong>Пост-релизное наблюдение 24 часа.</strong> Сравнение метрик качества с baseline. Если через сутки увидел регрессию — откат такой же командой, это дешёвый и быстрый процесс.</li><li><strong>Обновление baseline</strong> в репозитории оценки — новый уровень отсчёта для следующих релизов.</li></ol>
+<h2 id="versionirovanie-vesov-kogda-nuzhen-svoy-chekpoynt">Версионирование весов: когда нужен свой чекпойнт</h2>
+<p>Тонкое место: когда достаточно указать тег, а когда действительно надо сохранять веса.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Ситуация</th>
+<th style="text-align:left">Что делать</th>
+<th style="text-align:left">Почему</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Используешь облачную модель по имени с датой</td>
+<td style="text-align:left">указать <code>ref</code> в реестре, веса не хранить</td>
+<td style="text-align:left">вендор отвечает за доступность и целостность</td>
+</tr>
+<tr>
+<td style="text-align:left">Своя дообученная модель на своём железе</td>
+<td style="text-align:left">сохранить веса в S3/MinIO, чекпойнт в реестре</td>
+<td style="text-align:left">артефакт должен пережить смерть тренировочной машины</td>
+</tr>
+<tr>
+<td style="text-align:left">LoRA-адаптер поверх открытой модели</td>
+<td style="text-align:left">хранить и веса базы, и адаптер, версию базы</td>
+<td style="text-align:left">адаптер без базы — мусор</td>
+</tr>
+<tr>
+<td style="text-align:left">Зависимость от внешнего реестра (Hugging Face)</td>
+<td style="text-align:left"><strong>зеркалировать веса внутрь контура</strong></td>
+<td style="text-align:left">внешний реестр переименуют, удалят, заблокируют санкцией</td>
+</tr>
+<tr>
+<td style="text-align:left">Вендор откатыл свою модель под твоим именем</td>
+<td style="text-align:left">немедленный переход на закреплённую ревизию</td>
+<td style="text-align:left">именно этот случай и был причиной ввести закреплённые <code>ref</code></td>
+</tr>
+</tbody></table></div>
+<p>Правило: <strong>любая модель, чьё поведение влияет на ответы клиентам, должна быть либо у вендора с закреплённой ревизией, либо у тебя</strong>. Третьего не дано. Для файловых артефактов добавь проверку целостности — <code>sha256</code> чекпойнта в реестре и в манифесте релиза.</p>
+<h2 id="audit-i-sroki-hraneniya">Аудит и сроки хранения</h2>
+<p>Вопрос «что хранить и сколько» зададут юристы, а ответить должен ты.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Артефакт</th>
+<th style="text-align:left">Срок</th>
+<th style="text-align:left">Почему столько</th>
+<th style="text-align:left">Где лежит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Промпты и конфиги (репозиторий)</td>
+<td style="text-align:left">бессрочно</td>
+<td style="text-align:left">часть продукта, нужна для отката и аудита</td>
+<td style="text-align:left">git, теги</td>
+</tr>
+<tr>
+<td style="text-align:left">Манифесты релизов</td>
+<td style="text-align:left">бессрочно</td>
+<td style="text-align:left">доказывает, что именно было в проде</td>
+<td style="text-align:left">git + бэкап</td>
+</tr>
+<tr>
+<td style="text-align:left">Снапшоты прода-индекса</td>
+<td style="text-align:left">бессрочно</td>
+<td style="text-align:left">без них нет воспроизводимости</td>
+<td style="text-align:left">объектное хранилище, отдельный бэкап</td>
+</tr>
+<tr>
+<td style="text-align:left">Результаты оценок</td>
+<td style="text-align:left">2 года</td>
+<td style="text-align:left">тренд качества, разбор решений о релизе</td>
+<td style="text-align:left">git / БД</td>
+</tr>
+<tr>
+<td style="text-align:left">Трассы Langfuse</td>
+<td style="text-align:left">30–90 дней</td>
+<td style="text-align:left">расследование инцидентов</td>
+<td style="text-align:left">ClickHouse, автоочистка</td>
+</tr>
+<tr>
+<td style="text-align:left">Метрики Prometheus</td>
+<td style="text-align:left">15 дней детально, 400 дней агрегаты</td>
+<td style="text-align:left">расследование + отчётность</td>
+<td style="text-align:left">TSDB / VictoriaMetrics</td>
+</tr>
+<tr>
+<td style="text-align:left">Логи приложения (без ПДн)</td>
+<td style="text-align:left">30 дней</td>
+<td style="text-align:left">стандартный регламент</td>
+<td style="text-align:left">Loki</td>
+</tr>
+<tr>
+<td style="text-align:left">Чекпойнты моделей</td>
+<td style="text-align:left">пока актуальна версия + 1 предыдущая</td>
+<td style="text-align:left">экономия места при сохранении отката</td>
+<td style="text-align:left">S3/MinIO</td>
+</tr>
+<tr>
+<td style="text-align:left">Маскированные примеры для расследований</td>
+<td style="text-align:left">3 года</td>
+<td style="text-align:left">внутренний аудит</td>
+<td style="text-align:left">отдельное хранилище с доступом</td>
+</tr>
+</tbody></table></div>
+<p>Два правила, которые экономят больше всего места и нервов: <strong>не храни снапшоты релизов, которые не дошли до прода</strong> (их 90%, и они никому не нужны), и <strong>не храни трассы с персональными данными дольше регламентного срока</strong> — это уже утечка по построению, даже если данные были «замаскированы не полностью».</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Версионируют промпт в Helm-values и считают, что это готово.</strong> За месяц стенд и prod отвечают по-разному, причину найти нельзя. Лечится переездом в git — см. таблицу выше.</li><li><strong>Катают в прод сразу после зелёного golden set.</strong> Зелёный тест на 100 вопросах ничего не говорит про распределение реального трафика. Shadow и canary существуют именно поэтому.</li><li><strong>Canary без автоматического отката.</strong> Гейт, который человек решает вручную, в 3 часа ночи проходится всегда. Автоматика здесь — не про скорость, а про честность.</li><li><strong>Откат меняет только код, а не промпт.</strong> Если катили новый промпт и новый чекпойнт вместе, откат кода без отката артефактов оставляет в проде комбинацию, которой никогда не тестировали. Откатывается <code>release_id</code> целиком.</li><li><strong>Удаляют снапшот индекса «он же в проде».</strong> Прод меняется, старый индекс не вернуть. Через полгода на вопрос «что было в марте» ответа нет.</li><li><strong>Закрепляют <code>gpt-4o-mini</code> без даты и потом гадают, что сломалось.</strong> Модель обновилась, качество просело на 2%, никто не заметил и не может объяснить.</li><li><strong>Одна оценка на всех.</strong> Один и тот же набор для маленькой правки и для смены модели. Для мелких правок полный набор излишен, для больших — недостаточен.</li><li><strong>Релиз занимает три дня согласований.</strong> Значит, команда делает релизы редко и крупно, а это прямой путь к деплою в пятницу вечером. Лечится разделение: быстрый путь для правок промпта (оценка + canary, без полного цикла) и медленный для смены архитектуры.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать шесть изменений, которые ломают качество LLM-системы и которые обычный CI/CD не замечает, и объяснить, почему триггером релиза является артефакт, а не коммит.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что лежит в реестре моделей и реестре промптов, и умею объяснить, почему «плавающий» тег модели недопустим в проде.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, почему промпт в ConfigMap или Helm-values ломает воспроизводимость и отслеживание изменений.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу описать полный конвейер от PR до прода и назвать стадию, которой нет в обычном CI/CD.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я отличаю shadow, canary, A/B и rolling и знаю, какой вопрос отвечает каждый из них.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею объяснить, зачем гейт качества при малой выборке пропускается, а не блокирует релиз, и почему это нельзя пропускать всегда.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие артефакты хранятся бессрочно, а какие — по сроку, и почему снапшот индекса нельзя удалять после релиза.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу описать процедуру релиза одной строки промпта целиком — от формулировки задачи до пост-релизного наблюдения.</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери репозиторий промптов с YAML-файлами и тегами версий, опиши реестр моделей, добавь в пайплайн стадию оценки на golden set и настрой canary-маршрутизацию с автоматическим откатом по доле ответов без источника.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=mlops"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «MLflow · Langfuse» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/17-llmops-pipeliney">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/16-nablyudaemost-llm.html"><span>← Предыдущая</span><b>Наблюдаемость LLM-систем</b></a>
+        <a class="nav-next" href="../../lectures/mlops/18-masshtabirovanie-i-cena.html"><span>Следующая →</span><b>Масштабирование и стоимость</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/17-llmops-pipeliney";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

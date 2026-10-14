@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8"><title>Проверка лекций</title>
+<style>
+  html,body { margin:0; background:#05090d; color:#8fa; font:12px ui-monospace,Consolas,monospace; }
+  #bar { padding:6px 10px; background:#0d1620; border-bottom:1px solid #1c2b35; }
+  #f { width:1400px; height:900px; border:0; display:block; }
+  .ok{color:#3ddc84} .bad{color:#ff6b6b}
+</style></head>
+<body><div id="bar">лекции — <span id="res">идёт…</span></div>
+<iframe id="f" src="../lectures/devops/10-kubernetes-bazovye.html"></iframe>
+<script>
+/* Проверка страницы лекции целиком: поиск, отметка прогресса, счётчик,
+   переживание перезагрузки и сброс. Порядок важен — каждый шаг опирается
+   на результат предыдущего, поэтому состояние не «подмешивается». */
+const f = document.getElementById('f');
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const out = [];
+const say = (t, ok) => out.push((ok ? '✓ ' : '✗ ') + t);
+const ls = w => { try { return JSON.parse(w.localStorage.getItem('devops-mlops-progress') || '[]'); } catch (e) { return []; } };
+
+f.onload = async () => {
+  const w = f.contentWindow, d = f.contentDocument;
+  /* confirm() на сбросе — правильное поведение для опасного действия,
+     но headless Chrome на нём висит: диалога некому закрыть. */
+  w.confirm = () => true;
+  await wait(800);
+  try {
+    /* --- поиск по курсу --- */
+    const box = d.getElementById('search');
+    say('поле поиска найдено: ' + !!box, !!box);
+    if (box) {
+      box.value = 'Kubernetes';
+      box.dispatchEvent(new w.Event('input', { bubbles: true }));
+      await wait(400);
+      const res = d.getElementById('searchResults');
+      const shown = res && res.hidden === false;
+      say('поиск открыл выдачу: ' + shown, !!shown);
+      box.value = ''; box.dispatchEvent(new w.Event('input', { bubbles: true }));
+      await wait(200);
+    }
+
+    /* --- отметка текущей лекции --- */
+    const btn = d.getElementById('doneBtn');
+    const reset = [...d.querySelectorAll('button')].find(b => /сбросить прогресс/i.test(b.textContent));
+    say('кнопка «Отметить пройденной» есть: ' + !!btn, !!btn);
+    say('кнопка «Сбросить прогресс» есть: ' + !!reset, !!reset);
+    if (!btn || !reset) return;
+
+    const slug = w.SLUG;
+    btn.click(); await wait(700);
+    let s = ls(w);
+    say('после отметки в прогрессе: ' + JSON.stringify(s), s.length === 1 && s[0] === slug);
+    say('кнопка сменила текст на ' + JSON.stringify(btn.textContent.trim()),
+        /Пройдена/.test(btn.textContent));
+    const counter = d.getElementById('progText');
+    say('счётчик в шапке: ' + JSON.stringify(counter ? counter.textContent : '—'),
+        !!counter && /1 из/.test(counter.textContent));
+    const anchor = d.querySelector('a.c-lesson[data-slug="' + slug + '"]');
+    say('пометка появилась в оглавлении: ' + (anchor && /is-done/.test(anchor.className)),
+        !!anchor && /is-done/.test(anchor.className));
+
+    /* --- перезагрузка: документ и окно становятся новыми --- */
+    await new Promise(r => { f.onload = r; w.location.reload(); });
+    await wait(900);
+    const d2 = f.contentDocument, w2 = f.contentWindow;
+    w2.confirm = () => true;          // после перезагрузки окно новое — заглушка нужна снова
+    await wait(200);
+    const a2 = d2.querySelector('a.c-lesson[data-slug="' + slug + '"]');
+    const b2 = d2.getElementById('doneBtn');
+    say('после перезагрузки отметка жива: ' + (!!a2 && /is-done/.test(a2.className)) +
+        ', кнопка: ' + JSON.stringify((b2.textContent || '').trim().slice(0, 22)),
+        !!a2 && /is-done/.test(a2.className) && /Пройдена/.test(b2.textContent));
+
+    /* --- сброс --- */
+    const reset2 = [...d2.querySelectorAll('button')].find(b => /сбросить прогресс/i.test(b.textContent));
+    reset2.click(); await wait(800);
+    s = ls(w2);
+    const c2 = d2.getElementById('progText');
+    say('после сброса прогресс пуст: ' + JSON.stringify(s), s.length === 0);
+    say('счётчик обнулился: ' + JSON.stringify(c2 ? c2.textContent : '—'),
+        !!c2 && /0 из/.test(c2.textContent));
+    say('кнопка вернулась в «Отметить пройденной»: ' + !/Пройдена/.test(b2.textContent),
+        !/Пройдена/.test(b2.textContent));
+    say('пометок в оглавлении осталось: ' + d2.querySelectorAll('.c-lesson.is-done').length,
+        d2.querySelectorAll('.c-lesson.is-done').length === 0);
+  } catch (e) {
+    say('ИСКЛЮЧЕНИЕ: ' + e.message, false);
+  }
+  document.getElementById('res').innerHTML = out.map(t =>
+    '<span class="' + (t[0] === '✓' ? 'ok' : 'bad') + '">' + t + '</span>').join(' &nbsp;|&nbsp; ');
+};
+</script></body></html>

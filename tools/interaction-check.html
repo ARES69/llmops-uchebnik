@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Интерактивная проверка</title>
+<style>
+  html,body { margin:0; background:#05090d; font:12px ui-monospace,Consolas,monospace; }
+  #bar { padding:6px 10px; background:#0d1620; color:#8fa; border-bottom:1px solid #1c2b35; }
+  #bar .ok { color:#3ddc84; } #bar .bad { color:#ff6b6b; }
+  #f { width:1560px; height:940px; border:0; display:block; }
+</style>
+</head>
+<body>
+<div id="bar">действие: <b id="act">?</b> — <span id="res">ожидание…</span></div>
+<iframe id="f"></iframe>
+<script>
+/* Живой стенд: грузим тренажёр и выполняем в нём настоящее действие.
+   Нужен там, где Node не работает: окна, клавиши, localStorage, сброс.
+   Открывать так:  tools/interaction-check.html#help|finish|chips|reset|ctrlc|start */
+const act = (location.hash || '#help').slice(1);
+const bar = document.getElementById('bar');
+document.getElementById('act').textContent = act;
+const f = document.getElementById('f');
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function say(txt, ok) {
+  document.getElementById('res').innerHTML =
+    '<span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✓' : '✗') + '</span> ' + txt;
+}
+
+f.src = '../lectures/trainer/index.html?course=prompt&nocache=' + Date.now();
+
+f.onload = async () => {
+  const w = f.contentWindow, d = f.contentDocument;
+  await wait(900);
+  const qs = sel => d.querySelector(sel);
+  const open = id => d.getElementById(id).classList.contains('open');
+
+  try {
+    if (act === 'help') {
+      w.showHelp();
+      const vis = getComputedStyle(d.getElementById('helpM')).display !== 'none' && open('helpM');
+      say('окно справки открыто: ' + vis + ', размер ' + d.getElementById('helpM').innerHTML.length + ' симв.', vis);
+
+    } else if (act === 'finish') {
+      w.COURSES.prompt.run('promptfoo eval -c promptfooconfig.yaml');
+      w.finish();
+      const vis = open('finM');
+      say('окно завершения открыто: ' + vis, vis);
+
+    } else if (act === 'chips') {
+      // кликаем по чипу курса в окне приветствия, как ученик
+      const chip = [...d.querySelectorAll('#wlcGrid .wlc-chip')].find(b => /MLFLOW/i.test(b.textContent));
+      if (!chip) { say('чип MLFLOW не найден', false); return; }
+      chip.click();
+      await wait(500);
+      say('курс после клика: ' + w.course + ' · вкладка: ' +
+          (qs('#tabBar .ct.on') || { id: '—' }).id +
+          ' · модалка закрыта: ' + !open('welM'), w.course === 'mlops');
+
+    } else if (act === 'start') {
+      w.startCourse();
+      await wait(300);
+      say('старт: курс ' + w.course + ' · терминал виден: ' +
+          (d.getElementById('termBox').innerText.length > 0) +
+          ' · ввод в фокусе: ' + (d.activeElement && d.activeElement.id === 'inp'),
+          !open('welM'));
+
+    } else if (act === 'reset') {
+      w.COURSES.prompt.run('sed -i \'/нет данных/d\' prompts/support.txt');
+      const before = w.P.prompt ? w.P.prompt.done.length : 0;
+      w.resetEnv(true);
+      await wait(300);
+      const envLen = d.getElementById('genB').innerHTML.length;
+      say('после сброса: env ' + envLen + ' симв., прогресс сохранён: ' + before, envLen > 50);
+
+    } else if (act === 'ctrlc') {
+      // 1) ученик открывает heredoc, 2) жмёт Ctrl+C — прерывание
+      const inp = d.getElementById('inp');
+      inp.value = "cat > prompts/support.txt <<'EOF'";
+      inp.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await wait(300);
+      const afterOpen = d.getElementById('termBox').innerText;
+      const promptNow = d.getElementById('prompt').textContent;
+      // теперь Ctrl+C
+      inp.value = '';
+      inp.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true }));
+      await wait(300);
+      const afterCtrlC = d.getElementById('termBox').innerText;
+      const grew = afterCtrlC.length > afterOpen.length;
+      const backHome = promptNow.indexOf('>') === -1 || d.getElementById('prompt').textContent.indexOf('>') === -1;
+      say('heredoc открыт (приглашение "' + promptNow + '"), Ctrl+C дал новый вывод: ' +
+          grew + ', приглашение вернулось домой: ' + backHome, grew && backHome);
+
+    } else if (act === 'light') {
+      d.documentElement.setAttribute('data-theme', 'light');
+      try { w.localStorage.setItem('devops-mlops-theme', 'light'); } catch (e) {}
+      await wait(400);
+      const bg = getComputedStyle(d.body).backgroundColor;
+      say('тема: ' + d.documentElement.getAttribute('data-theme') + ', фон страницы ' + bg, true);
+
+    } else if (act === 'overflow') {
+      // что уезжает за правый край при узком экране
+      const de = d.documentElement;
+      const over = de.scrollWidth - de.clientWidth;
+      const bar = d.getElementById('tabBar');
+      const term = d.getElementById('termBox');
+      say('ширина документа ' + de.scrollWidth + ' против окна ' + de.clientWidth +
+          ' · переполнение: ' + over + 'px · панель вкладок прокручивается: ' +
+          (getComputedStyle(bar).overflowX === 'auto' || bar.scrollWidth > bar.clientWidth) +
+          ' · терминал: ' + term.scrollWidth + '/' + term.clientWidth, true);
+
+    } else {
+      say('неизвестное действие', false);
+    }
+  } catch (e) {
+    say('ИСКЛЮЧЕНИЕ: ' + e.message, false);
+  }
+  document.title = 'act=' + act;
+};
+</script>
+</body>
+</html>

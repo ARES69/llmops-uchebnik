@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API-шлюз для LLM — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">H. LLM и инференс</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>API-шлюз для LLM</h1>
+        <p class="lead">Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов</p>
+        <div class="meta"><span class="badge">80 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">api</span><span class="tag">шлюз</span><span class="tag">rate limit</span><span class="tag">streaming</span><span class="tag">кэш</span><span class="tag">биллинг</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#zachem-nuzhen-shlyuz-esli-est-openai-sovmestimyy-api">Зачем нужен шлюз, если есть OpenAI-совместимый API</a></li><li class="toc-l2"><a href="#chto-vnutri-shlyuza">Что внутри шлюза</a></li><li class="toc-l3"><a href="#litellm-proxy-ili-samopisnyy">LiteLLM Proxy или самописный</a></li><li class="toc-l2"><a href="#samopisnyy-shlyuz-na-fastapi-polnyy-rabochiy-primer">Самописный шлюз на FastAPI: полный рабочий пример</a></li><li class="toc-l2"><a href="#rate-limiting-zaprosy-ili-tokeny">Rate limiting: запросы или токены</a></li><li class="toc-l2"><a href="#kesh-otvetov-schitaem-ekonomiyu">Кэш ответов: считаем экономию</a></li><li class="toc-l2"><a href="#striming-cherez-nginx-glavnaya-grablya">Стриминг через nginx: главная грабля</a></li><li class="toc-l2"><a href="#nablyudaemost-shlyuza">Наблюдаемость шлюза</a></li><li class="toc-l2"><a href="#audit-gotovaya-baza-dlya-otchetnosti">Аудит: готовая база для отчётности</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Три предыдущие лекции дали тебе модель, железо и движок. Остался слой, который превращает набор разрозненных вызовов в <strong>систему</strong>: где живут ключи, кто сколько тратит, что происходит, когда провайдер лежит, и как заменить модель, не трогая ни одну строчку в приложениях. Этот слой называют API-шлюзом, и именно его внедряет архитектор — раньше, чем кто-то начнёт подключать к моделям отделы напрямую.</p>
+<p>Если ты вынесешь из этой лекции одну вещь — пусть это будет тариф на токены по командам. Всё остальное — техника.</p>
+<h2 id="zachem-nuzhen-shlyuz-esli-est-openai-sovmestimyy-api">Зачем нужен шлюз, если есть OpenAI-совместимый API</h2>
+<p>Контрпример: девять отделов подключились к OpenAI напрямую. Каждый хранит свой ключ. Стоимость выросла в четыре раза, никто не знает где. Провайдер поднял лимит — упали три сервиса. Модель устарела — миграция заняла квартал.</p>
+<p>Шлюз превращает девять интеграций в одну и добавляет управляемость.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">Без шлюза</th>
+<th style="text-align:left">Со шлюзом</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Смена провайдера или модели</td>
+<td style="text-align:left">правишь код в каждом приложении, релиз, тесты</td>
+<td style="text-align:left">меняешь маршрут в конфигурации шлюза</td>
+</tr>
+<tr>
+<td style="text-align:left">Ключи API</td>
+<td style="text-align:left">у каждого приложения свой, утечка = инцидент</td>
+<td style="text-align:left">один ключ шлюза в секрет-хранилище, снаружи — свои токены по командам</td>
+</tr>
+<tr>
+<td style="text-align:left">Квоты</td>
+<td style="text-align:left">никого</td>
+<td style="text-align:left">«отдел продаж: 5 млн токенов в месяц, 50 RPS»</td>
+</tr>
+<tr>
+<td style="text-align:left">Учёт расходов</td>
+<td style="text-align:left">счёт провайдера обезличен, кто сколько — неизвестно</td>
+<td style="text-align:left">построчно: кто, когда, какая модель, сколько токенов, сколько денег</td>
+</tr>
+<tr>
+<td style="text-align:left">Отказоустойчивость</td>
+<td style="text-align:left">ошибка провайдера = простой</td>
+<td style="text-align:left">ретрай, фолбэк на другой провайдер или локальную модель</td>
+</tr>
+<tr>
+<td style="text-align:left">Кэш</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">одинаковые вопросы не тарифицируются повторно</td>
+</tr>
+<tr>
+<td style="text-align:left">Наблюдаемость</td>
+<td style="text-align:left">метрики разных приложений в разных местах</td>
+<td style="text-align:left">RED-метрики и расход токенов в одном месте</td>
+</tr>
+<tr>
+<td style="text-align:left">Бюджет</td>
+<td style="text-align:left">узнаёшь о перерасходе постфактум</td>
+<td style="text-align:left">жёсткий месячный потолок с алертом на 80 %</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Цена вопроса — миграция. Ввести шлюз, когда уже есть десять прямых интеграций, почти невозможно: придётся уговаривать все команды одновременно. Ввести его, когда интеграция <strong>одна</strong>, — работа на день. Поэтому первое правило архитектора: шлюз ставится <strong>до</strong> первой интеграции, а не после третьей.</p></div></div>
+<h2 id="chto-vnutri-shlyuza">Что внутри шлюза</h2>
+<p>Восемь компонентов, и каждый из них — отдельное решение с отдельными граблями.</p>
+<ol><li><strong>Аутентификация</strong> — кто из внутренних сервисов пришёл. Обычный <code>Authorization: Bearer &lt;key&gt;</code>, ключи хранятся в Vault/Kubernetes Secrets, сравнение — константное время.</li><li><strong>Авторизация</strong> — что именно этому ключу можно: какие модели, какой бюджет, какая команда. Один токен на отдел, а не на сервис.</li><li><strong>Маршрутизация</strong> — правило выбора модели: «для модели X сначала локальный vLLM, потом облако», «задача дешёвая — маленькая модель».</li><li><strong>Rate limiting и квоты</strong> — сколько запросов и сколько <strong>токенов</strong> в секунду и в месяц.</li><li><strong>Кэш</strong> — семантический или по точному хешу, с TTL и правилами на персональные данные.</li><li><strong>Ретраи и фолбэк</strong> — что делать при 429, 500, таймауте.</li><li><strong>Логирование и трассировка</strong> — кто, когда, какая модель, сколько токенов, какая латентность.</li><li><strong>Биллинг и квотирование</strong> — токены в деньги, распределение по командам, месячные потолки.</li></ol>
+<h3 id="litellm-proxy-ili-samopisnyy">LiteLLM Proxy или самописный</h3>
+<p>LiteLLM — де-факто стандартный шлюз: одна библиотека нормализует 100+ провайдеров к единому OpenAI-совместимому интерфейсу, есть готовые rate limit, кэш, бюджеты, трейсинг и метрики Prometheus. Выбор между «взять готовое» и «написать своё» — это выбор между <strong>временем до старта</strong> и <strong>контролем</strong>.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Критерий</th>
+<th style="text-align:left">LiteLLM Proxy</th>
+<th style="text-align:left">Самописный шлюз</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Время до продакшн</td>
+<td style="text-align:left"><strong>часы</strong></td>
+<td style="text-align:left">недели</td>
+</tr>
+<tr>
+<td style="text-align:left">Поддержка новых провайдеров</td>
+<td style="text-align:left">добавляет мейнтейнер, твоя команда не ждёт</td>
+<td style="text-align:left">ты сам, вместе с каждой сменой API</td>
+</tr>
+<tr>
+<td style="text-align:left">Гибкость бизнес-правил</td>
+<td style="text-align:left">ограниченная, свои правила через хуки</td>
+<td style="text-align:left"><strong>любая</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Своя логика (кэш по домену, переписывание промпта)</td>
+<td style="text-align:left">возможно, но в рамках их API</td>
+<td style="text-align:left">без ограничений</td>
+</tr>
+<tr>
+<td style="text-align:left">Отладка</td>
+<td style="text-align:left">чужой код, читать придётся исходники Python</td>
+<td style="text-align:left"><strong>твой код</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Зависимости</td>
+<td style="text-align:left">большой Python-пакет с кучей зависимостей</td>
+<td style="text-align:left"><strong>только то, что нужно</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Ответственность за инцидент</td>
+<td style="text-align:left">общая с мейнтейнерами</td>
+<td style="text-align:left"><strong>твоя</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Когда выбирать</td>
+<td style="text-align:left">старт, стандартные сценарии, команда мала</td>
+<td style="text-align:left">нестандартная логика, жёсткие требования, команда есть</td>
+</tr>
+</tbody></table></div>
+<p>Мой совет по умолчанию: <strong>бери LiteLLM</strong>, пока не упёрся в конкретное ограничение. Самописный шлюз — это ещё один сервис в поддержке, с дежурствами, обновлениями безопасности и объяснениями «почему оно упало» в три часа ночи.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># config.yaml для LiteLLM Proxy</span></span>
+<span class="ln"><span class="ln-i">2</span>model_list:</span>
+<span class="ln"><span class="ln-i">3</span>  - model_name: chat-fast                 <span class="tok-cmt"># имя, которое видят приложения</span></span>
+<span class="ln"><span class="ln-i">4</span>    litellm_params:</span>
+<span class="ln"><span class="ln-i">5</span>      model: ollama/qwen2.<span class="tok-n">5</span>:7b            <span class="tok-cmt"># свой локальный движок</span></span>
+<span class="ln"><span class="ln-i">6</span>      api_base: http://vllm:<span class="tok-n">8000</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>  - model_name: chat-strong</span>
+<span class="ln"><span class="ln-i">9</span>    litellm_params:</span>
+<span class="ln"><span class="ln-i">10</span>      model: openai/gpt-4o</span>
+<span class="ln"><span class="ln-i">11</span>      api_key: os.environ/OPENAI_API_KEY</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span>general_settings:</span>
+<span class="ln"><span class="ln-i">14</span>  master_key: os.environ/LITELLM_MASTER_KEY</span>
+<span class="ln"><span class="ln-i">15</span>  database_url: os.environ/DATABASE_URL   <span class="tok-cmt"># для бюджетов и аудита</span></span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span>litellm_settings:</span>
+<span class="ln"><span class="ln-i">18</span>  drop_params: <span class="tok-k">true</span>                       <span class="tok-cmt"># не отправлять параметры, которых нет у модели</span></span>
+<span class="ln"><span class="ln-i">19</span>  request_timeout: <span class="tok-n">120</span></span>
+<span class="ln"><span class="ln-i">20</span>  num_retries: <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">21</span>  cache: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">22</span>  cache_type: redis</span>
+<span class="ln"><span class="ln-i">23</span>  redis_host: redis</span>
+<span class="ln"><span class="ln-i">24</span>  redis_port: <span class="tok-n">6379</span></span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span>router_settings:</span>
+<span class="ln"><span class="ln-i">27</span>  routing_strategy: usage-based-routing-v2 <span class="tok-cmt"># выбирает модель по реальной задержке и отказам</span></span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span>budgets:</span>
+<span class="ln"><span class="ln-i">30</span>  - budget_name: platform</span>
+<span class="ln"><span class="ln-i">31</span>    monthly_limit: <span class="tok-n">500</span>                    <span class="tok-cmt"># жёсткий потолок в долларах</span></span>
+<span class="ln"><span class="ln-i">32</span>    reset_on: first_of_month</span>
+<span class="ln"><span class="ln-i">33</span></span>
+<span class="ln"><span class="ln-i">34</span>budget_settings:</span>
+<span class="ln"><span class="ln-i">35</span>  enforce_budget: <span class="tok-k">true</span>                    <span class="tok-cmt"># не превышать, а не только предупреждать</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">docker</span> run -d --name litellm \</span>
+<span class="ln"><span class="ln-i">2</span>  -p <span class="tok-n">4000</span>:<span class="tok-n">4000</span> \</span>
+<span class="ln"><span class="ln-i">3</span>  -v <span class="tok-str">"$(pwd)/config.yaml:/app/config.yaml"</span> \</span>
+<span class="ln"><span class="ln-i">4</span>  -e DATABASE_URL=<span class="tok-str">"postgresql://llm:pass@postgres:5432/llm"</span> \</span>
+<span class="ln"><span class="ln-i">5</span>  -e LITELLM_MASTER_KEY=<span class="tok-str">"${LITELLM_MASTER_KEY}"</span> \</span>
+<span class="ln"><span class="ln-i">6</span>  ghcr.io/berriai/litellm:main-stable \</span>
+<span class="ln"><span class="ln-i">7</span>  --config /app/config.yaml --port <span class="tok-n">4000</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># Приложение переключается одной переменной — это и было целью</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">curl</span> -s http://localhost:<span class="tok-n">4000</span>/v1/chat/completions \</span>
+<span class="ln"><span class="ln-i">11</span>  -H <span class="tok-str">"Authorization: Bearer $LITELLM_MASTER_KEY"</span> \</span>
+<span class="ln"><span class="ln-i">12</span>  -H <span class="tok-str">"Content-Type: application/json"</span> \</span>
+<span class="ln"><span class="ln-i">13</span>  -d <span class="tok-str">'{"model":"chat-fast","messages":[{"role":"user","content":"Привет"}]}'</span></span>
+</code></pre></div>
+<h2 id="samopisnyy-shlyuz-na-fastapi-polnyy-rabochiy-primer">Самописный шлюз на FastAPI: полный рабочий пример</h2>
+<p>Когда LiteLLM не подходит — нестандартная логика, особые требования к аудиту — шлюз пишется сам. Ниже минимальный, но <strong>рабочий</strong> пример с четырьмя механиками: аутентификация по API-ключу, лимит по токенам через Redis, счёт расхода и проксирование в OpenAI-совместимый endpoint.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># gateway.py — минимальный LLM-шлюз. pip install fastapi uvicorn httpx redis prometheus-client</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> os</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> time</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">import</span> hashlib</span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">import</span> secrets</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">from</span> collections <span class="tok-k">import</span> defaultdict</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">import</span> httpx</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">import</span> redis</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">from</span> fastapi <span class="tok-k">import</span> FastAPI, HTTPException, Request, Response</span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-k">from</span> fastapi.responses <span class="tok-k">import</span> StreamingResponse</span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">from</span> prometheus_client <span class="tok-k">import</span> Counter, Histogram, generate_latest</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>UPSTREAM = os.<span class="tok-fn">getenv</span>(<span class="tok-str">"UPSTREAM"</span>, <span class="tok-str">"http://localhost:8000"</span>)   <span class="tok-cmt"># vLLM</span></span>
+<span class="ln"><span class="ln-i">15</span>API_KEY  = os.<span class="tok-fn">getenv</span>(<span class="tok-str">"GATEWAY_API_KEY"</span>)</span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-k">if</span> <span class="tok-k">not</span> API_KEY:</span>
+<span class="ln"><span class="ln-i">17</span>    <span class="tok-k">raise</span> <span class="tok-fn">SystemExit</span>(<span class="tok-str">"GATEWAY_API_KEY обязателен"</span>)</span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span>r = redis.<span class="tok-fn">Redis</span>(host=<span class="tok-str">"redis"</span>, port=<span class="tok-n">6379</span>, decode_responses=True)</span>
+<span class="ln"><span class="ln-i">20</span>app = <span class="tok-fn">FastAPI</span>(title=<span class="tok-str">"llm-gateway"</span>)</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span>REQUESTS = <span class="tok-fn">Counter</span>(<span class="tok-str">"gw_requests_total"</span>, <span class="tok-str">"Запросы к шлюзу"</span>, [<span class="tok-str">"team"</span>, <span class="tok-str">"model"</span>, <span class="tok-str">"status"</span>])</span>
+<span class="ln"><span class="ln-i">23</span>TOKENS   = <span class="tok-fn">Counter</span>(<span class="tok-str">"gw_tokens_total"</span>, <span class="tok-str">"Токены"</span>, [<span class="tok-str">"team"</span>, <span class="tok-str">"model"</span>, <span class="tok-str">"direction"</span>])</span>
+<span class="ln"><span class="ln-i">24</span>LATENCY  = <span class="tok-fn">Histogram</span>(<span class="tok-str">"gw_latency_seconds"</span>, <span class="tok-str">"Латентность"</span>, [<span class="tok-str">"team"</span>, <span class="tok-str">"model"</span>])</span>
+<span class="ln"><span class="ln-i">25</span>CACHE_HIT = <span class="tok-fn">Counter</span>(<span class="tok-str">"gw_cache_hits_total"</span>, <span class="tok-str">"Попадания в кэш"</span>, [<span class="tok-str">"team"</span>])</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span><span class="tok-cmt"># месячные лимиты в токенах: team -&gt; лимит</span></span>
+<span class="ln"><span class="ln-i">28</span>MONTHLY_TOKENS = {<span class="tok-str">"support"</span>: 50_000_000, <span class="tok-str">"sales"</span>: 20_000_000, <span class="tok-str">"default"</span>: 10_000_000}</span>
+<span class="ln"><span class="ln-i">29</span>REQUESTS_PER_MIN = {<span class="tok-str">"support"</span>: <span class="tok-n">600</span>, <span class="tok-str">"sales"</span>: <span class="tok-n">120</span>, <span class="tok-str">"default"</span>: <span class="tok-n">60</span>}</span>
+<span class="ln"><span class="ln-i">30</span>MAX_CONCURRENT = {<span class="tok-str">"support"</span>: <span class="tok-n">32</span>, <span class="tok-str">"sales"</span>: <span class="tok-n">8</span>, <span class="tok-str">"default"</span>: <span class="tok-n">4</span>}</span>
+<span class="ln"><span class="ln-i">31</span>CACHE_TTL = <span class="tok-n">3600</span></span>
+<span class="ln"><span class="ln-i">32</span></span>
+<span class="ln"><span class="ln-i">33</span><span class="tok-k">def</span> <span class="tok-fn">month_key</span>() -&gt; str:</span>
+<span class="ln"><span class="ln-i">34</span>    <span class="tok-k">return</span> time.<span class="tok-fn">strftime</span>(<span class="tok-str">"%Y-%m"</span>)</span>
+<span class="ln"><span class="ln-i">35</span></span>
+<span class="ln"><span class="ln-i">36</span><span class="tok-k">def</span> <span class="tok-fn">check_ratelimit</span>(team: str) -&gt; None:</span>
+<span class="ln"><span class="ln-i">37</span>    <span class="tok-str">"""Скользящее окно в 60 секунд по числу запросов."""</span></span>
+<span class="ln"><span class="ln-i">38</span>    rpm = REQUESTS_PER_MIN.<span class="tok-fn">get</span>(team, REQUESTS_PER_MIN[<span class="tok-str">"default"</span>])</span>
+<span class="ln"><span class="ln-i">39</span>    bucket = f<span class="tok-str">"rl:{team}:{int(time.time() // 60)}"</span></span>
+<span class="ln"><span class="ln-i">40</span>    <span class="tok-k">if</span> r.<span class="tok-fn">incr</span>(bucket) == <span class="tok-n">1</span>:</span>
+<span class="ln"><span class="ln-i">41</span>        r.<span class="tok-fn">expire</span>(bucket, <span class="tok-n">120</span>)          <span class="tok-cmt"># TTL длиннее окна: гонки на границе минуты не будет</span></span>
+<span class="ln"><span class="ln-i">42</span>    <span class="tok-k">if</span> <span class="tok-fn">int</span>(r.<span class="tok-fn">get</span>(bucket)) &gt; rpm:</span>
+<span class="ln"><span class="ln-i">43</span>        <span class="tok-k">raise</span> <span class="tok-fn">HTTPException</span>(status_code=<span class="tok-n">429</span>,</span>
+<span class="ln"><span class="ln-i">44</span>                            detail=f<span class="tok-str">"rate limit: больше {rpm} запросов в минуту"</span>)</span>
+<span class="ln"><span class="ln-i">45</span></span>
+<span class="ln"><span class="ln-i">46</span><span class="tok-k">def</span> <span class="tok-fn">check_concurrency</span>(team: str) -&gt; None:</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-str">"""Сколько запросов одновременно висит на модели — лимит для батча на GPU."""</span></span>
+<span class="ln"><span class="ln-i">48</span>    key = f<span class="tok-str">"cc:{team}"</span></span>
+<span class="ln"><span class="ln-i">49</span>    current = r.<span class="tok-fn">get</span>(key) <span class="tok-k">or</span> <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">50</span>    <span class="tok-k">if</span> current &gt;= MAX_CONCURRENT.<span class="tok-fn">get</span>(team, <span class="tok-n">8</span>):</span>
+<span class="ln"><span class="ln-i">51</span>        <span class="tok-k">raise</span> <span class="tok-fn">HTTPException</span>(status_code=<span class="tok-n">429</span>, detail=<span class="tok-str">"concurrency: сервис занят"</span>)</span>
+<span class="ln"><span class="ln-i">52</span>    r.<span class="tok-fn">incr</span>(key, <span class="tok-n">60</span>)                    <span class="tok-cmt"># ключ протухает за минуту без продления</span></span>
+<span class="ln"><span class="ln-i">53</span></span>
+<span class="ln"><span class="ln-i">54</span><span class="tok-k">def</span> <span class="tok-fn">check_budget</span>(team: str, est_tokens: int) -&gt; None:</span>
+<span class="ln"><span class="ln-i">55</span>    used = <span class="tok-fn">int</span>(r.<span class="tok-fn">get</span>(f<span class="tok-str">"tokens:{team}:{month_key()}"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">56</span>    limit = MONTHLY_TOKENS.<span class="tok-fn">get</span>(team, MONTHLY_TOKENS[<span class="tok-str">"default"</span>])</span>
+<span class="ln"><span class="ln-i">57</span>    <span class="tok-k">if</span> used + est_tokens &gt; limit:</span>
+<span class="ln"><span class="ln-i">58</span>        <span class="tok-k">raise</span> <span class="tok-fn">HTTPException</span>(status_code=<span class="tok-n">429</span>, detail=f<span class="tok-str">"budget: {used + est_tokens} &gt; {limit} токенов"</span>)</span>
+<span class="ln"><span class="ln-i">59</span></span>
+<span class="ln"><span class="ln-i">60</span><span class="tok-k">def</span> <span class="tok-fn">record_usage</span>(team: str, model: str, usage: dict) -&gt; None:</span>
+<span class="ln"><span class="ln-i">61</span>    pin, pout = usage.<span class="tok-fn">get</span>(<span class="tok-str">"prompt_tokens"</span>, <span class="tok-n">0</span>), usage.<span class="tok-fn">get</span>(<span class="tok-str">"completion_tokens"</span>, <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">62</span>    TOKENS.<span class="tok-fn">labels</span>(team, model, <span class="tok-str">"input"</span>).<span class="tok-fn">inc</span>(pin)</span>
+<span class="ln"><span class="ln-i">63</span>    TOKENS.<span class="tok-fn">labels</span>(team, model, <span class="tok-str">"output"</span>).<span class="tok-fn">inc</span>(pout)</span>
+<span class="ln"><span class="ln-i">64</span>    r.<span class="tok-fn">incrby</span>(f<span class="tok-str">"tokens:{team}:{month_key()}"</span>, pin + pout)</span>
+<span class="ln"><span class="ln-i">65</span></span>
+<span class="ln"><span class="ln-i">66</span><span class="tok-k">def</span> <span class="tok-fn">cache_key</span>(model: str, body: dict) -&gt; str:</span>
+<span class="ln"><span class="ln-i">67</span>    <span class="tok-cmt"># Кэшируем только то, что детерминировано: без seed/random и без инструментов.</span></span>
+<span class="ln"><span class="ln-i">68</span>    payload = {k: body[k] <span class="tok-k">for</span> k <span class="tok-k">in</span> (<span class="tok-str">"messages"</span>, <span class="tok-str">"model"</span>) <span class="tok-k">if</span> k <span class="tok-k">in</span> body}</span>
+<span class="ln"><span class="ln-i">69</span>    raw = <span class="tok-fn">repr</span>(<span class="tok-fn">sorted</span>(payload.<span class="tok-fn">items</span>(), key=<span class="tok-k">lambda</span> kv: kv[<span class="tok-n">0</span>])) + <span class="tok-fn">str</span>(</span>
+<span class="ln"><span class="ln-i">70</span>        (body.<span class="tok-fn">get</span>(<span class="tok-str">"temperature"</span>), body.<span class="tok-fn">get</span>(<span class="tok-str">"top_p"</span>), body.<span class="tok-fn">get</span>(<span class="tok-str">"max_tokens"</span>))</span>
+<span class="ln"><span class="ln-i">71</span>    )</span>
+<span class="ln"><span class="ln-i">72</span>    <span class="tok-k">return</span> <span class="tok-str">"cache:"</span> + hashlib.<span class="tok-fn">sha256</span>(raw.<span class="tok-fn">encode</span>()).<span class="tok-fn">hexdigest</span>()</span>
+<span class="ln"><span class="ln-i">73</span></span>
+<span class="ln"><span class="ln-i">74</span>@app.<span class="tok-fn">post</span>(<span class="tok-str">"/v1/chat/completions"</span>)</span>
+<span class="ln"><span class="ln-i">75</span><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-fn">chat</span>(req: Request):</span>
+<span class="ln"><span class="ln-i">76</span>    <span class="tok-cmt"># 1. Аутентификация: сравнение константного времени, чтобы не утечь ключ таймингом</span></span>
+<span class="ln"><span class="ln-i">77</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> secrets.<span class="tok-fn">compare_digest</span>(req.headers.<span class="tok-fn">get</span>(<span class="tok-str">"authorization"</span>, <span class="tok-str">""</span>), f<span class="tok-str">"Bearer {API_KEY}"</span>):</span>
+<span class="ln"><span class="ln-i">78</span>        <span class="tok-k">raise</span> <span class="tok-fn">HTTPException</span>(status_code=<span class="tok-n">401</span>, detail=<span class="tok-str">"неверный API-ключ"</span>)</span>
+<span class="ln"><span class="ln-i">79</span></span>
+<span class="ln"><span class="ln-i">80</span>    body = <span class="tok-k">await</span> req.<span class="tok-fn">json</span>()</span>
+<span class="ln"><span class="ln-i">81</span>    team = req.headers.<span class="tok-fn">get</span>(<span class="tok-str">"x-team"</span>, <span class="tok-str">"default"</span>)</span>
+<span class="ln"><span class="ln-i">82</span>    model = body.<span class="tok-fn">get</span>(<span class="tok-str">"model"</span>, <span class="tok-str">"unknown"</span>)</span>
+<span class="ln"><span class="ln-i">83</span>    started = time.<span class="tok-fn">perf_counter</span>()</span>
+<span class="ln"><span class="ln-i">84</span></span>
+<span class="ln"><span class="ln-i">85</span>    <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">86</span>        <span class="tok-fn">check_ratelimit</span>(team)</span>
+<span class="ln"><span class="ln-i">87</span>        <span class="tok-fn">check_concurrency</span>(team)</span>
+<span class="ln"><span class="ln-i">88</span>        est = <span class="tok-fn">len</span>(<span class="tok-fn">str</span>(body.<span class="tok-fn">get</span>(<span class="tok-str">"messages"</span>, <span class="tok-str">""</span>))) // <span class="tok-n">2</span> + <span class="tok-fn">int</span>(body.<span class="tok-fn">get</span>(<span class="tok-str">"max_tokens"</span>) <span class="tok-k">or</span> <span class="tok-n">512</span>)</span>
+<span class="ln"><span class="ln-i">89</span>        <span class="tok-fn">check_budget</span>(team, est)</span>
+<span class="ln"><span class="ln-i">90</span></span>
+<span class="ln"><span class="ln-i">91</span>        <span class="tok-cmt"># 2. Кэш: точное совпадение промпта + параметров + модели</span></span>
+<span class="ln"><span class="ln-i">92</span>        ck = <span class="tok-fn">cache_key</span>(model, body)</span>
+<span class="ln"><span class="ln-i">93</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> body.<span class="tok-fn">get</span>(<span class="tok-str">"stream"</span>):</span>
+<span class="ln"><span class="ln-i">94</span>            cached = r.<span class="tok-fn">get</span>(ck)</span>
+<span class="ln"><span class="ln-i">95</span>            <span class="tok-k">if</span> cached:</span>
+<span class="ln"><span class="ln-i">96</span>                CACHE_HIT.<span class="tok-fn">labels</span>(team).<span class="tok-fn">inc</span>()</span>
+<span class="ln"><span class="ln-i">97</span>                <span class="tok-k">return</span> <span class="tok-fn">Response</span>(cached, media_type=<span class="tok-str">"application/json"</span>)</span>
+<span class="ln"><span class="ln-i">98</span></span>
+<span class="ln"><span class="ln-i">99</span>        headers = {<span class="tok-str">"Authorization"</span>: f<span class="tok-str">"Bearer {os.getenv('UPSTREAM_KEY', 'EMPTY')}"</span>}</span>
+<span class="ln"><span class="ln-i">100</span></span>
+<span class="ln"><span class="ln-i">101</span>        <span class="tok-cmt"># 3. Стриминг проксируется байт в байт, буферизацию отключаем на своём уровне</span></span>
+<span class="ln"><span class="ln-i">102</span>        <span class="tok-k">if</span> body.<span class="tok-fn">get</span>(<span class="tok-str">"stream"</span>):</span>
+<span class="ln"><span class="ln-i">103</span>            <span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-fn">proxy_stream</span>():</span>
+<span class="ln"><span class="ln-i">104</span>                <span class="tok-k">async</span> <span class="tok-k">with</span> httpx.<span class="tok-fn">AsyncClient</span>(timeout=httpx.<span class="tok-fn">Timeout</span>(<span class="tok-n">300.0</span>)) <span class="tok-k">as</span> client:</span>
+<span class="ln"><span class="ln-i">105</span>                    <span class="tok-k">async</span> <span class="tok-k">with</span> client.<span class="tok-fn">stream</span>(<span class="tok-str">"POST"</span>, f<span class="tok-str">"{UPSTREAM}/v1/chat/completions"</span>,</span>
+<span class="ln"><span class="ln-i">106</span>                                             json=body, headers=headers) <span class="tok-k">as</span> resp:</span>
+<span class="ln"><span class="ln-i">107</span>                        <span class="tok-k">async</span> <span class="tok-k">for</span> line <span class="tok-k">in</span> resp.<span class="tok-fn">aiter_lines</span>():</span>
+<span class="ln"><span class="ln-i">108</span>                            <span class="tok-k">if</span> line.<span class="tok-fn">startswith</span>(<span class="tok-str">"data: "</span>) <span class="tok-k">and</span> line.<span class="tok-fn">strip</span>() != <span class="tok-str">"data: [DONE]"</span>:</span>
+<span class="ln"><span class="ln-i">109</span>                                buf.<span class="tok-fn">append</span>(line)</span>
+<span class="ln"><span class="ln-i">110</span>                            <span class="tok-k">yield</span> line.<span class="tok-fn">encode</span>() + b<span class="tok-str">"\n"</span></span>
+<span class="ln"><span class="ln-i">111</span>                REQUESTS.<span class="tok-fn">labels</span>(team, model, <span class="tok-str">"200"</span>).<span class="tok-fn">inc</span>()</span>
+<span class="ln"><span class="ln-i">112</span>                LATENCY.<span class="tok-fn">labels</span>(team, model).<span class="tok-fn">observe</span>(time.<span class="tok-fn">perf_counter</span>() - started)</span>
+<span class="ln"><span class="ln-i">113</span>            <span class="tok-k">return</span> <span class="tok-fn">StreamingResponse</span>(<span class="tok-fn">proxy_stream</span>(), media_type=<span class="tok-str">"text/event-stream"</span>,</span>
+<span class="ln"><span class="ln-i">114</span>                                     headers={<span class="tok-str">"X-Accel-Buffering"</span>: <span class="tok-str">"no"</span>, <span class="tok-str">"Cache-Control"</span>: <span class="tok-str">"no-cache"</span>})</span>
+<span class="ln"><span class="ln-i">115</span></span>
+<span class="ln"><span class="ln-i">116</span>        <span class="tok-k">async</span> <span class="tok-k">with</span> httpx.<span class="tok-fn">AsyncClient</span>(timeout=httpx.<span class="tok-fn">Timeout</span>(<span class="tok-n">300.0</span>)) <span class="tok-k">as</span> client:</span>
+<span class="ln"><span class="ln-i">117</span>            resp = <span class="tok-k">await</span> client.<span class="tok-fn">post</span>(f<span class="tok-str">"{UPSTREAM}/v1/chat/completions"</span>,</span>
+<span class="ln"><span class="ln-i">118</span>                                     json=body, headers=headers)</span>
+<span class="ln"><span class="ln-i">119</span>        <span class="tok-k">if</span> resp.status_code != <span class="tok-n">200</span>:</span>
+<span class="ln"><span class="ln-i">120</span>            REQUESTS.<span class="tok-fn">labels</span>(team, model, <span class="tok-fn">str</span>(resp.status_code)).<span class="tok-fn">inc</span>()</span>
+<span class="ln"><span class="ln-i">121</span>            <span class="tok-k">raise</span> <span class="tok-fn">HTTPException</span>(status_code=<span class="tok-n">502</span>, detail=resp.text[:<span class="tok-n">200</span>])</span>
+<span class="ln"><span class="ln-i">122</span></span>
+<span class="ln"><span class="ln-i">123</span>        data = resp.<span class="tok-fn">json</span>()</span>
+<span class="ln"><span class="ln-i">124</span>        <span class="tok-fn">record_usage</span>(team, model, data.<span class="tok-fn">get</span>(<span class="tok-str">"usage"</span>, {}))</span>
+<span class="ln"><span class="ln-i">125</span>        REQUESTS.<span class="tok-fn">labels</span>(team, model, <span class="tok-str">"200"</span>).<span class="tok-fn">inc</span>()</span>
+<span class="ln"><span class="ln-i">126</span>        LATENCY.<span class="tok-fn">labels</span>(team, model).<span class="tok-fn">observe</span>(time.<span class="tok-fn">perf_counter</span>() - started)</span>
+<span class="ln"><span class="ln-i">127</span></span>
+<span class="ln"><span class="ln-i">128</span>        <span class="tok-cmt"># 4. Аудит: один JSON на запрос, уходит в stdout -&gt; собирается в Loki/ELK</span></span>
+<span class="ln"><span class="ln-i">129</span>        <span class="tok-fn">print</span>({<span class="tok-str">"ts"</span>: time.<span class="tok-fn">time</span>(), <span class="tok-str">"team"</span>: team, <span class="tok-str">"model"</span>: model,</span>
+<span class="ln"><span class="ln-i">130</span>               <span class="tok-str">"tokens"</span>: data.<span class="tok-fn">get</span>(<span class="tok-str">"usage"</span>, {}), <span class="tok-str">"cache"</span>: False,</span>
+<span class="ln"><span class="ln-i">131</span>               <span class="tok-str">"latency"</span>: <span class="tok-fn">round</span>(time.<span class="tok-fn">perf_counter</span>() - started, <span class="tok-n">3</span>)}, flush=True)</span>
+<span class="ln"><span class="ln-i">132</span></span>
+<span class="ln"><span class="ln-i">133</span>        out = resp.text</span>
+<span class="ln"><span class="ln-i">134</span>        r.<span class="tok-fn">setex</span>(ck, CACHE_TTL, out)</span>
+<span class="ln"><span class="ln-i">135</span>        <span class="tok-k">return</span> <span class="tok-fn">Response</span>(out, media_type=<span class="tok-str">"application/json"</span>)</span>
+<span class="ln"><span class="ln-i">136</span></span>
+<span class="ln"><span class="ln-i">137</span>    <span class="tok-k">except</span> HTTPException:</span>
+<span class="ln"><span class="ln-i">138</span>        REQUESTS.<span class="tok-fn">labels</span>(team, model, <span class="tok-str">"error"</span>).<span class="tok-fn">inc</span>()</span>
+<span class="ln"><span class="ln-i">139</span>        <span class="tok-k">raise</span></span>
+<span class="ln"><span class="ln-i">140</span></span>
+<span class="ln"><span class="ln-i">141</span>@app.<span class="tok-fn">get</span>(<span class="tok-str">"/metrics"</span>)</span>
+<span class="ln"><span class="ln-i">142</span><span class="tok-k">def</span> <span class="tok-fn">metrics</span>():</span>
+<span class="ln"><span class="ln-i">143</span>    <span class="tok-k">return</span> <span class="tok-fn">Response</span>(<span class="tok-fn">generate_latest</span>(), media_type=<span class="tok-str">"text/plain"</span>)</span>
+<span class="ln"><span class="ln-i">144</span></span>
+<span class="ln"><span class="ln-i">145</span>@app.<span class="tok-fn">get</span>(<span class="tok-str">"/admin/usage"</span>)</span>
+<span class="ln"><span class="ln-i">146</span><span class="tok-k">def</span> <span class="tok-fn">usage</span>():</span>
+<span class="ln"><span class="ln-i">147</span>    <span class="tok-str">"""Сколько токенов израсходовала каждая команда в этом месяце."""</span></span>
+<span class="ln"><span class="ln-i">148</span>    mk = <span class="tok-fn">month_key</span>()</span>
+<span class="ln"><span class="ln-i">149</span>    <span class="tok-k">return</span> {t: <span class="tok-fn">int</span>(r.<span class="tok-fn">get</span>(f<span class="tok-str">"tokens:{t}:{mk}"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>) <span class="tok-k">for</span> t <span class="tok-k">in</span> MONTHLY_TOKENS}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>uvicorn gateway:app --host <span class="tok-n">0.0</span>.<span class="tok-n">0.0</span> --port <span class="tok-n">8080</span> --workers <span class="tok-n">4</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">curl</span> -s http://localhost:<span class="tok-n">8080</span>/admin/usage</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">curl</span> -s http://localhost:<span class="tok-n">8080</span>/metrics | <span class="tok-k">grep</span> <span class="tok-str">'^gw_'</span></span>
+</code></pre></div>
+<p>Обрати внимание на три детали, которые обычно упускают:</p>
+<ul><li><code>secrets.compare_digest</code> вместо <code>==</code> — обычное сравнение строк завершается на первом различии и позволяет подбирать ключ побайтово;</li><li><code>X-Accel-Buffering: no</code> в ответе — страховка на случай, если перед шлюзом стоит прокси, который всё-таки буферизует;</li><li>запись аудита в <code>print</code> с <code>flush=True</code> — сознательный минимум. В бою это уходит в Loki или ClickHouse, но <strong>строчка аудита появляется раньше, чем метрика агрегируется</strong>, и именно по ней можно восстановить конкретный инцидент.</li></ul>
+<h2 id="rate-limiting-zaprosy-ili-tokeny">Rate limiting: запросы или токены</h2>
+<p>Обычный rate limit считает запросы в минуту. Для LLM это неверная метрика: один запрос с 50K контекста стоит как пятьдесят запросов с коротким промптом. Ограничивая RPM, ты защищаешься от числа запросов, но не от расхода.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ ограничения</th>
+<th style="text-align:left">Что защищает</th>
+<th style="text-align:left">Чего не защищает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">RPM (запросов в минуту)</td>
+<td style="text-align:left">от парсинга коротких промптов, от флуд-ботов</td>
+<td style="text-align:left">от одного запроса с 200K контекста</td>
+</tr>
+<tr>
+<td style="text-align:left">TPM (токенов в минуту)</td>
+<td style="text-align:left"><strong>от расхода денег</strong></td>
+<td style="text-align:left">от всплеска, который уложится в лимит, но убьёт latency</td>
+</tr>
+<tr>
+<td style="text-align:left">Дневной/месячный потолок токенов</td>
+<td style="text-align:left">от накопления перерасхода</td>
+<td style="text-align:left">от необходимости остановиться ровно в момент месяца</td>
+</tr>
+<tr>
+<td style="text-align:left">Одновременные запросы (concurrency)</td>
+<td style="text-align:left">от исчерпания батча на GPU</td>
+<td style="text-align:left">от стоимости длинных ответов</td>
+</tr>
+</tbody></table></div>
+<p>Правильный набор — <strong>все четыре одновременно</strong>. Медленный скользящий счётчик по токенам плюс быстрый счётчик по запросам плюс месячный потолок плюс лимит параллельности.</p>
+<p>Для оценки токенов <strong>до</strong> вызова модели нужен токенизатор. Дёшево и достаточно: <code>len(prompt) / 4</code> для английского и <code>/ 2</code> для русского, плюс <code>max_tokens</code>. Точная оценка не нужна — нужна защита от запроса, который в 100 раз дороже ожидаемого.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Rate limit нужен <strong>и на клиенте, и на шлюзе</strong>, и это не дублирование. Клиентский нужен, чтобы приложение само переживало 429 и не превращало её в каскад ретраев. Шлюзовой нужен, потому что клиентский лимит обходится одним неверным значением в коде, а у шлюза стоит перед ним. Ограничение на шлюзе — это граница безопасности; ограничение на клиенте — это вежливость.</p></div></div>
+<h2 id="kesh-otvetov-schitaem-ekonomiyu">Кэш ответов: считаем экономию</h2>
+<p>Ключ кэша — хеш от <strong>промпта + параметров генерации + имени модели</strong>. Изменение любой части даёт другой ключ. Отсюда важный вывод: <code>temperature: 0</code> и одинаковый промпт — идеальный кандидат на кэш; <code>temperature: 0.9</code> — нет, потому что ответ каждый раз разный.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>key = sha256(model + messages + temperature + top_p + max_tokens + stop)</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что кэшировать</th>
+<th style="text-align:left">Почему</th>
+<th style="text-align:left">TTL</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Системные промпты и инструкции</td>
+<td style="text-align:left">не меняются, повторяются постоянно</td>
+<td style="text-align:left">сутки</td>
+</tr>
+<tr>
+<td style="text-align:left">Классификация и извлечение полей</td>
+<td style="text-align:left">детерминированный вход — детерминированный выход</td>
+<td style="text-align:left">1–24 часа</td>
+</tr>
+<tr>
+<td style="text-align:left">FAQ-бот с фиксированной базой</td>
+<td style="text-align:left">30–60 % вопросов повторяются</td>
+<td style="text-align:left">до обновления базы</td>
+</tr>
+<tr>
+<td style="text-align:left">RAG-ответы на типовые вопросы</td>
+<td style="text-align:left">повторяются после обновления индексов</td>
+<td style="text-align:left">1–6 часов</td>
+</tr>
+<tr>
+<td style="text-align:left">Персональные данные пользователя</td>
+<td style="text-align:left"><strong>нельзя</strong> — утечка между пользователями</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left">Запросы с меняющимися данными (время, курс, статус заказа)</td>
+<td style="text-align:left">кэш отдаст устаревший ответ</td>
+<td style="text-align:left">минуты, если очень нужно</td>
+</tr>
+<tr>
+<td style="text-align:left">Ответы с побочными эффектами (отправка письма, вызов API)</td>
+<td style="text-align:left">повторный вызов выполнит действие дважды</td>
+<td style="text-align:left">—</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Главная ошибка — <strong>кэш без изоляции по пользователю</strong>. Если ключ строится только из промпта, два разных сотрудника с одинаковым вопросом «покажи мою зарплату» получат один и тот же ответ из кэша. Всегда добавляй в ключ идентификатор пользователя или тенанта, либо не кэшируй то, что содержит персональные данные. Второе правило: <strong>никогда не кэшируй запрос, из которого вызываются инструменты с побочными эффектами</strong>.</p></div></div>
+<p>Экономия считается просто:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>    запросов в сутки:            100 000</span>
+<span class="ln"><span class="ln-i">2</span>    доля попаданий в кэш:           35 %</span>
+<span class="ln"><span class="ln-i">3</span>    запросов без кэша:            65 000</span>
+<span class="ln"><span class="ln-i">4</span>    средние токены на запрос:  2 500 (вход) + 400 (выход)</span>
+<span class="ln"><span class="ln-i">5</span>    цена входа:                 0,15 $ за 1M</span>
+<span class="ln"><span class="ln-i">6</span>    цена выхода:                0,60 $ за 1M</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>    без кэша:   65 000 × (2500/1e6 × 0.15 + 400/1e6 × 0.60) = 65 000 × 0.000615 = 39,98 $</span>
+<span class="ln"><span class="ln-i">9</span>    с кэшем:   те же 39,98 $, но 35 000 запросов отданы бесплатно</span>
+<span class="ln"><span class="ln-i">10</span>    экономия:  ~14,00 $ в сутки = 5 100 $ в год</span>
+</code></pre></div>
+<p>На дешёвой модели это копейки. На флагманском API при 5 миллионах запросов в сутки и 40 % повторов кэш превращается в отдельную статью бюджета — <strong>пять-шесть тысяч евро в месяц</strong>. Это ровно тот расчёт, который стоит показать до того, как внедрять.</p>
+<h2 id="striming-cherez-nginx-glavnaya-grablya">Стриминг через nginx: главная грабля</h2>
+<p>Стриминг для LLM несущественен технически, но критичен по восприятию: ответ за 30 секунд, пришедший двумя секундами и плавно, воспринимается как мгновенный; тот же ответ, пришедший разом через 30 секунд, — как зависание.</p>
+<p>По умолчанию nginx <strong>буферизует ответ</strong> целиком, и стрим превращается в обычный запрос. Три настройки обязательны, а забывают обычно про третью.</p>
+<div class="codeblock" data-lang="nginx"><div class="codehead"><span class="code-lang">nginx</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>upstream llm_gateway {</span>
+<span class="ln"><span class="ln-i">2</span>    server <span class="tok-n">10.10</span>.<span class="tok-n">20.30</span>:<span class="tok-n">8080</span>;</span>
+<span class="ln"><span class="ln-i">3</span>    keepalive <span class="tok-n">64</span>;</span>
+<span class="ln"><span class="ln-i">4</span>}</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>server {</span>
+<span class="ln"><span class="ln-i">7</span>    listen <span class="tok-n">443</span> ssl http2;</span>
+<span class="ln"><span class="ln-i">8</span>    server_name llm.company.local;</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>    ssl_certificate     /etc/ssl/certs/llm.pem;</span>
+<span class="ln"><span class="ln-i">11</span>    ssl_certificate_key /etc/ssl/private/llm.key;</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span>    location / {</span>
+<span class="ln"><span class="ln-i">14</span>        proxy_pass http://llm_gateway;</span>
+<span class="ln"><span class="ln-i">15</span>        proxy_http_version <span class="tok-n">1.1</span>;</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span>        <span class="tok-cmt"># Обязательно: не буферизовать тело ответа</span></span>
+<span class="ln"><span class="ln-i">18</span>        proxy_buffering off;</span>
+<span class="ln"><span class="ln-i">19</span>        proxy_cache off;</span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span>        <span class="tok-cmt"># Обязательно: не разрывать соединение на долгий стрим</span></span>
+<span class="ln"><span class="ln-i">22</span>        proxy_read_timeout 600s;</span>
+<span class="ln"><span class="ln-i">23</span>        proxy_send_timeout 600s;</span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span>        <span class="tok-cmt"># Обязательно: отключить gzip — он тоже накапливает буфер</span></span>
+<span class="ln"><span class="ln-i">26</span>        gzip off;</span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span>        <span class="tok-cmt"># SSE требует безбуферного апстрима, иначе данные залипают</span></span>
+<span class="ln"><span class="ln-i">29</span>        proxy_set_header Connection <span class="tok-str">""</span>;</span>
+<span class="ln"><span class="ln-i">30</span></span>
+<span class="ln"><span class="ln-i">31</span>        proxy_set_header Host $host;</span>
+<span class="ln"><span class="ln-i">32</span>        proxy_set_header X-Real-IP $remote_addr;</span>
+<span class="ln"><span class="ln-i">33</span>        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</span>
+<span class="ln"><span class="ln-i">34</span>        proxy_set_header X-Forwarded-Proto $scheme;</span>
+<span class="ln"><span class="ln-i">35</span>    }</span>
+<span class="ln"><span class="ln-i">36</span>}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>nginx -t &amp;&amp; <span class="tok-k">systemctl</span> reload nginx</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># Проверка, что данные действительно идут потоком, а не пачкой в конце</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">curl</span> -N -s https://llm.company.<span class="tok-k">local</span>/v1/chat/completions \</span>
+<span class="ln"><span class="ln-i">5</span>  -H <span class="tok-str">"Authorization: Bearer $GATEWAY_API_KEY"</span> \</span>
+<span class="ln"><span class="ln-i">6</span>  -H <span class="tok-str">"Content-Type: application/json"</span> \</span>
+<span class="ln"><span class="ln-i">7</span>  -H <span class="tok-str">"X-Team: support"</span> \</span>
+<span class="ln"><span class="ln-i">8</span>  -d '{<span class="tok-str">"model"</span>:<span class="tok-str">"chat-fast"</span>,<span class="tok-str">"stream"</span>:true,</span>
+<span class="ln"><span class="ln-i">9</span>       <span class="tok-str">"messages"</span>:[{<span class="tok-str">"role"</span>:<span class="tok-str">"user"</span>,<span class="tok-str">"content"</span>:<span class="tok-str">"Опиши водопад"</span>}]}' \</span>
+<span class="ln"><span class="ln-i">10</span>  | <span class="tok-k">while</span> IFS= read -r line; <span class="tok-k">do</span> printf <span class="tok-str">'%s  %s\n'</span> <span class="tok-str">"$(date +%H:%M:%S.%3N)"</span> <span class="tok-str">"$line"</span>; <span class="tok-k">done</span></span>
+</code></pre></div>
+<p>Если таймстемпы равномерно растут — стрим работает. Если все чанки пришли с одной отметкой времени — буферизация, ищи либо <code>proxy_buffering</code>, либо gzip, либо апстримный балансировщик (Traefik, HAProxy, AWS ALB) с включённым буфером. <strong>Буфер живёт на каждом прокси в цепочке</strong>, и забыть можно любой из них.</p>
+<h2 id="nablyudaemost-shlyuza">Наблюдаемость шлюза</h2>
+<p>Шлюз — идеальное место для метрик, потому что через него проходит 100 % трафика. Набор — это RED (см. <a href="../../lectures/devops/15-monitoring-concepts.html">лекцию про метрики</a>) плюс три LLM-специфичные метрики.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>  - job_name: <span class="tok-str">"llm-gateway"</span></span>
+<span class="ln"><span class="ln-i">2</span>    scrape_interval: 15s</span>
+<span class="ln"><span class="ln-i">3</span>    metrics_path: /metrics</span>
+<span class="ln"><span class="ln-i">4</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">5</span>      - targets: [<span class="tok-str">"llm-gw-1:8080"</span>, <span class="tok-str">"llm-gw-2:8080"</span>]</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метрика</th>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Что показывает</th>
+<th style="text-align:left">Смотреть на</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>gw_requests_total{team,model,status}</code></td>
+<td style="text-align:left">counter</td>
+<td style="text-align:left">RPS, доля ошибок</td>
+<td style="text-align:left">5xx отдельно от 429: 429 — это работа шлюза, 5xx — инцидент</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>gw_latency_seconds</code></td>
+<td style="text-align:left">histogram</td>
+<td style="text-align:left"><strong>время до первого токена</strong> и полная латентность</td>
+<td style="text-align:left">TTFT p95 важнее полного p95: он определяет ощущение отзывчивости</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>gw_tokens_total{team,model,direction}</code></td>
+<td style="text-align:left">counter</td>
+<td style="text-align:left">расход токенов</td>
+<td style="text-align:left">расход по командам — готовая база для биллинга</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>gw_cache_hits_total{team}</code></td>
+<td style="text-align:left">counter</td>
+<td style="text-align:left">эффективность кэша</td>
+<td style="text-align:left">ниже 10 % — кэш настроен неправильно или бесполезен</td>
+</tr>
+<tr>
+<td style="text-align:left">стоимость в деньгах</td>
+<td style="text-align:left">вычисляемое</td>
+<td style="text-align:left"><code>tokens_input × цена + tokens_output × цена</code></td>
+<td style="text-align:left">против месячного бюджета</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="promql"><div class="codehead"><span class="code-lang">promql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># RED: ошибки</span></span>
+<span class="ln"><span class="ln-i">2</span>sum <span class="tok-fn">by</span> (status) (<span class="tok-fn">rate</span>(gw_requests_total[5m]))</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># Латентность до первого токена</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-fn">histogram_quantile</span>(<span class="tok-n">0.95</span>, sum <span class="tok-fn">by</span> (le) (<span class="tok-fn">rate</span>(gw_latency_seconds_bucket[5m])))</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># Токены в час по командам — «кто жжёт»</span></span>
+<span class="ln"><span class="ln-i">8</span>sum <span class="tok-fn">by</span> (team) (<span class="tok-fn">rate</span>(gw_tokens_total[1h]))</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt"># Расход в долларах за сутки (цены зашиты в запрос — проверяй их раз в квартал)</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-fn">sum</span>(gw_tokens_total{direction=<span class="tok-str">"input"</span>}) / <span class="tok-n">1e6</span> * <span class="tok-n">0.15</span></span>
+<span class="ln"><span class="ln-i">12</span>  + <span class="tok-fn">sum</span>(gw_tokens_total{direction=<span class="tok-str">"output"</span>}) / <span class="tok-n">1e6</span> * <span class="tok-n">0.60</span></span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-cmt"># Бюджет: сколько осталось в месяце</span></span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-fn">sum</span>(gw_tokens_total) / <span class="tok-n">1e6</span> * <span class="tok-n">0.5</span> &lt; monthly_limit</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-cmt"># Эффективность кэша</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-fn">sum</span>(<span class="tok-fn">rate</span>(gw_cache_hits_total[1h]))</span>
+<span class="ln"><span class="ln-i">19</span>  / <span class="tok-fn">clamp_min</span>(<span class="tok-fn">sum</span>(<span class="tok-fn">rate</span>(gw_requests_total[1h])), <span class="tok-n">0.001</span>)</span>
+</code></pre></div>
+<p>Алерт, который стоит поставить первым, звучит не про латентность, а про деньги: <strong>дневной расход превысил плановый на 50 %</strong>. Он срабатывает за один день, а не за один месяц.</p>
+<h2 id="audit-gotovaya-baza-dlya-otchetnosti">Аудит: готовая база для отчётности</h2>
+<p>Аудит-строка отвечает на вопрос, который руководство задаёт первым и который ты иначе не закроешь: <strong>кто, когда, какую модель, сколько токенов и сколько денег</strong>.</p>
+<div class="codeblock" data-lang="json"><div class="codehead"><span class="code-lang">json</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>{<span class="tok-str">"ts"</span>: <span class="tok-n">1761028800.123</span>, <span class="tok-str">"team"</span>: <span class="tok-str">"support"</span>, <span class="tok-str">"user"</span>: <span class="tok-str">"svc-telegram-bot"</span>,</span>
+<span class="ln"><span class="ln-i">2</span> <span class="tok-str">"model"</span>: <span class="tok-str">"chat-fast"</span>, <span class="tok-str">"upstream"</span>: <span class="tok-str">"ollama/qwen2.5:7b"</span>,</span>
+<span class="ln"><span class="ln-i">3</span> <span class="tok-str">"prompt_tokens"</span>: <span class="tok-n">812</span>, <span class="tok-str">"completion_tokens"</span>: <span class="tok-n">143</span>, <span class="tok-str">"total_tokens"</span>: <span class="tok-n">955</span>,</span>
+<span class="ln"><span class="ln-i">4</span> <span class="tok-str">"cost_usd"</span>: <span class="tok-n">0.00021</span>, <span class="tok-str">"cached"</span>: false, <span class="tok-str">"latency_ms"</span>: <span class="tok-n">2840</span>, <span class="tok-str">"ttft_ms"</span>: <span class="tok-n">320</span>}</span>
+</code></pre></div>
+<p>Практические требования к аудиту:</p>
+<ul><li><strong>не пиши в аудит сам промпт и ответ</strong> без необходимости — там персональные данные, и аудит сам становится утечкой; пиши хеш и ссылку на запись в отдельном защищённом хранилище;</li><li><strong>идентификатор пользователя</strong> из токена, а не из тела запроса — иначе клиент подменяет его;</li><li><strong>сверяй <code>usage</code> из ответа провайдера</strong>, а не оценивай — оценки расходятся на десятки процентов;</li><li><strong>срок хранения определи заранее</strong> и укажи его в политике обработки персональных данных;</li><li>агрегаты считай из журнала отдельным запросом (SQL или ClickHouse), а не пытайся вытащить их из метрик Prometheus: в метриках агрегат потеряет детализацию, а в журнале их нет.</li></ul>
+<div class="codeblock" data-lang="sql"><div class="codehead"><span class="code-lang">sql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">-- Отчёт за месяц по командам: готовая таблица для совещания</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">SELECT</span></span>
+<span class="ln"><span class="ln-i">3</span>  team,</span>
+<span class="ln"><span class="ln-i">4</span>  model,</span>
+<span class="ln"><span class="ln-i">5</span>  <span class="tok-fn">count</span>(*)                                   <span class="tok-k">AS</span> requests,</span>
+<span class="ln"><span class="ln-i">6</span>  <span class="tok-fn">sum</span>(prompt_tokens) / <span class="tok-n">1e6</span>                   <span class="tok-k">AS</span> m_in,</span>
+<span class="ln"><span class="ln-i">7</span>  <span class="tok-fn">sum</span>(completion_tokens) / <span class="tok-n">1e6</span>               <span class="tok-k">AS</span> m_out,</span>
+<span class="ln"><span class="ln-i">8</span>  <span class="tok-fn">sum</span>(cost_usd)                              <span class="tok-k">AS</span> usd,</span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-fn">percentile_cont</span>(<span class="tok-n">0.95</span>) WITHIN <span class="tok-k">GROUP</span> (<span class="tok-k">ORDER</span> <span class="tok-k">BY</span> latency_ms) <span class="tok-k">AS</span> p95_ms</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">FROM</span> llm_audit</span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-k">WHERE</span> ts &gt;= <span class="tok-fn">date_trunc</span>(<span class="tok-str">'month'</span>, <span class="tok-fn">now</span>())</span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">GROUP</span> <span class="tok-k">BY</span> team, model</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">ORDER</span> <span class="tok-k">BY</span> usd DESC;</span>
+</code></pre></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ol><li><strong>Приложения подключились напрямую, минуя шлюз.</strong> Потом не свести их вместе в принципе. Шлюз вводится до первой интеграции — либо не вводится никогда.</li><li><strong>Считали лимит в запросах в минуту.</strong> Один запрос с 200K контекста проходит лимит и съедает месячный бюджет за сутки. Ограничивать надо токены.</li><li><strong>Не считали входные токены при оценке лимита</strong> и пропускали через шлюз промпты с чужими документами на 150K токенов.</li><li><strong>Ключи от провайдера лежат в коде приложения.</strong> Утечка ключа = счёт на чужой счёт. Все ключи — только в Vault или в секретах Kubernetes.</li><li><strong>Кэш без идентификатора пользователя в ключе.</strong> Одинаковые вопросы разных людей получают один ответ — это утечка персональных данных, а не оптимизация.</li><li><strong>Кэш включили для всего подряд</strong>, включая вызовы инструментов с побочными эффектами. Повторный запрос выполнил действие дважды.</li><li><strong><code>proxy_buffering</code> не выключили за nginx.</strong> Стриминг не работает, пользователи жалуются на «зависание», а приложение в логах показывает норму — потому что запрос и правда прошёл, просто ответ пришёл целиком.</li><li><strong>Забыли про gzip или про балансировщик в цепочке.</strong> nginx настроили правильно, а ALB или Traefik всё равно буферизует. Буфер живёт на каждом прокси.</li><li><strong>Ретраи без ограничения по времени и без джиттера.</strong> При падении провайдера 1000 параллельных ретраев усиливают падение и превращают деградацию в полный отказ.</li><li><strong>Ретраи без фолбэка на другой провайдер</strong>, потому что «у нас же circuit breaker». Circuit breaker не появится сам: фолбэк по явному правилу — «дешёвые задачи сюда, дорогие туда» — надёжнее.</li><li><strong>Гонка при проверке месячного бюджета</strong> (get, потом set). Две команды одновременно видят «лимит не исчерпан» и обе тратят. Счётчик в Redis должен атомарным быть.</li><li><strong>Писали аудит с промптами целиком.</strong> Журнал аудита стал второй базой персональных данных, о которой никто не знает, — и источником самой неприятной утечки.</li><li><strong>Считали стоимость по своим оценкам токенов.</strong> Расхождение с биллингом провайдера 20–40 % — и объяснить его нечем.</li><li><strong>Шлюз без таймаута.</strong> Провийдер завис — твой воркер тоже завис, и через минуту у тебя лежит половина пула воркеров.</li><li><strong>Метрики с лейблом <code>prompt</code>.</strong> Кардинальность взрывается так же, как в Prometheus из <a href="../../lectures/devops/16-prometheus.html">лекции 16</a>, только у тебя в шлюзе.</li></ol>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я умею объяснить, зачем нужен шлюз, и знаю, в какой момент его вводить — до первой интеграции, а не после третьей</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я называю все восемь компонентов шлюза и понимаю, какой из них чаще всего забывают</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я выбираю между LiteLLM Proxy и самописным шлюзом и обосновываю выбор</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я различаю ограничение по запросам и ограничение по токенам и знаю, почему второе важнее для LLM</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, как строится ключ кэша и какой TTL разумный, умею посчитать экономию в деньгах и знаю, что кэшировать категорически нельзя</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я настраиваю nginx для SSE: <code>proxy_buffering off</code>, длинные таймауты, gzip выключен, и знаю, что буфер есть на каждом прокси в цепочке</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я сниму RED-метрики с расходом токенов по командам и веду аудит-лог без самих промптов — по нему собирается отчёт для руководства</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что делать при 429 (ждать с джиттером), при 5xx (ретрай с ограничением) и при таймауме (фолбэк на другого провайдера)</span></label></li></ul>
+<p>Дальше — <a href="../../lectures/mlops/15-ocenka-llm.html">оценка LLM-систем</a>: как доказать, что изменения в модели, промпте или шлюзе действительно улучшили продукт, а не просто сдвинули график.</p></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Разверни шлюз (LiteLLM Proxy или FastAPI-вариант из лекции) с Redis, настрой rate limit по токенам и потоковый режим за nginx, затем смоделируй всплеск нагрузки и проверь, что приложение получает 429, а не падает. Сними метрики расхода токенов и деньгами в Prometheus.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=inference"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Инференс» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/11-api-shlyuz">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/10-lokalnyj-serving.html"><span>← Предыдущая</span><b>Ollama и vLLM: локальный инференс</b></a>
+        <a class="nav-next" href="../../lectures/mlops/12-agent-frameworks.html"><span>Следующая →</span><b>Агенты и фреймворки</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/11-api-shlyuz";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

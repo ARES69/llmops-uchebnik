@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kubernetes: ядро — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">B. Контейнеры и оркестрация</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Kubernetes: ядро</h1>
+        <p class="lead">Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.</p>
+        <div class="meta"><span class="badge">90 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">kubernetes</span><span class="tag">pod</span><span class="tag">deployment</span><span class="tag">service</span><span class="tag">configmap</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#zachem-posle-compose-nuzhen-orkestrator">Зачем после Compose нужен оркестратор</a></li><li class="toc-l2"><a href="#arhitektura-control-plane-i-worker">Архитектура: control plane и worker</a></li><li class="toc-l2"><a href="#deklarativnost-na-palcah">Декларативность на пальцах</a></li><li class="toc-l2"><a href="#pod-edinica-planirovaniya">Pod — единица планирования</a></li><li class="toc-l2"><a href="#manifest-chetyre-obyazatelnyh-chasti">Манифест: четыре обязательных части</a></li><li class="toc-l2"><a href="#deployment-i-replicaset">Deployment и ReplicaSet</a></li><li class="toc-l2"><a href="#service-stabilnyy-adres-dlya-nestabilnyh-podov">Service — стабильный адрес для нестабильных подов</a></li><li class="toc-l2"><a href="#configmap-konfiguraciya-otdelno-ot-obraza">ConfigMap: конфигурация отдельно от образа</a></li><li class="toc-l2"><a href="#volume-i-persistentvolumeclaim">Volume и PersistentVolumeClaim</a></li><li class="toc-l2"><a href="#kubectl-must-have">kubectl: must-have</a></li><li class="toc-l2"><a href="#pending-samaya-chastaya-problema-i-kak-ee-chitat">Pending: самая частая проблема и как её читать</a></li><li class="toc-l2"><a href="#praktika-prilozhenie-celikom">Практика: приложение целиком</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Compose научил тебя поднимать несколько контейнеров на одной машине. Следующая ступень реальности: у тебя не один сервер, а три, контейнеров сорок, обновления выходят каждую неделю, а в три часа ночи никто не должен вручную ехать перезапускать процесс. Оркестратор берёт на себя три задачи, которые Compose не решает: <strong>куда поставить</strong>, <strong>как заменить упавшее</strong>, <strong>как обновить без простоя</strong>. Разбираем ядро Kubernetes — а в следующей лекции <a href="../../lectures/devops/11-kubernetes-prodvans.html">11</a> то, что превращает работающий стенд в продакшн.</p>
+<h2 id="zachem-posle-compose-nuzhen-orkestrator">Зачем после Compose нужен оркестратор</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">Compose</th>
+<th style="text-align:left">Kubernetes</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Где запустить контейнер</td>
+<td style="text-align:left">Там, где запустил</td>
+<td style="text-align:left">Планировщик выбирает подходящую ноду</td>
+</tr>
+<tr>
+<td style="text-align:left">Упал процесс</td>
+<td style="text-align:left">Перезапуск на той же машине</td>
+<td style="text-align:left">Новый под на любой свободной ноде</td>
+</tr>
+<tr>
+<td style="text-align:left">Обновление версии</td>
+<td style="text-align:left">Остановка и старт, простой</td>
+<td style="text-align:left">RollingUpdate, сервис не теряет трафик</td>
+</tr>
+<tr>
+<td style="text-align:left">Масштабирование</td>
+<td style="text-align:left">Руками</td>
+<td style="text-align:left">HPA по метрикам, кластер добавляет ноды</td>
+</tr>
+<tr>
+<td style="text-align:left">Сеть между сервисами</td>
+<td style="text-align:left">Bridge + DNS Compose</td>
+<td style="text-align:left">Service + сетевые политики</td>
+</tr>
+<tr>
+<td style="text-align:left">Переживание сбоя ноды</td>
+<td style="text-align:left">Нет</td>
+<td style="text-align:left">Под переезжает на другую ноду</td>
+</tr>
+<tr>
+<td style="text-align:left">Кто следит за состоянием</td>
+<td style="text-align:left">Никто</td>
+<td style="text-align:left">Контроллеры и kubelet</td>
+</tr>
+</tbody></table></div>
+<p>Ключевая мысль: Kubernetes — это <strong>декларативная</strong> система. Ты не говоришь «запусти три контейнера», ты описываешь желаемое состояние, а контроллеры сами добираются до него.</p>
+<h2 id="arhitektura-control-plane-i-worker">Архитектура: control plane и worker</h2>
+<p>Control plane — это «мозг», он принимает твои манифесты и принимает решения. Worker-нода — это «руки», на ней реально крутятся контейнеры.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Компонент</th>
+<th style="text-align:left">Где</th>
+<th style="text-align:left">Что делает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>kube-apiserver</code></td>
+<td style="text-align:left">control plane</td>
+<td style="text-align:left">Единая точка входа для всех запросов. Всё остальное общается только с ней</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>etcd</code></td>
+<td style="text-align:left">control plane</td>
+<td style="text-align:left">Хранилище состояния кластера. Единственный источник правды</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>kube-scheduler</code></td>
+<td style="text-align:left">control plane</td>
+<td style="text-align:left">Смотрит на свободные ресурсы нод и решает, куда положить под</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>kube-controller-manager</code></td>
+<td style="text-align:left">control plane</td>
+<td style="text-align:left">Набор контроллеров: Deployment, ReplicaSet, Service, Node — они и приводят систему к описанию</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>kubelet</code></td>
+<td style="text-align:left">каждая нода</td>
+<td style="text-align:left">Скачивает образы, запускает контейнеры, следит за ними, репортует состояние</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>kube-proxy</code></td>
+<td style="text-align:left">каждая нода</td>
+<td style="text-align:left">Реализует Service: правила iptables/IPVS, по которым трафик идёт на поды</td>
+</tr>
+<tr>
+<td style="text-align:left">Container Runtime (CRI)</td>
+<td style="text-align:left">каждая нода</td>
+<td style="text-align:left">containerd или CRI-O — то, что реально запускает контейнеры</td>
+</tr>
+<tr>
+<td style="text-align:left">CNI</td>
+<td style="text-align:left">каждая нода</td>
+<td style="text-align:left">Сетевой плагин (Calico, Cilium, Flannel) — выдаёт подам IP и маршрутизацию</td>
+</tr>
+</tbody></table></div>
+<p>Схема взаимодействия простая: ты пишешь <code>kubectl apply</code> → apiserver сохраняет объект в etcd → контроллеры замечают изменение и создают, например, новый под → scheduler выбирает ноду → kubelet на этой ноде запускает контейнер.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Единственное, что переживает перезапуск control plane — это etcd. Всё остальное
+можно пересоздать из манифестов: apiserver stateless, контроллеры stateless,
+kubelet восстановит поды из своего состояния. Следовательно, <strong>etcd — то, что
+бэкапится</strong>. Именно поэтому single-node-кластеры на одной ВМ — это несерьёзно,
+как и хранение etcd на том же диске, что и ваша БД.</p></div></div>
+<h2 id="deklarativnost-na-palcah">Декларативность на пальцах</h2>
+<p>Представь описание: «у меня должно быть 3 экземпляра API, версия 1.4.2, у каждого 500 мегабайт памяти, доступ извне по имени <code>api</code> в пределах кластера». Это и есть спецификация. Дальше система сама:</p>
+<ul><li>увидела, что подов два вместо трёх, — создала третий;</li><li>увидела, что под не отвечает на <code>/healthz</code>, — перезапустила;</li><li>увидела, что из-за <code>RollingUpdate</code> надо доехать до версии 1.4.3 — убила по одному старому и поднимала новые;</li><li>потеряла ноду — её поды пересоздались на другой.</li></ul>
+<p>Поэтому в кластере <strong>руками ничего не делают</strong>. Если подравил ресурс через <code>kubectl edit</code>, изменение живёт до следующего <code>apply</code> из репозитория и исчезает бессильно. Все изменения — только через Git. Это то, что в любой крупной компании контролируется отдельно: <code>RBAC</code> не даёт обычному разработчику права на <code>patch</code>, а аудит ловит попытки. Вернуться к ней можно в <a href="../../lectures/devops/12-terraform-i-ansible.html">лекции 12</a> — там та же логика с state-файлом Terraform.</p>
+<h2 id="pod-edinica-planirovaniya">Pod — единица планирования</h2>
+<p>Pod — это обёртка над одним или несколькими контейнерами, которые должны жить вместе и делить сетевое пространство и тома. Но планирует Kubernetes <strong>поды, а не контейнеры</strong>: CPU, память, IP, том и время жизни запрашиваются на под целиком.</p>
+<p>Ключевые свойства:</p>
+<ul><li><strong>Одноразовый.</strong> Упал — не воскреснет, <code>restartPolicy: Always</code> перезапустит контейнер внутри, но сам под — нет. Пересоздаёт его ReplicaSet.</li><li><strong>У каждого пода свой IP.</strong> Не фиксированный, и он меняется при пересоздании.</li><li><strong>Контейнеры внутри пода делят localhost и тома.</strong> Это позволяет sidecar-паттерн.</li><li><strong>В одном поде не нужны два контейнера, если они не связаны по судьбе.</strong> Ставить весь стек в один под — антипаттерн: он не масштабируется отдельно и переживает обновление только целиком.</li></ul>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>kubectl run api --image=registry.example.com/llmops/api:<span class="tok-n">1.4</span>.<span class="tok-n">2</span> \</span>
+<span class="ln"><span class="ln-i">2</span>  --port=<span class="tok-n">8000</span> --restart=Never --dry-run=client -o yaml &gt; pod.yaml</span>
+<span class="ln"><span class="ln-i">3</span>kubectl get pod api -o wide          <span class="tok-cmt"># смотри колонку NODE и IP</span></span>
+<span class="ln"><span class="ln-i">4</span>kubectl describe pod api | head -<span class="tok-n">40</span></span>
+<span class="ln"><span class="ln-i">5</span>kubectl delete pod api              <span class="tok-cmt"># он одноразовый, удаляй руками</span></span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>kubectl run</code> без <code>kubectl apply</code> — одноразовая операция. Созданный
+вручную под ничем не управляется: ни масштабируется, ни переживает ноду,
+ни виден для Deployment. Для всего, что должно жить, есть ReplicaSet.</p></div></div>
+<h2 id="manifest-chetyre-obyazatelnyh-chasti">Манифест: четыре обязательных части</h2>
+<p>Каждый объект Kubernetes описывается одним YAML-документом, и структура всегда одна:</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: apps/v1        <span class="tok-cmt"># какая группа API, какая версия</span></span>
+<span class="ln"><span class="ln-i">2</span>kind: Deployment           <span class="tok-cmt"># тип объекта</span></span>
+<span class="ln"><span class="ln-i">3</span>metadata:                  <span class="tok-cmt"># кто это, как найти</span></span>
+<span class="ln"><span class="ln-i">4</span>  name: api</span>
+<span class="ln"><span class="ln-i">5</span>  namespace: production</span>
+<span class="ln"><span class="ln-i">6</span>  labels:</span>
+<span class="ln"><span class="ln-i">7</span>    app: api</span>
+<span class="ln"><span class="ln-i">8</span>    version: <span class="tok-n">1.4</span>.<span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">9</span>spec:                      <span class="tok-cmt"># что именно должно быть правдой (для Deployment — pod-шаблон)</span></span>
+<span class="ln"><span class="ln-i">10</span>  replicas: <span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">11</span>  selector:</span>
+<span class="ln"><span class="ln-i">12</span>    matchLabels:</span>
+<span class="ln"><span class="ln-i">13</span>      app: api</span>
+<span class="ln"><span class="ln-i">14</span>  template:                <span class="tok-cmt"># шаблон пода</span></span>
+<span class="ln"><span class="ln-i">15</span>    metadata:</span>
+<span class="ln"><span class="ln-i">16</span>      labels:</span>
+<span class="ln"><span class="ln-i">17</span>        app: api           <span class="tok-cmt"># должен совпадать с selector.matchLabels</span></span>
+<span class="ln"><span class="ln-i">18</span>    spec:</span>
+<span class="ln"><span class="ln-i">19</span>      containers:</span>
+<span class="ln"><span class="ln-i">20</span>        - name: api</span>
+<span class="ln"><span class="ln-i">21</span>          image: registry.example.com/llmops/api:<span class="tok-n">1.4</span>.<span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">22</span>          ports:</span>
+<span class="ln"><span class="ln-i">23</span>            - containerPort: <span class="tok-n">8000</span></span>
+</code></pre></div>
+<p>Связка <code>spec.selector.matchLabels</code> и <code>metadata.labels</code> шаблона — самая частая причина ошибок в манифестах. Селектор <strong>неизменяем</strong>: если поменять лейблы в селекторе существующего Deployment, <code>apply</code> упадёт с ошибкой валидации. Лейбл — это ключ, по которому контроллер находит «свои» поды, и его можно менять только вместе с удалением объекта.</p>
+<h2 id="deployment-i-replicaset">Deployment и ReplicaSet</h2>
+<p>Deployment — это контроллер верхнего уровня: он хранит <code>replicas</code>, применяет стратегию обновления и управляет ReplicaSet'ами. ReplicaSet — простой контроллер, который следит, чтобы подов с нужными лейблами было ровно <code>replicas</code>. Всё вместе это автоматический «сторож»: упал под — ReplicaSet создаст новый.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: apps/v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: Deployment</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  replicas: <span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">7</span>  revisionHistoryLimit: <span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">8</span>  strategy:</span>
+<span class="ln"><span class="ln-i">9</span>    type: RollingUpdate</span>
+<span class="ln"><span class="ln-i">10</span>    rollingUpdate:</span>
+<span class="ln"><span class="ln-i">11</span>      maxSurge: <span class="tok-n">1</span>          <span class="tok-cmt"># сколько новых подов разрешено сверх replicas</span></span>
+<span class="ln"><span class="ln-i">12</span>      maxUnavailable: <span class="tok-n">0</span>    <span class="tok-cmt"># сколько старых можно убить одновременно (0 = без простоя)</span></span>
+<span class="ln"><span class="ln-i">13</span>  selector:</span>
+<span class="ln"><span class="ln-i">14</span>    matchLabels:</span>
+<span class="ln"><span class="ln-i">15</span>      app: api</span>
+<span class="ln"><span class="ln-i">16</span>  template:</span>
+<span class="ln"><span class="ln-i">17</span>    metadata:</span>
+<span class="ln"><span class="ln-i">18</span>      labels:</span>
+<span class="ln"><span class="ln-i">19</span>        app: api</span>
+<span class="ln"><span class="ln-i">20</span>    spec:</span>
+<span class="ln"><span class="ln-i">21</span>      containers:</span>
+<span class="ln"><span class="ln-i">22</span>        - name: api</span>
+<span class="ln"><span class="ln-i">23</span>          image: registry.example.com/llmops/api:<span class="tok-n">1.4</span>.<span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">24</span>          ports:</span>
+<span class="ln"><span class="ln-i">25</span>            - containerPort: <span class="tok-n">8000</span></span>
+<span class="ln"><span class="ln-i">26</span>          resources:</span>
+<span class="ln"><span class="ln-i">27</span>            requests:</span>
+<span class="ln"><span class="ln-i">28</span>              cpu: 250m</span>
+<span class="ln"><span class="ln-i">29</span>              memory: 256Mi</span>
+<span class="ln"><span class="ln-i">30</span>            limits:</span>
+<span class="ln"><span class="ln-i">31</span>              memory: 512Mi</span>
+</code></pre></div>
+<p><code>maxSurge: 1, maxUnavailable: 0</code> — стандартная боевая настройка: сначала поднимается один новый под и только убеждается, что он готов, потом убивается один старый. Если у тебя кластер тесный и поды большие, временный +1 под может не поместиться — тогда <code>maxUnavailable: 1, maxSurge: 0</code> обменивает скорость на место. Подробно про обновление и его последствия — в <a href="../../lectures/devops/11-kubernetes-prodvans.html">лекции 11</a>.</p>
+<h2 id="service-stabilnyy-adres-dlya-nestabilnyh-podov">Service — стабильный адрес для нестабильных подов</h2>
+<p>Под меняет IP при каждом пересоздании. Если приложение ходит в БД по IP, то после деплоя у него новая жертва. Service решает это: у него есть стабильный виртуальный IP и DNS-имя, а <code>kube-proxy</code> на каждой ноде держит правила, перебрасывающие трафик на «живые» поды. Получается простой балансировщик без единого состояния внутри сервисов.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Как работает</th>
+<th style="text-align:left">Когда применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>ClusterIP</code></td>
+<td style="text-align:left">Виртуальный IP только внутри кластера</td>
+<td style="text-align:left">Обращение из других подов — 95% случаев</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>NodePort</code></td>
+<td style="text-align:left">Порт на каждой ноде кластера (30000-32767)</td>
+<td style="text-align:left">Отладка, доступ с ВМ без ingress</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>LoadBalancer</code></td>
+<td style="text-align:left">Провайдер выдаёт внешний IP</td>
+<td style="text-align:left">Публичные сервисы в облаке</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Headless</code> (<code>ClusterIP: None</code>)</td>
+<td style="text-align:left">DNS отдаёт IP подов напрямую</td>
+<td style="text-align:left">StatefulSet, клиент сам балансирует и знает «лидера»</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: Service</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  type: ClusterIP</span>
+<span class="ln"><span class="ln-i">7</span>  selector:</span>
+<span class="ln"><span class="ln-i">8</span>    app: api                <span class="tok-cmt"># трафик пойдёт во все поды с этим лейблом</span></span>
+<span class="ln"><span class="ln-i">9</span>  ports:</span>
+<span class="ln"><span class="ln-i">10</span>    - name: http</span>
+<span class="ln"><span class="ln-i">11</span>      port: <span class="tok-n">80</span>              <span class="tok-cmt"># порт, по которому обращаются (db:80)</span></span>
+<span class="ln"><span class="ln-i">12</span>      targetPort: <span class="tok-n">8000</span>      <span class="tok-cmt"># порт контейнера, куда реально пересылать</span></span>
+<span class="ln"><span class="ln-i">13</span>      protocol: TCP</span>
+</code></pre></div>
+<p>Разница между <code>port</code> и <code>targetPort</code> — источник получаса: обращаясь к <code>api:80</code>, клиент не попадёт в <code>8000</code>. Для внешнего доступа нужен Ingress, <a href="../../lectures/devops/11-kubernetes-prodvans.html">это в лекции 11</a>.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Service не поднимает ничего. Он направляет трафик на <strong>готовые</strong> поды. Если
+под не проходит readiness, он исключается из endpoint'ов — и вот это
+поведение, вместе с неправильно настроенными probe'ами, — источник
+половины «мистических» отказов, о которых пойдёт речь в следующей лекции.</p></div></div>
+<h2 id="configmap-konfiguraciya-otdelno-ot-obraza">ConfigMap: конфигурация отдельно от образа</h2>
+<p>ConfigMap — объект с ключами и значениями. Подключается в под двумя способами: как переменные окружения или как файлы.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: ConfigMap</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api-config</span>
+<span class="ln"><span class="ln-i">5</span>data:</span>
+<span class="ln"><span class="ln-i">6</span>  LOG_LEVEL: <span class="tok-str">"INFO"</span></span>
+<span class="ln"><span class="ln-i">7</span>  DATABASE_URL: <span class="tok-str">"postgresql://app:pass@db:5432/appdb"</span></span>
+<span class="ln"><span class="ln-i">8</span>  app.properties: |</span>
+<span class="ln"><span class="ln-i">9</span>    retries=<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">10</span>    timeout=<span class="tok-n">30</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>    spec:</span>
+<span class="ln"><span class="ln-i">2</span>      containers:</span>
+<span class="ln"><span class="ln-i">3</span>        - name: api</span>
+<span class="ln"><span class="ln-i">4</span>          envFrom:</span>
+<span class="ln"><span class="ln-i">5</span>            - configMapRef:</span>
+<span class="ln"><span class="ln-i">6</span>                name: api-config      <span class="tok-cmt"># все ключи как переменные окружения</span></span>
+<span class="ln"><span class="ln-i">7</span>          env:</span>
+<span class="ln"><span class="ln-i">8</span>            - name: FEATURE_FLAGS</span>
+<span class="ln"><span class="ln-i">9</span>              valueFrom:</span>
+<span class="ln"><span class="ln-i">10</span>                configMapKeyRef:</span>
+<span class="ln"><span class="ln-i">11</span>                  name: api-config</span>
+<span class="ln"><span class="ln-i">12</span>                  key: FEATURE_FLAGS <span class="tok-cmt"># точечно</span></span>
+<span class="ln"><span class="ln-i">13</span>          volumeMounts:</span>
+<span class="ln"><span class="ln-i">14</span>            - name: cfg</span>
+<span class="ln"><span class="ln-i">15</span>              mountPath: /etc/app    <span class="tok-cmt"># все ключи как файлы</span></span>
+<span class="ln"><span class="ln-i">16</span>      volumes:</span>
+<span class="ln"><span class="ln-i">17</span>        - name: cfg</span>
+<span class="ln"><span class="ln-i">18</span>          configMap:</span>
+<span class="ln"><span class="ln-i">19</span>            name: api-config</span>
+</code></pre></div>
+<p><code>envFrom</code> удобен, когда ключей много и имена совпадают с ожидаемыми переменными. <code>volumeMounts</code> нужен, когда приложение умеет читать конфиг из файла (Java, nginx, многие SDK). Помни: обновление ConfigMap <strong>не</strong> перезапускает под. Нужен рестарт деплоя, а в приложении может быть свой механизм — следи за этим в коде.</p>
+<h2 id="volume-i-persistentvolumeclaim">Volume и PersistentVolumeClaim</h2>
+<p><code>emptyDir</code> — временный каталог в памяти или на диске пода, живёт вместе с подом. Подходит для кэша между двумя контейнерами.</p>
+<p><code>PersistentVolume</code> — кусок хранилища в кластере, а <code>PersistentVolumeClaim</code> (PVC) — <strong>заявка</strong> на него. Логика ровно как с ресурсами: контроллер StorageClass и провизионер берут заявку и дают поду то, что он попросил. Почему раздельно: PV — про инфраструктуру (диск, сетевое хранилище, CSI-драйвер), PVC — про приложение (хочу 10 Гигабайт).</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: PersistentVolumeClaim</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api-data</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  accessModes:</span>
+<span class="ln"><span class="ln-i">7</span>    - ReadWriteOnce       <span class="tok-cmt"># монтируется в один под за раз</span></span>
+<span class="ln"><span class="ln-i">8</span>  storageClassName: standard   <span class="tok-cmt"># "" означало бы отказ от диска</span></span>
+<span class="ln"><span class="ln-i">9</span>  resources:</span>
+<span class="ln"><span class="ln-i">10</span>    requests:</span>
+<span class="ln"><span class="ln-i">11</span>      storage: 10Gi</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>    spec:</span>
+<span class="ln"><span class="ln-i">2</span>      volumes:</span>
+<span class="ln"><span class="ln-i">3</span>        - name: data</span>
+<span class="ln"><span class="ln-i">4</span>          persistentVolumeClaim:</span>
+<span class="ln"><span class="ln-i">5</span>            claimName: api-data</span>
+<span class="ln"><span class="ln-i">6</span>      containers:</span>
+<span class="ln"><span class="ln-i">7</span>        - name: api</span>
+<span class="ln"><span class="ln-i">8</span>          volumeMounts:</span>
+<span class="ln"><span class="ln-i">9</span>            - name: data</span>
+<span class="ln"><span class="ln-i">10</span>              mountPath: /var/lib/api</span>
+</code></pre></div>
+<p><code>ReadWriteOnce</code> — почти всегда то, что нужно. <code>ReadWriteMany</code> требует сетевой файловой системы (CephFS, NFS, Azure Files) и стоит заметно дороже. Если ты планируешь файловые шары для LLM-моделей между подами, считай бюджет: сетевое хранилище с высокой пропускной способностью — это отдельная строка в счёте, и об этом стоит подумать до, а не после.</p>
+<h2 id="kubectl-must-have">kubectl: must-have</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>kubectl get pods -o wide</span>
+<span class="ln"><span class="ln-i">2</span>kubectl get deploy,svc,ingress,pvc</span>
+<span class="ln"><span class="ln-i">3</span>kubectl get events --sort-by=.lastTimestamp | tail -<span class="tok-n">30</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>kubectl describe pod api-7d9f8c6b5-x2k4p    <span class="tok-cmt"># почему именно этот под</span></span>
+<span class="ln"><span class="ln-i">6</span>kubectl logs -f api-7d9f8c6b5-x2k4p            <span class="tok-cmt"># логи контейнера</span></span>
+<span class="ln"><span class="ln-i">7</span>kubectl logs --previous api-7d9f8c6b5-x2k4p   <span class="tok-cmt"># логи предыдущего контейнера, до краша</span></span>
+<span class="ln"><span class="ln-i">8</span>kubectl exec -it api-7d9f8c6b5-x2k4p -- sh   <span class="tok-cmt"># внутрь (в distroless не сработает)</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>kubectl port-forward svc/api <span class="tok-n">8000</span>:<span class="tok-n">80</span>           <span class="tok-cmt"># локальный доступ без ingress</span></span>
+<span class="ln"><span class="ln-i">11</span>kubectl apply -f manifests/                    <span class="tok-cmt"># идемпотентно: повторно безопасно</span></span>
+<span class="ln"><span class="ln-i">12</span>kubectl delete -f manifests/ --wait=false</span>
+<span class="ln"><span class="ln-i">13</span>kubectl scale deploy/api --replicas=<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">14</span>kubectl rollout status deploy/api</span>
+<span class="ln"><span class="ln-i">15</span>kubectl rollout history deploy/api</span>
+<span class="ln"><span class="ln-i">16</span>kubectl rollout undo deploy/api</span>
+<span class="ln"><span class="ln-i">17</span>kubectl diff -f manifests/                     <span class="tok-cmt"># что изменится — до apply</span></span>
+</code></pre></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p><code>kubectl apply -f manifests/</code> безопасно запускать хоть сто раз: он вычисляет
+патч между тем, что описано в YAML, и тем, что в кластере, и применяет только
+разницу. Аналог этому есть в Terraform, и мы разберём его в
+<a href="../../lectures/devops/12-terraform-i-ansible.html">лекции 12</a>. Прямое ручное редактирование
+в кластере — это всегда расхождение с Git, которое кто-то обнаружит в
+неподходящий момент.</p></div></div>
+<h2 id="pending-samaya-chastaya-problema-i-kak-ee-chitat">Pending: самая частая проблема и как её читать</h2>
+<p><code>Pending</code> означает одно: под создан, но ни на одной ноде он не может быть запущен. Причин ровно три:</p>
+<ol><li><strong>Нет места.</strong> Scheduler не нашёл ноду, где хватит CPU и памяти под requests.</li><li><strong>Нет пода, который должен был бы запуститься.</strong> Например, PVC в <code>Pending</code>, потому что StorageClass не создался.</li><li><strong>Нода не готова.</strong> Она в состоянии <code>NotReady</code> — сеть, kubelet, диск.</li></ol>
+<p>В <code>kubectl describe pod</code> смотри в секцию <strong>Events</strong> в самом низу, это самый полезный вывод:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Events:</span>
+<span class="ln"><span class="ln-i">2</span>  Type     Reason     Message</span>
+<span class="ln"><span class="ln-i">3</span>  ----     ------     -------</span>
+<span class="ln"><span class="ln-i">4</span>  Warning  FailedScheduling  0/3 nodes are available: 3 Insufficient cpu.</span>
+</code></pre></div>
+<p>Формулировка <code>Insufficient cpu</code> переводится на язык людей: суммарно свободного CPU на кластере меньше, чем сумма requests всех подов. Это не «не хватает процессора прямо сейчас», это «нет места по заявке». Отсюда практическое правило: <strong>requests — это не оптимизация, а контракт с планировщиком</strong>. Без них он почти не может планировать, и поды копятся в Pending.</p>
+<p>Быстрый разбор в порядке частоты:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>kubectl get nodes</span>
+<span class="ln"><span class="ln-i">2</span>kubectl describe node &lt;node&gt; | <span class="tok-k">grep</span> -A3 <span class="tok-str">"Allocated resources"</span>   <span class="tok-cmt"># сколько реально занято</span></span>
+<span class="ln"><span class="ln-i">3</span>kubectl get pvc                                  <span class="tok-cmt"># PVC в Pending = StorageClass</span></span>
+<span class="ln"><span class="ln-i">4</span>kubectl describe pod &lt;pod&gt; | <span class="tok-k">grep</span> -A10 Events</span>
+</code></pre></div>
+<h2 id="praktika-prilozhenie-celikom">Практика: приложение целиком</h2>
+<p>Подними локальный кластер в <code>kind</code> (или <code>minikube</code>) и положи в каталог <code>manifests/</code>:</p>
+<p><code>manifests/00-config.yaml</code>:</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: ConfigMap</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api-config</span>
+<span class="ln"><span class="ln-i">5</span>data:</span>
+<span class="ln"><span class="ln-i">6</span>  LOG_LEVEL: <span class="tok-str">"INFO"</span></span>
+<span class="ln"><span class="ln-i">7</span>  APP_NAME: <span class="tok-str">"llmops-api"</span></span>
+</code></pre></div>
+<p><code>manifests/10-deployment.yaml</code>:</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: apps/v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: Deployment</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  replicas: <span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">7</span>  strategy:</span>
+<span class="ln"><span class="ln-i">8</span>    rollingUpdate:</span>
+<span class="ln"><span class="ln-i">9</span>      maxSurge: <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">10</span>      maxUnavailable: <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">11</span>  selector:</span>
+<span class="ln"><span class="ln-i">12</span>    matchLabels:</span>
+<span class="ln"><span class="ln-i">13</span>      app: api</span>
+<span class="ln"><span class="ln-i">14</span>  template:</span>
+<span class="ln"><span class="ln-i">15</span>    metadata:</span>
+<span class="ln"><span class="ln-i">16</span>      labels:</span>
+<span class="ln"><span class="ln-i">17</span>        app: api</span>
+<span class="ln"><span class="ln-i">18</span>    spec:</span>
+<span class="ln"><span class="ln-i">19</span>      containers:</span>
+<span class="ln"><span class="ln-i">20</span>        - name: api</span>
+<span class="ln"><span class="ln-i">21</span>          image: registry.example.com/llmops/api:<span class="tok-n">1.4</span>.<span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">22</span>          ports:</span>
+<span class="ln"><span class="ln-i">23</span>            - containerPort: <span class="tok-n">8000</span></span>
+<span class="ln"><span class="ln-i">24</span>          envFrom:</span>
+<span class="ln"><span class="ln-i">25</span>            - configMapRef:</span>
+<span class="ln"><span class="ln-i">26</span>                name: api-config</span>
+<span class="ln"><span class="ln-i">27</span>          env:</span>
+<span class="ln"><span class="ln-i">28</span>            - name: DATABASE_URL</span>
+<span class="ln"><span class="ln-i">29</span>              value: <span class="tok-str">"postgresql://app:pass@db.svc.cluster.local:5432/appdb"</span></span>
+<span class="ln"><span class="ln-i">30</span>          resources:</span>
+<span class="ln"><span class="ln-i">31</span>            requests:</span>
+<span class="ln"><span class="ln-i">32</span>              cpu: 250m</span>
+<span class="ln"><span class="ln-i">33</span>              memory: 256Mi</span>
+<span class="ln"><span class="ln-i">34</span>            limits:</span>
+<span class="ln"><span class="ln-i">35</span>              memory: 512Mi</span>
+<span class="ln"><span class="ln-i">36</span>          readinessProbe:</span>
+<span class="ln"><span class="ln-i">37</span>            httpGet:</span>
+<span class="ln"><span class="ln-i">38</span>              path: /healthz</span>
+<span class="ln"><span class="ln-i">39</span>              port: <span class="tok-n">8000</span></span>
+<span class="ln"><span class="ln-i">40</span>            initialDelaySeconds: <span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">41</span>            periodSeconds: <span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">42</span>          livenessProbe:</span>
+<span class="ln"><span class="ln-i">43</span>            httpGet:</span>
+<span class="ln"><span class="ln-i">44</span>              path: /healthz</span>
+<span class="ln"><span class="ln-i">45</span>              port: <span class="tok-n">8000</span></span>
+<span class="ln"><span class="ln-i">46</span>            initialDelaySeconds: <span class="tok-n">15</span></span>
+<span class="ln"><span class="ln-i">47</span>            periodSeconds: <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">48</span>          volumeMounts:</span>
+<span class="ln"><span class="ln-i">49</span>            - name: data</span>
+<span class="ln"><span class="ln-i">50</span>              mountPath: /var/lib/api</span>
+<span class="ln"><span class="ln-i">51</span>      volumes:</span>
+<span class="ln"><span class="ln-i">52</span>        - name: data</span>
+<span class="ln"><span class="ln-i">53</span>          persistentVolumeClaim:</span>
+<span class="ln"><span class="ln-i">54</span>            claimName: api-data</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Один Deployment с тремя подами и одним PVC в режиме <code>ReadWriteOnce</code> — это
+<strong>нерабочая конфигурация</strong>. Третий под не сможет смонтировать том, который
+держит первый. Kubernetes повесит его в <code>ContainerCreating</code> намертво. Для
+конфигурации без состояния PVC здесь не нужен вовсе; для состояния нужен
+<code>StatefulSet</code> — <a href="../../lectures/devops/11-kubernetes-prodvans.html">лекция 11</a>. В манифесте
+ниже оставлен PVC специально, чтобы это увидеть своими глазами: запусти и
+прочитай Events.</p></div></div>
+<p><code>manifests/20-service.yaml</code>:</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: Service</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  type: ClusterIP</span>
+<span class="ln"><span class="ln-i">7</span>  selector:</span>
+<span class="ln"><span class="ln-i">8</span>    app: api</span>
+<span class="ln"><span class="ln-i">9</span>  ports:</span>
+<span class="ln"><span class="ln-i">10</span>    - name: http</span>
+<span class="ln"><span class="ln-i">11</span>      port: <span class="tok-n">80</span></span>
+<span class="ln"><span class="ln-i">12</span>      targetPort: <span class="tok-n">8000</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>apiVersion: v1</span>
+<span class="ln"><span class="ln-i">2</span>kind: PersistentVolumeClaim</span>
+<span class="ln"><span class="ln-i">3</span>metadata:</span>
+<span class="ln"><span class="ln-i">4</span>  name: api-data</span>
+<span class="ln"><span class="ln-i">5</span>spec:</span>
+<span class="ln"><span class="ln-i">6</span>  accessModes:</span>
+<span class="ln"><span class="ln-i">7</span>    - ReadWriteOnce</span>
+<span class="ln"><span class="ln-i">8</span>  storageClassName: standard</span>
+<span class="ln"><span class="ln-i">9</span>  resources:</span>
+<span class="ln"><span class="ln-i">10</span>    requests:</span>
+<span class="ln"><span class="ln-i">11</span>      storage: 1Gi</span>
+</code></pre></div>
+<p>Применение и проверка:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>kubectl apply -f manifests/</span>
+<span class="ln"><span class="ln-i">2</span>kubectl get pods -o wide -w</span>
+<span class="ln"><span class="ln-i">3</span>kubectl get svc api</span>
+<span class="ln"><span class="ln-i">4</span>kubectl get endpoints api          <span class="tok-cmt"># сколько подов реально за сервисом</span></span>
+<span class="ln"><span class="ln-i">5</span>kubectl port-forward svc/api <span class="tok-n">8000</span>:<span class="tok-n">80</span> &amp;</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">curl</span> -s localhost:<span class="tok-n">8000</span>/api/healthz</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># обновление: меняем тег образа в yaml и смотрим rollout</span></span>
+<span class="ln"><span class="ln-i">9</span>kubectl set image deploy/api api=registry.example.com/llmops/api:<span class="tok-n">1.4</span>.<span class="tok-n">4</span></span>
+<span class="ln"><span class="ln-i">10</span>kubectl rollout status deploy/api</span>
+<span class="ln"><span class="ln-i">11</span>kubectl rollout history deploy/api</span>
+<span class="ln"><span class="ln-i">12</span>kubectl rollout undo deploy/api</span>
+</code></pre></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ol><li><strong>Без <code>requests</code> планировщик не знает, что влезает.</strong> Поды копятся в <code>Pending</code> с <code>Insufficient cpu</code>, хотя на нодах свободно 60% ресурсов — свободное место не равно свободной <em>заявке</em>.</li><li><strong>Service без <code>selector</code> или с чужим лейблом.</strong> Сервис есть, эндпоинтов ноль: <code>kubectl get endpoints</code> пуст, а обращения дают connection refused на ровном месте работающему приложению.</li><li><strong><code>targetPort</code> забыли.</strong> <code>port: 80, targetPort: 8000</code> — без второго поля трафик уходит в 80-й порт контейнера, где никого нет.</li><li><strong>Лейблы в <code>selector</code> и в <code>template.labels</code> разошлись.</strong> <code>apply</code> падает с валидацией, а если разошлись не те поля — ReplicaSet не видит своих подов и плодит новые без ограничения.</li><li><strong>Один PVC на несколько реплик.</strong> Первый под занял том, остальные висят в <code>ContainerCreating</code> с <code>Multi-Attach error for volume</code>. Для БД нужен StatefulSet с PVC на под.</li><li><strong>Правка через <code>kubectl edit</code>.</strong> Работает до следующего <code>apply</code> из Git, потом тихо перетирается. Деплой чужого разработчика возвращает старый конфиг, и все гадают, почему.</li><li><strong>Pod Pending из-за PVC в Pending.</strong> Забыли <code>storageClassName</code> или StorageClass не создался — под висит молча, <code>describe pod</code> это показывает.</li><li><strong>Забыли <code>kubectl delete pod</code>.</strong> В <code>kubectl run</code> без Deployment под живёт, пока не выйдет из строя — но следующий деплой его не увидит, и у тебя две версии приложения в кластере.</li></ol>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать компоненты control plane и worker-ноды и объяснить, зачем нужен apiserver как единая точка входа.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю декларативность: описываю «хочу», контроллеры делают, и почему руками в кластере ничего не делают.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что pod одноразовый, что у него есть IP, и чем планирование пода отличается от планирования контейнера.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я различаю <code>apiVersion</code>, <code>kind</code>, <code>metadata</code>, <code>spec</code> и понимаю, почему <code>selector</code> неизменяем.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я объясняю, зачем нужен Service, чем <code>port</code> отличается от <code>targetPort</code>, и помню разницу между ClusterIP, NodePort, LoadBalancer и Headless.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею подключить ConfigMap через <code>envFrom</code> и через <code>volumeMounts</code> и знаю, что под не перезапустится сам.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, зачем разделены PV и PVC, и знаю, когда <code>ReadWriteOnce</code> перестаёт работать.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею читать <code>kubectl describe pod</code> в секции Events и распознаю <code>Insufficient cpu</code> как проблему requests, а не физическую нехватку.</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Разверни приложение из Deployment, Service, ConfigMap и PersistentVolumeClaim в kind, проверь обновление через rollout и смоделируй Pending, сняв свободную память на ноде.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=k8s"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Kubernetes» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/10-kubernetes-bazovye">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/09-docker-compose.html"><span>← Предыдущая</span><b>Docker Compose: сети и тома</b></a>
+        <a class="nav-next" href="../../lectures/devops/11-kubernetes-prodvans.html"><span>Следующая →</span><b>Kubernetes: продакшн-паттерны</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/10-kubernetes-bazovye";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Active Directory: администрирование — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">F. Хранилища и интеграции</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Active Directory: администрирование</h1>
+        <p class="lead">Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок</p>
+        <div class="meta"><span class="badge">95 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">active directory</span><span class="tag">gpo</span><span class="tag">репликация</span><span class="tag">sysvol</span><span class="tag">dcdiag</span><span class="tag">лес</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#chto-delaet-ad-i-zachem-on-v-llm-konture">Что делает AD и зачем он в LLM-контуре</a></li><li class="toc-l2"><a href="#struktura-lesa">Структура леса</a></li><li class="toc-l2"><a href="#logika-replikacii-ntds-usn-vektory-versiy">Логика репликации: NTDS, USN, векторы версий</a></li><li class="toc-l2"><a href="#dns-neotemlemaya-chast-ad">DNS — неотъемлемая часть AD</a></li><li class="toc-l2"><a href="#obekty-gruppy-i-prava">Объекты, группы и права</a></li><li class="toc-l2"><a href="#gpo-poryadok-primeneniya">GPO: порядок применения</a></li><li class="toc-l3"><a href="#loopback-processing">Loopback processing</a></li><li class="toc-l2"><a href="#sysvol-mesto-gde-zhivut-sami-politiki">SYSVOL: место, где живут сами политики</a></li><li class="toc-l2"><a href="#parolnaya-politika-i-blokirovki">Парольная политика и блокировки</a></li><li class="toc-l2"><a href="#audit-kakie-sobytiya-vklyuchat-i-chto-v-nih-iskat">Аудит: какие события включать и что в них искать</a></li><li class="toc-l2"><a href="#tipovye-polomki">Типовые поломки</a></li><li class="toc-l3"><a href="#klonirovanie-vm-s-tem-zhe-sid">Клонирование ВМ с тем же SID</a></li><li class="toc-l3"><a href="#sysvol-razezzhaetsya-posle-klonirovaniya-dc">SYSVOL «разъезжается» после клонирования DC</a></li><li class="toc-l2"><a href="#vosstanovlenie-usn-roli-i-ntdsdit">Восстановление: USN-роли и NTDS.dit</a></li><li class="toc-l2"><a href="#instrumenty-administratora">Инструменты администратора</a></li><li class="toc-l2"><a href="#nablyudaemost-ad">Наблюдаемость AD</a></li><li class="toc-l2"><a href="#praktika-polzovateli-ne-mogut-zaloginitsya">Практика: «пользователи не могут залогиниться»</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Две предыдущие лекции про хранилища данных, где права и структура задаются кодом и миграциями. Active Directory — противоположность: права, структура и поведение задаются политиками, которые применяются в рантайме на каждой машине, и про которые системный администратор часто знает меньше, чем думает. Для контура, где в AD живут учётки сотрудников, сервисные учётки LLM-сервиса и корпоративный портал, понимание AD перестаёт быть «доменными делами» — это часть управления доступом к LLM-системе. Разбираем его основательно: репликацию, GPO, SYSVOL и диагностику, потому что почти все «пользователи не могут войти» решаются тремя командами, если знать, какими.</p>
+<h2 id="chto-delaet-ad-i-zachem-on-v-llm-konture">Что делает AD и зачем он в LLM-контуре</h2>
+<p>AD отвечает на три вопроса: <strong>кто</strong> этот субъект, <strong>чем</strong> он является (состоит в группах), и <strong>что ему разрешено</strong> (ACL на объектах, членство в группах). Плюс он хранит конфигурацию клиентов в виде групповых политик и отдаёт учётные данные сервисам по протоколу Kerberos.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">Механизм AD</th>
+<th style="text-align:left">Как это используется в LLM-контуре</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Единый вход</td>
+<td style="text-align:left">Kerberos, доменный логон</td>
+<td style="text-align:left">сотрудник открывает корпоративный ассистент без отдельного пароля</td>
+</tr>
+<tr>
+<td style="text-align:left">Авторизация по группам</td>
+<td style="text-align:left">членство в группах + ACL</td>
+<td style="text-align:left">сервис LLM проверяет «в группе <code>LLM-Admins</code>», а не «роль в таблице»</td>
+</tr>
+<tr>
+<td style="text-align:left">Распространение конфигурации</td>
+<td style="text-align:left">GPO через SYSVOL</td>
+<td style="text-align:left">параметры прокси, адреса шлюза, политики хранения логов на клиентах</td>
+</tr>
+<tr>
+<td style="text-align:left">Управление сервисными учётками</td>
+<td style="text-align:left">отдельные OU, ротация паролей</td>
+<td style="text-align:left">учётка <code>svc-rag</code>, которой дано минимум прав на файл-шару с корпусом</td>
+</tr>
+<tr>
+<td style="text-align:left">Аудит доступа</td>
+<td style="text-align:left">Security-лог с кодами событий</td>
+<td style="text-align:left">«кто и когда открыл документ, попавший в ответ ассистента»</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Для архитектуры LLM-системы отсюда следует правило: авторизацию в RAG
+проверяй по группам AD, а не по собственному списку пользователей.
+Тогда добавление нового отдела — это изменение членства в группе,
+а не правка кода и не миграция базы, и аудит приходит из Security-лога
+того же домена, а не из отдельной системы.</p></div></div>
+<h2 id="struktura-lesa">Структура леса</h2>
+<p>Лес — это набор доменов, между которыми есть двустороннее доверие. Внутри леса реплицируются одни и те же схемы и части глобального каталога.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Объект</th>
+<th style="text-align:left">Что это</th>
+<th style="text-align:left">Устройство</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Лес (forest)</td>
+<td style="text-align:left">верхний контейнер, общая схема и <code>Configuration</code></td>
+<td style="text-align:left">один набор доменов</td>
+</tr>
+<tr>
+<td style="text-align:left">Домен (domain)</td>
+<td style="text-align:left">логическая единица безопасности, своя политика паролей и DNS-зона</td>
+<td style="text-align:left"><code>DC=corp,DC=example,DC=com</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Дерево (tree)</td>
+<td style="text-align:left">домен и все домены под ним</td>
+<td style="text-align:left"><code>corp.example.com</code> и <code>corp.example.comSub</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Контроллер домена (DC)</td>
+<td style="text-align:left">сервер, хранящий копию <code>NTDS.dit</code></td>
+<td style="text-align:left">один = read-only DC, два = отказоустойчивость</td>
+</tr>
+<tr>
+<td style="text-align:left">Глобальный каталог (GC)</td>
+<td style="text-align:left">подмножество объектов всех доменов леса, доступно только для чтения</td>
+<td style="text-align:left">всегда минимум один, лучше два</td>
+</tr>
+<tr>
+<td style="text-align:left">RODC</td>
+<td style="text-align:left">контроллер домена только для чтения на филиале</td>
+<td style="text-align:left">фильтрует конфиденциальные атрибуты, кэширует пароли</td>
+</tr>
+<tr>
+<td style="text-align:left">Сайт</td>
+<td style="text-align:left">подмножество домена, связанное быстрой сетью</td>
+<td style="text-align:left">влияет на топологию репликации</td>
+</tr>
+<tr>
+<td style="text-align:left">OU</td>
+<td style="text-align:left">контейнер для объектов и назначения политик</td>
+<td style="text-align:left">не является контейнером Windows, группа безопасности с другим смыслом</td>
+</tr>
+</tbody></table></div>
+<p>Сайты — ключевая для администратора сущность, потому что топология репликации строится по ним, а не по «расстоянию». Два DC в одном сайте реплицируются каждые 15 минут в обе стороны независимо от реальной задержки в сети. Если два сервера стоят в разных стойках, но в одном сайте, они считаются «близкими» — и это часто источник проблем при переезде между площадками.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-ADForest corp.example.com | Format-List Name, DomainNamingMaster, RootDomain, SchemaSchemaClass</span>
+<span class="ln"><span class="ln-i">2</span>Get-ADDomain -Server dc01.corp.example.com | Format-List DNSRoot, NetBIOSName, Forest, Sites</span>
+<span class="ln"><span class="ln-i">3</span>Get-ADDomainController -Filter * -Property * | Select-Object HostName, Site, IsGlobalCatalog, IPv4Address |</span>
+<span class="ln"><span class="ln-i">4</span>  Format-Table -AutoSize</span>
+<span class="ln"><span class="ln-i">5</span>Get-ADReplicationSite -Filter * | Select-Object Name, InterSiteTopologyGenerator</span>
+<span class="ln"><span class="ln-i">6</span>Get-ADReplicationSiteLink | Select-Object Name, Cost, SitesIncluded</span>
+</code></pre></div>
+<p>Доверительные отношения нужны, когда организации должны быть разными (своя политика паролей, свой администратор), но должны видеть друг друга:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Направление</th>
+<th style="text-align:left">Аутентификация</th>
+<th style="text-align:left">Типовой сценарий</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Двустороннее (bidirectional)</td>
+<td style="text-align:left">A видит B и наоборот</td>
+<td style="text-align:left">полная (Kerberos)</td>
+<td style="text-align:left">слияние компаний, два подразделения</td>
+</tr>
+<tr>
+<td style="text-align:left">Одностороннее (one-way incoming)</td>
+<td style="text-align:left">A видит B, B не видит A</td>
+<td style="text-align:left">в стороне, где есть входящее, — Kerberos; в обратную — NTLM</td>
+<td style="text-align:left">филиал видит центральный домен, не наоборот</td>
+</tr>
+<tr>
+<td style="text-align:left">Одностороннее (one-way outgoing)</td>
+<td style="text-align:left">обратная предыдущему</td>
+<td style="text-align:left">то же</td>
+<td style="text-align:left">сокращение доверия в сторону головного офиса</td>
+</tr>
+<tr>
+<td style="text-align:left">Внешнее доверие (external)</td>
+<td style="text-align:left">между лесами</td>
+<td style="text-align:left">NTLM</td>
+<td style="text-align:left">подрядчик получает доступ к ресурсу</td>
+</tr>
+</tbody></table></div>
+<p>Правило, которое экономит нервы: <strong>не создавай доверие там, где можно обойтись гостевой учёткой</strong>. Каждое доверие расширяет транзитивную зону доверия и делает Kerberoasting глобальной проблемой.</p>
+<h2 id="logika-replikacii-ntds-usn-vektory-versiy">Логика репликации: NTDS, USN, векторы версий</h2>
+<p>Вся база домена лежит в файле <code>C:\Windows\NTDS\NTDS.dit</code> на каждом контроллере. Это не файл, а набор страниц базы данных ESENT; изменения приходят между контроллерами не «файлом», а потоком операций изменения атрибутов.</p>
+<p>Ключевые понятия:</p>
+<ul><li><strong>NTDS</strong> (Naming Tree Directory Service) — служба, которая хранит и реплицирует базу;</li><li><strong>USN</strong> (Update Sequence Number) — сквозной монотонный номер изменения, общий для всего леса;</li><li><strong>репликационные метаданные</strong> — для каждого атрибута каждого объекта хранится <code>versionLastChanged</code> (USN изменения) и <code>versionOriginator</code> (DC, сделавший изменение, и номер его вектора);</li><li><strong>вектор версий</strong> (version vector) — у каждого DC своя история изменений; конфликт разрешается правилом: побеждает DC с более высоким <code>versionOriginator</code> USN, ничья — приоритет по GUID.</li></ul>
+<p>Отсюда практический вывод: <strong>репликация не транзакционная и не упорядоченная</strong>. Изменения приходят в произвольном порядке и с задержкой до 15 минут внутри сайта и до 3 часов между сайтами по умолчанию. Если ты сменил пароль, ушёл сразу обратно в другой DC и не вошёл — это не баг, это репликация.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># общая картина: кто кому что реплицирует</span></span>
+<span class="ln"><span class="ln-i">2</span>repadmin /replsummary</span>
+<span class="ln"><span class="ln-i">3</span>repadmin /replsummary dc01.corp.example.com /bytime /csv &gt; C:\repl.csv</span>
+<span class="ln"><span class="ln-i">4</span>repadmin /showrepl * /csv | Import-Csv | Where-Object { $_.Status -ne <span class="tok-str">'0'</span> } | Format-Table</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># принудительная репликация одного объекта/каталога с таймингом</span></span>
+<span class="ln"><span class="ln-i">7</span>repadmin /replicate dc01.corp.example.com dc02.corp.example.com /v /f</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># подробности по конкретному NC</span></span>
+<span class="ln"><span class="ln-i">10</span>repadmin /showrepl dc01.corp.example.com /v /bytime <span class="tok-str">"CN=Users,DC=corp,DC=example,DC=com"</span></span>
+<span class="ln"><span class="ln-i">11</span>repadmin /dsreplicaoverview</span>
+</code></pre></div>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># dcdiag /test:replications — что именно проверяется</span>
+<span class="ln"><span class="ln-i">2</span>Site/Bridgehead          есть ли исходный узел для межсайтовой репликации</span>
+<span class="ln"><span class="ln-i">3</span>Server/Warning           есть ли исходный узел для межсайтовой репликации</span>
+<span class="ln"><span class="ln-i">4</span>Ncsync/Nc                 синхронизация контекстов именования</span>
+<span class="ln"><span class="ln-i">5</span>Server/ReplicationsCheck  репликация внутри сайта</span>
+<span class="ln"><span class="ln-i">6</span>Server/SysVolCheck        SYSVOL и NETLOGON (см. ниже)</span>
+<span class="ln"><span class="ln-i">7</span>Server/Advertising        объявляет ли сервер себя как DC</span>
+<span class="ln"><span class="ln-i">8</span>Server/NcReplications      согласованность NC</span>
+<span class="ln"><span class="ln-i">9</span>Replications/RunningInV</span>
+</code></pre></div>
+<p>Интервалы настраиваются явно, и для небольшого домена их стоит сократить:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>dcdiag /e /c /v</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span>repadmin /addreplica dc02.corp.example.com CN=Configuration,DC=corp,DC=example,DC=com</span>
+</code></pre></div>
+<h2 id="dns-neotemlemaya-chast-ad">DNS — неотъемлемая часть AD</h2>
+<p>Контроллер домена — это DNS-сервер зоны <code>example.com</code>, и «DNS в AD» не означает «весь мой DNS лежит в Active Directory». AD-клиент ищет SRV-записи вида <code>_ldap._tcp.dc._msdcs.corp.example.com</code>. Нет этих записей — нет входа в домен.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># клиентский участник должен находить DC</span></span>
+<span class="ln"><span class="ln-i">2</span>nslookup -type=SRV _ldap._tcp.dc._msdcs.corp.example.com</span>
+<span class="ln"><span class="ln-i">3</span>nltest /dsgetdc:corp.example.com</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># какие зоны обслуживает конкретный сервер</span></span>
+<span class="ln"><span class="ln-i">6</span>Get-ADDomainController -Identity dc01 | Get-ADComputerService -Filter * |</span>
+<span class="ln"><span class="ln-i">7</span>  Select-Object Name, DNSHostName, IsPrimary, IsAutoCreated</span>
+<span class="ln"><span class="ln-i">8</span>Resolve-DnsName -Name _ldap._tcp.dc._msdcs.corp.example.com -Type SRV -Server dc01.corp.example.com</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Типичная ошибка, стоившая реальных часов работы: в AD-домене,
+поднятом на существующей сети, на DC в качестве DNS-сервера прописан
+внешний DNS-контроллер. Наружу это не выглядит ничем — но без локальных
+зон AD нет SRV-записей, поэтому <code>nltest /dsgetdc</code> не находит контроллер
+и машины не входят в домен. AD требует, чтобы DNS-сервер домена был
+на самом DC, а внешние запросы он форвардил через форвардеры
+(<code>/etc</code>-аналог — <code>dns.properties</code>, ключи <code>ServerForwarders</code> и
+<code>Forwarders</code> в реестре на <code>HKLM\SYSTEM\CurrentControlSet\Services\DNS</code>).</p></div></div>
+<h2 id="obekty-gruppy-i-prava">Объекты, группы и права</h2>
+<p>Объекты AD бывают контейнерными (<code>CN=Users</code>, <code>OU=</code>) и leaf-объектами (<code>CN=Иванов</code>). Схема задаёт, какие атрибуты у какого класса объекта, и расширяется через <code>schema.msc</code>. Обычному администратору расширять схему не нужно, но знать про <code>displayName</code>, <code>sAMAccountName</code>, <code>userPrincipalName</code>, <code>memberOf</code>, <code>description</code> стоит.</p>
+<p>Группы — это то, где чаще всего происходит ошибка проектирования, которая всплывает через год.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Область группы (scope)</th>
+<th style="text-align:left">Кого может содержать</th>
+<th style="text-align:left">Как реплицируется</th>
+<th style="text-align:left">Когда применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Domain Local</strong></td>
+<td style="text-align:left">любой домен леса</td>
+<td style="text-align:left">только на DC, где группа живёт</td>
+<td style="text-align:left">доступ к ресурсу: файлы на этом же сервере, локальные принтеры</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Global</strong></td>
+<td style="text-align:left">только свой домен</td>
+<td style="text-align:left"><strong>во все домены леса</strong></td>
+<td style="text-align:left">политики, объединяющие учётки одного домена: <code>All-Staff</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Universal</strong></td>
+<td style="text-align:left">любой домен</td>
+<td style="text-align:left">во все GC, дороже в разы</td>
+<td style="text-align:left">глобальная группа, в которую нужны учётки других доменов</td>
+</tr>
+</tbody></table></div>
+<p>Классическая ошибка: сделать <code>All-Staff</code> универсальной «на всякий случай, вдруг придёт сотрудник из другого домена». Стоимость — группа реплицируется во все GC и начинает тормозить их при каждом изменении членства. Если задача GPO «всем сотрудникам» — нужен Global.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Тип группы</th>
+<th style="text-align:left">Есть SID в токене</th>
+<th style="text-align:left">Можно использовать в ACL</th>
+<th style="text-align:left">Назначение</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Security</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">всё, что связано с доступом</td>
+</tr>
+<tr>
+<td style="text-align:left">Distribution</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">рассылки, почта. Назначение в ACL — ошибка, приведёт к «доступу нет» без внятной причины</td>
+</tr>
+</tbody></table></div>
+<p>ACL и SDDL. Каждый объект AD имеет дескриптор безопасности: владелец (<code>owner</code>), группа (<code>group</code>), DACL, SACL. SDDL — компактная текстовая запись, которую читаешь быстрее, чем список ACE в графической утилите.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># Формат SDDL: O:&lt;owner&gt; G:&lt;group&gt; D:&lt;DACL&gt; S:&lt;SACL&gt;</span>
+<span class="ln"><span class="ln-i">2</span># Флаги: FA — полный доступ, CI — контейнер наследует, OI — объекты наследуют</span>
+<span class="ln"><span class="ln-i">3</span>O:BAG:SYD:PAI(A;FA;CI;FA;;;BA)(A;FA;FA;;;SY)(A;CI;0x1200a9;;;BU)</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>O:BAG:BAD:   владелец — администраторы домена, DACL защищён от наследования</span>
+<span class="ln"><span class="ln-i">6</span>(A;FA;FA;;;SY)   SYSTEM — полный доступ, не наследуется</span>
+<span class="ln"><span class="ln-i">7</span>(A;CI;0x1200a9;;;BU)   пользователи домена — только чтение, распространяется на потомков</span>
+</code></pre></div>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># dsacls показывает и ACE, и флаги наследования — это главный инструмент по правам</span></span>
+<span class="ln"><span class="ln-i">2</span>dsacls <span class="tok-str">"OU=LLM-Services,DC=corp,DC=example,DC=com"</span></span>
+<span class="ln"><span class="ln-i">3</span>dsacls <span class="tok-str">"CN=svc-rag,OU=ServiceAccounts,DC=corp,DC=example,DC=com"</span> /g</span>
+<span class="ln"><span class="ln-i">4</span>dsacls <span class="tok-str">"OU=LLM-Services,DC=corp,DC=example,DC=com"</span> /I /T    <span class="tok-cmt"># включая потомков</span></span>
+<span class="ln"><span class="ln-i">5</span>Get-Acl <span class="tok-str">"C:\Windows\System32\NTDS"</span> -Audit | Format-List       <span class="tok-cmt"># SACL: что аудируется</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># группы и членство</span></span>
+<span class="ln"><span class="ln-i">8</span>Get-ADGroup -Filter <span class="tok-str">"SamAccountName -eq 'All-Staff'"</span> -Properties member | Select-Object -ExpandProperty member</span>
+<span class="ln"><span class="ln-i">9</span>Get-ADPrincipalGroupMembership -Identity <span class="tok-str">"Иванов"</span> | Select-Object SamAccountName</span>
+<span class="ln"><span class="ln-i">10</span>(Get-ADGroup <span class="tok-str">"LLM-Admins"</span>).SID            <span class="tok-cmt"># SID нужен для проверки прав в приложении</span></span>
+</code></pre></div>
+<p>Порядок и смысл ACE: в DACL сначала идут явно запрещённые (<code>D</code>), потом явно разрешённые (<code>A</code>), потом унаследованные. Проверка идёт сверху вниз до первого решения. Отсюда правило <strong>deny-first</strong>: если ACL трогали несколько администраторов, первым в списке всегда должен быть явный Deny на Delete Child, иначе кто-то добавит правило снизу и не поймёт, почему удаление перестало работать. Наследование блокируется флагом <code>P</code> (protected) в SDDL, и это делает объект «островом» — после блокировки надо явно выдать права потомкам.</p>
+<h2 id="gpo-poryadok-primeneniya">GPO: порядок применения</h2>
+<p>Порядок, который надо знать наизусть:</p>
+<ol><li><strong>Site → Domain → OU</strong>, от самой общей области к самой частной.</li><li>При одинаковом уровне — <strong>обратный приоритет</strong>: политика с меньшим номером в списке выигрывает.</li><li>Явное Deny всегда побеждает Allow.</li><li>Для одного пользователя на одной машине политики применяются <strong>раздельно для Computer Configuration и User Configuration</strong>.</li></ol>
+<p>Четвёртый пункт объясняет половину обращений. <code>Computer Configuration</code> приходит от политик, привязанных к OU компьютера (и учётной записи компьютера), <code>User Configuration</code> — от политик, привязанных к OU пользователя. Если ты ждёшь, что сетевой путь настроится политикой для пользователей, а привязал её к OU компьютеров, — настройки применятся не к тому объекту.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>gpupdate /force                          # принудительное обновление на клиенте</span>
+<span class="ln"><span class="ln-i">2</span>gpupdate /force /target:computer         # только компьютерная часть</span>
+<span class="ln"><span class="ln-i">3</span>gpresult /h C:\gpo-user.html /scope:user /r        # что применилось пользователю</span>
+<span class="ln"><span class="ln-i">4</span>gpresult /h C:\gpo-comp.html /scope:computer /r</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>gpresult /r /scope:user /v                          # текстом в консоль</span>
+<span class="ln"><span class="ln-i">7</span>gpresult /r /scope:computer /v /user:CONTOSO\ivanov</span>
+<span class="ln"><span class="ln-i">8</span>gpresult /a /f C:\report.html /g C:\gp.txt /u CONTOSO\ivanov /c CONTOSO\PC-01</span>
+</code></pre></div>
+<p><code>gpresult /h</code> создаёт HTML-отчёт <strong>Resultant Set of Policy</strong> — это то, к чему ты приходишь в первую очередь, когда «GPO не применяется». В отчёте по каждой политике видно четыре колонки: <code>User Policy</code>, <code>Computer Policy</code>, <code>Resultant</code>, и — критически важная — <strong>«Applied GPOs» со статусом и причиной отказа</strong>: <code>Not Applied (Filtered)</code>, <code>Not Applied (Disabled)</code>, <code>Not Applied (Empty)</code>, <code>Access Denied</code>. Почти всегда ответ там.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-GPResultantSetOfPolicy -ReportType HTML -Path C:\rsop-user.html</span>
+<span class="ln"><span class="ln-i">2</span>Get-GPO -All | Where-Object { $_.LinksEnabled } | Select-Object DisplayName, GpoStatus</span>
+<span class="ln"><span class="ln-i">3</span>Get-GPInheritance -Target <span class="tok-str">"OU=Workstations,OU=Corp,DC=corp,DC=example,DC=com"</span> -ReportType HTML</span>
+</code></pre></div>
+<h3 id="loopback-processing">Loopback processing</h3>
+<p>Политика, привязанная к OU компьютеров, применяется к пользователю с Computer Configuration. Но бывает наоборот: пользовательские настройки должны применяться к самому компьютеру — например, политика на запуск сценария при входе или установку сертификата. Тогда включается <strong>loopback processing</strong>, и тут две ошибки:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Режим</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Когда нужен</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Merge (по умолчанию)</td>
+<td style="text-align:left">добавляет User Configuration компьютера к пользовательским</td>
+<td style="text-align:left">почти всегда то, что ты хочешь</td>
+</tr>
+<tr>
+<td style="text-align:left">Replace</td>
+<td style="text-align:left"><strong>заменяет</strong> пользовательские настройки на компьютерные</td>
+<td style="text-align:left">редко, для машин, где всё должно задаваться централизованно</td>
+</tr>
+<tr>
+<td style="text-align:left">No Loopback (выключен)</td>
+<td style="text-align:left">ничего не применяется</td>
+<td style="text-align:left">текущее поведение</td>
+</tr>
+</tbody></table></div>
+<p>Loopback включается в свойствах GPO: <code>Computer Configuration → Administrative Templates → System → Group Policy → Loopback Processing Mode</code>. Симптом ошибки: на рабочей машине политика работает, на тестовой нет — у тестовой учётки компьютера другой OU, и loopback настроен только в одном месте.</p>
+<h2 id="sysvol-mesto-gde-zhivut-sami-politiki">SYSVOL: место, где живут сами политики</h2>
+<p>Это отдельная тема, потому что здесь ломается всё остальное. Содержимое GPO лежит в файловой шаре <code>\\domain\SYSVOL\domain\Policies\{GUID}</code>, а скрипты автонастройки — в <code>\\domain\SYSVOL\domain\Scripts</code>. Эта шара <strong>должна быть реплицирована на все контроллеры домена</strong>, потому что компьютер загружает политику с ближайшего DC, а не с «правильного».</p>
+<p>До Windows 2008 это делалось через репликацию FRS по типу DFS, сейчас — через DFSR (DFS Replication) поверх набора файлов. Правильные настройки, без которых репликация SYSVOL не работает:</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># DFSR должен быть на каждом DC, SYSVOL и NETLOGON должны быть на NTFS</span></span>
+<span class="ln"><span class="ln-i">2</span>Get-Service DFSR | Select-Object Status, StartType</span>
+<span class="ln"><span class="ln-i">3</span>Get-SmbShare -Name NETLOGON, SYSVOL | Select-Object Name, Path, Special</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># включить подпись SMB — без неё репликация SYSVOL не запускается</span></span>
+<span class="ln"><span class="ln-i">6</span>Set-SmbServerConfiguration -EnableAuthenticateMessageSigning $true -Force</span>
+<span class="ln"><span class="ln-i">7</span>Get-SmbServerConfiguration | Select-Object EnableAuthenticateMessageSigning, EnableSMB1Protocol</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># состояние пространства репликации</span></span>
+<span class="ln"><span class="ln-i">10</span>dfsradmin membership</span>
+<span class="ln"><span class="ln-i">11</span>dfsradmin publication</span>
+<span class="ln"><span class="ln-i">12</span>dfsrdiag</span>
+</code></pre></div>
+<p>Симптом рассинхрона выглядит так: политика применяется на части компьютеров, пользователи жалуются «у меня слетает настройка», а на одном DC в <code>SYSVOL\...\Policies</code> лежат папки, которых нет на другом. Причина — не «сломалось», а расхождение, которое надо свести:</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>dcdiag /test:sysvol /v</span>
+<span class="ln"><span class="ln-i">2</span>repadmin /replicate dc01.corp.example.com dc02.corp.example.com /v</span>
+<span class="ln"><span class="ln-i">3</span>dfsutil /s /v \\corp.example.com\SYSVOL</span>
+<span class="ln"><span class="ln-i">4</span>icacls \\dc01.corp.example.com\SYSVOL\corp.example.com\Policies</span>
+</code></pre></div>
+<p>Порядок ручной починки: проверить, что DFSR запущен на обоих DC; проверить, что папка репликации существует и не в состоянии ошибки (<code>dfsradmin membership</code>); удалить конфликтные папки вручную, <strong>только</strong> после того, как доказал, что какая-то из копий правильная, сравнив содержимое <code>Machine\Preferences</code> и <code>GptTmpl.inf</code>; затем <code>repadmin /replicate</code>. Удалять <code>SYSVOL</code> целиком — нельзя, это единственное хранилище политик.</p>
+<h2 id="parolnaya-politika-i-blokirovki">Парольная политика и блокировки</h2>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># политика домена целиком</span></span>
+<span class="ln"><span class="ln-i">2</span>Get-ADDefaultDomainPasswordPolicy -Server dc01 |</span>
+<span class="ln"><span class="ln-i">3</span>  Format-List MinPasswordLength, MinPasswordAge, MaxPasswordAge, PasswordHistoryCount,</span>
+<span class="ln"><span class="ln-i">4</span>                LockoutThreshold, LockoutDuration, LockoutObservationWindow</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>net accounts /domain</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Параметр</th>
+<th style="text-align:left">Разумное значение для небольшого домена</th>
+<th style="text-align:left">Почему</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Минимальная длина</td>
+<td style="text-align:left">14</td>
+<td style="text-align:left">длина важнее набора «спецсимволов»</td>
+</tr>
+<tr>
+<td style="text-align:left">Сложность</td>
+<td style="text-align:left">включена</td>
+<td style="text-align:left">короткие словарные пароли остаются главным вектором</td>
+</tr>
+<tr>
+<td style="text-align:left">Максимальный срок</td>
+<td style="text-align:left">180 дней, <strong>без</strong> требования периодической смены</td>
+<td style="text-align:left">вечная смена приучает писать <code>Password123!</code></td>
+</tr>
+<tr>
+<td style="text-align:left">История</td>
+<td style="text-align:left">24</td>
+<td style="text-align:left">мешает ротации «12345 → 12346 → 12347»</td>
+</tr>
+<tr>
+<td style="text-align:left">Порог блокировки</td>
+<td style="text-align:left">10</td>
+<td style="text-align:left">ниже — включается DoS через подбор</td>
+</tr>
+<tr>
+<td style="text-align:left">Длительность блокировки</td>
+<td style="text-align:left">15–30 минут</td>
+<td style="text-align:left">длиннее — при удалённой работе приходится ждать</td>
+</tr>
+</tbody></table></div>
+<p>Fine-grained password policies дают разные правила для разных групп в одном домене — например, для сервисных учёток LLM-системы длиннее и реже:</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-ADFineGrainedPasswordPolicy -Filter * | Format-Table Name, Precedence, MinPasswordLength, MaxPasswordAge</span>
+<span class="ln"><span class="ln-i">2</span>Set-ADFineGrainedPasswordPolicy -Name <span class="tok-str">"LLM-ServiceAccounts"</span> -Precedence <span class="tok-n">10</span> `</span>
+<span class="ln"><span class="ln-i">3</span>  -MinPasswordLength <span class="tok-n">24</span> -MaxPasswordAge <span class="tok-n">90</span> -PasswordHistoryCount <span class="tok-n">24</span> `</span>
+<span class="ln"><span class="ln-i">4</span>  -LockoutThreshold <span class="tok-n">5</span> -LockoutDuration <span class="tok-n">00</span>:<span class="tok-n">15</span>:<span class="tok-n">00</span> -LockoutObservationWindow <span class="tok-n">00</span>:<span class="tok-n">30</span>:<span class="tok-n">00</span></span>
+<span class="ln"><span class="ln-i">5</span>Add-ADFineGrainedPasswordPolicySubject -Identity <span class="tok-str">"LLM-ServiceAccounts"</span> -Subjects <span class="tok-str">"LLM-ServiceAccounts"</span></span>
+<span class="ln"><span class="ln-i">6</span>Reset-ADAccountLockout -Identity <span class="tok-str">"ivanov"</span></span>
+</code></pre></div>
+<h2 id="audit-kakie-sobytiya-vklyuchat-i-chto-v-nih-iskat">Аудит: какие события включать и что в них искать</h2>
+<p>Продвинутый аудит на контроллере домена включён по умолчанию, но политику проверять надо: на многих доменах «Directory Service Access» выключен, и тогда смены прав на объекты не пишутся.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>auditpol /get /subcategory:<span class="tok-str">"Audit Directory Service Changes"</span></span>
+<span class="ln"><span class="ln-i">2</span>auditpol /set /subcategory:<span class="tok-str">"Audit Directory Service Access"</span> /success:enable /failure:enable</span>
+<span class="ln"><span class="ln-i">3</span>auditpol /get /category:* | Select-Object -Property <span class="tok-str">"Machine Name"</span>, <span class="tok-str">"Policy Target"</span>, Subcategory,</span>
+<span class="ln"><span class="ln-i">4</span>  <span class="tok-str">"Subcategory/Subcategory GUID"</span>, InclusionSetting | Where-Object { $_.InclusionSetting -ne <span class="tok-str">"No Auditing"</span> }</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Код</th>
+<th style="text-align:left">Событие</th>
+<th style="text-align:left">Что искать в нём</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">4624</td>
+<td style="text-align:left">успешный вход</td>
+<td style="text-align:left">тип входа (3 — сетевой), источник, учётка</td>
+</tr>
+<tr>
+<td style="text-align:left">4625</td>
+<td style="text-align:left">неуспешный вход</td>
+<td style="text-align:left">всплеск по одному источнику — подбор или истёкший пароль</td>
+</tr>
+<tr>
+<td style="text-align:left">4648</td>
+<td style="text-align:left">вход с явными учётными данными</td>
+<td style="text-align:left"><code>runas</code> администратора домена на рабочей станции</td>
+</tr>
+<tr>
+<td style="text-align:left">4672</td>
+<td style="text-align:left">выданы специальные привилегии</td>
+<td style="text-align:left">кто именно стал админом на этой машине</td>
+</tr>
+<tr>
+<td style="text-align:left">4720</td>
+<td style="text-align:left">создана учётная запись</td>
+<td style="text-align:left">появление нового <code>svc-*</code> без заявки</td>
+</tr>
+<tr>
+<td style="text-align:left">4728 / 4732 / 4756</td>
+<td style="text-align:left">добавление в глобальную / доменную локальную / универсальную группу</td>
+<td style="text-align:left">попадание в <code>Domain Admins</code></td>
+</tr>
+<tr>
+<td style="text-align:left">4724</td>
+<td style="text-align:left">сброс пароля</td>
+<td style="text-align:left">массовые сбросы 1–2 событиями — это подбор</td>
+</tr>
+<tr>
+<td style="text-align:left">4740</td>
+<td style="text-align:left">блокировка учётки</td>
+<td style="text-align:left">источник блокировок из логов 4625</td>
+</tr>
+<tr>
+<td style="text-align:left">4776</td>
+<td style="text-align:left">попытка аутентификации через NTLM</td>
+<td style="text-align:left">всплеск NTLM при полном переходе на Kerberos — признак старой настройки клиента</td>
+</tr>
+<tr>
+<td style="text-align:left">5140</td>
+<td style="text-align:left">доступ к сетевому объекту</td>
+<td style="text-align:left">чтение документа, попавшего в ответ ассистента</td>
+</tr>
+<tr>
+<td style="text-align:left">5136 / 5137</td>
+<td style="text-align:left">изменение атрибута / значения объекта</td>
+<td style="text-align:left">правка атрибутов, в том числе <code>memberOf</code></td>
+</tr>
+<tr>
+<td style="text-align:left">4781</td>
+<td style="text-align:left">переименование учётки</td>
+<td style="text-align:left">попытка спрятать следы</td>
+</tr>
+<tr>
+<td style="text-align:left">1102</td>
+<td style="text-align:left">журнал аудита очищен</td>
+<td style="text-align:left">кто-то заметает следы — разбирать как инцидент</td>
+</tr>
+<tr>
+<td style="text-align:left">4719</td>
+<td style="text-align:left">изменение политики аудита</td>
+<td style="text-align:left">само по себе повод для расследования</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># кто добавлялся в группу администраторов за неделю</span></span>
+<span class="ln"><span class="ln-i">2</span>$ids = <span class="tok-n">4728</span>, <span class="tok-n">4732</span>, <span class="tok-n">4756</span></span>
+<span class="ln"><span class="ln-i">3</span>Get-WinEvent -FilterHashtable @{ LogName=<span class="tok-str">'Security'</span>; Id=$ids; StartTime=(Get-Date).<span class="tok-fn">AddDays</span>(-<span class="tok-n">7</span>) } |</span>
+<span class="ln"><span class="ln-i">4</span>  Select-Object TimeCreated, Id, @{n=<span class="tok-str">'Who'</span>;e={$_.Properties[<span class="tok-n">0</span>].Value}},</span>
+<span class="ln"><span class="ln-i">5</span>                @{n=<span class="tok-str">'Group'</span>;e={$_.Properties[<span class="tok-n">2</span>].Value}}, @{n=<span class="tok-str">'Added'</span>;e={$_.Properties[<span class="tok-n">3</span>].Value}} |</span>
+<span class="ln"><span class="ln-i">6</span>  Format-Table -AutoSize</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># неуспешные входы, сгруппированные по источнику</span></span>
+<span class="ln"><span class="ln-i">9</span>Get-WinEvent -FilterHashtable @{ LogName=<span class="tok-str">'Security'</span>; Id=<span class="tok-n">4625</span>; StartTime=(Get-Date).<span class="tok-fn">AddHours</span>(-<span class="tok-n">24</span>) } |</span>
+<span class="ln"><span class="ln-i">10</span>  Group-Object { $_.Properties[<span class="tok-n">19</span>].Value } | Sort-Object Count -Descending | Select-Object Count, Name</span>
+</code></pre></div>
+<h2 id="tipovye-polomki">Типовые поломки</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Симптом</th>
+<th style="text-align:left">Наиболее вероятная причина</th>
+<th style="text-align:left">Первая команда</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">«Не удаётся войти», DNS-ошибка</td>
+<td style="text-align:left">DNS-сервер домена не на DC, нет SRV-записей</td>
+<td style="text-align:left"><code>nltest /dsgetdc:corp.example.com</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Вход медленный, потом проходит</td>
+<td style="text-align:left">рассинхрон времени (Kerberos требует ±5 минут), нагрузка на NTDS</td>
+<td style="text-align:left"><code>w32tm /query /status</code>, <code>dcdiag /test:time /v</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Пользователь входит на один DC, не входит на другой</td>
+<td style="text-align:left">рассинхрон репликации или разный SYSVOL</td>
+<td style="text-align:left"><code>repadmin /showrepl *</code>, <code>dcdiag /test:sysvol /v</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Учётка заблокирована «сама»</td>
+<td style="text-align:left">порог блокировки ниже, чем всплеск входа с одной машины</td>
+<td style="text-align:left"><code>Get-ADUser -Identity ivanov -Properties LockoutTime</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Политика применилась на части машин</td>
+<td style="text-align:left">loopback processing, фильтрация по OU, блокировка наследования</td>
+<td style="text-align:left"><code>gpresult /h C:gpo.html /scope:computer /r</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Скрипт автонастройки не отрабатывает</td>
+<td style="text-align:left">SYSVOL рассинхронизирован, <code>Domain Policies Scripts Path</code> неверный</td>
+<td style="text-align:left"><code>dcdiag /test:sysvol /v</code>, <code>gpresult /r /v</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Две машины с одинаковым именем, вход ломается</td>
+<td style="text-align:left">клонирована ВМ с домена, совпадают SID компьютера и CN</td>
+<td style="text-align:left"><code>dsquery * -filter "(sAMAccountType=computer)" ...</code>, см. ниже</td>
+</tr>
+</tbody></table></div>
+<h3 id="klonirovanie-vm-s-tem-zhe-sid">Клонирование ВМ с тем же SID</h3>
+<p>Это реально бывает в контуре на Proxmox: сделал снимок рабочей машины или контроллера, чтобы «быстро поднять тестовую среду», склонировал — и получил в домене две учётные записи компьютера с <strong>одинаковым SID</strong>. DNS отдаёт обе, клиент получает не ту запись, Kerberos выдаёт билет для чужого SID, и вход либо не проходит, либо проходит как машина, которой ты не думал.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># найти дубли SID среди компьютеров домена</span></span>
+<span class="ln"><span class="ln-i">2</span>Get-ADComputer -Filter * -Properties Name, ObjectGUID, SamAccountName |</span>
+<span class="ln"><span class="ln-i">3</span>  ForEach-Object {</span>
+<span class="ln"><span class="ln-i">4</span>    $sid = (New-Object System.DirectoryServices.AccountManagement.<span class="tok-fn">PrincipalContext</span>(</span>
+<span class="ln"><span class="ln-i">5</span>             [System.DirectoryServices.AccountManagement.IdentityType]::Domain,</span>
+<span class="ln"><span class="ln-i">6</span>             <span class="tok-str">'corp.example.com'</span>)).<span class="tok-fn">GetUser</span>([System.Security.Principal.NTAccount]$_.SamAccountName).SID.Value</span>
+<span class="ln"><span class="ln-i">7</span>    [PSCustomObject]@{ Name=$_.Name; SID=$sid }</span>
+<span class="ln"><span class="ln-i">8</span>  } | Group-Object SID | Where-Object Count -gt <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt"># корректный путь: снять с домена копию ДО клонирования</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># djoin /provision /domain:corp.example.com /machine:PC-NEW-02 /domainou:"OU=Workstations,DC=corp,DC=example,DC=com"</span></span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># лечение существующей копии</span></span>
+<span class="ln"><span class="ln-i">14</span>Get-ADComputer -Identity <span class="tok-str">"OLD-NAME"</span> -Properties ObjectGUID   <span class="tok-cmt"># запомнить GUID до изменений</span></span>
+</code></pre></div>
+<p>Лечение состоит из двух шагов и требует прав администратора домена: удалить старую учётную запись компьютера (<code>Remove-ADComputer -Identity "OLD-NAME" -Confirm:$false</code>) после того, как на копии сменили имя и перезагрузили её, и дождаться репликации удаления, потому что DNS-записи устаревают медленно, чем сам объект. Если обратный путь недоступен — заходи локально администратором, чисти кэш (<code>klist /purge</code>), и удаление делай на том DC, где копия гарантированно не нужна.</p>
+<h3 id="sysvol-razezzhaetsya-posle-klonirovaniya-dc">SYSVOL «разъезжается» после клонирования DC</h3>
+<p>Если клонируешь сам контроллер домена, нельзя просто копировать его <code>NTDS.dit</code> — учётная запись компьютера DC, SIDs и идентификаторы DSA внутри базы остаются прежними. Для тестового DC правильный путь — <code>dcdemo</code> или развёртывание через <code>sysprep /generalize</code> и <code>djoin /provision</code>, а не горячая копия работающего <code>NTDS.dit</code>.</p>
+<h2 id="vosstanovlenie-usn-roli-i-ntdsdit">Восстановление: USN-роли и NTDS.dit</h2>
+<p>Роли FSMO — единая точка записи для операций, которые нельзя выполнять одновременно на двух DC. Их пять:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Роль</th>
+<th style="text-align:left">Что без неё не работает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">PDC Emulator</td>
+<td style="text-align:left">политика домена, эмуляция леса, изменение времени</td>
+</tr>
+<tr>
+<td style="text-align:left">RID Master</td>
+<td style="text-align:left">выдача RID для новых учёток</td>
+</tr>
+<tr>
+<td style="text-align:left">Domain Naming Master</td>
+<td style="text-align:left">добавление доменов в лес, OU внутри домена</td>
+</tr>
+<tr>
+<td style="text-align:left">Schema Master</td>
+<td style="text-align:left">расширение схемы</td>
+</tr>
+<tr>
+<td style="text-align:left">Infrastructure Master</td>
+<td style="text-align:left">перемещение объектов между доменами леса</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-ADDomainController -Identity dc01.corp.example.com |</span>
+<span class="ln"><span class="ln-i">2</span>  Select-Object -ExpandProperty OperationRole</span>
+<span class="ln"><span class="ln-i">3</span>dsquery * -filter <span class="tok-str">"(objectCategory=domainDNS)"</span> -attr name -d corp.example.com</span>
+<span class="ln"><span class="ln-i">4</span>netdom query fsmo</span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># перенос роли — только осознанно и с планом отката</span></span>
+<span class="ln"><span class="ln-i">6</span>Set-ADOperationMaster -Identity dc02.corp.example.com -OperationRole PDCEmulator</span>
+</code></pre></div>
+<p>Три точки отката, которые надо знать заранее:</p>
+<ul><li><strong>Netlogon-папка</strong> на DC — копия базы SAM. Потерял её — потерял часть учёток. Восстанавливается снапшотом VSS, если он был.</li><li><strong>SYSVOL</strong> — копия политик. Где нет бэкапа, там нет восстановления политик, кроме экспортированного бэкапа GPO.</li><li><strong>NTDS.dit</strong> — вся база. Восстановление — это снимок файловой системы (VSS), который снимается принудительно: <code>ntdsutil</code> → <code>snapshot create</code>, либо <code>vssadmin create shadow /for=C:\Windows\NTDS</code>. Снимок VSS делается на живом DC за секунды и не мешает репликации, а именно его чаще всего не делают «потому что жалко терять производительность».</li></ul>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># VSS-снимок NTDS на DC — делать по расписанию, а не в день аварии</span></span>
+<span class="ln"><span class="ln-i">2</span>vssadmin create shadow /for=C:\Windows\NTDS /set <span class="tok-str">"WRITERNAME=corp\dc01"</span></span>
+<span class="ln"><span class="ln-i">3</span>vssadmin list shadows</span>
+<span class="ln"><span class="ln-i">4</span>ntdsutil                                  <span class="tok-cmt"># интерактивно: snapshot create / list / mount</span></span>
+</code></pre></div>
+<h2 id="instrumenty-administratora">Инструменты администратора</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Инструмент</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Когда нужен</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">RSAT</td>
+<td style="text-align:left">добавляет оснастки <code>Active Directory*</code> и <code>dcdiag</code>/<code>repadmin</code> в Windows 10/11</td>
+<td style="text-align:left">удалённое управление доменом с рабочей машины</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>dsquery</code></td>
+<td style="text-align:left">поиск объектов из командной строки</td>
+<td style="text-align:left">быстрый поиск без GUI</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ldifde</code></td>
+<td style="text-align:left">экспорт/импорт объектов в LDIF</td>
+<td style="text-align:left">перенос объекта между лесами, резервная копия OU</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>csvde</code></td>
+<td style="text-align:left">экспорт в CSV</td>
+<td style="text-align:left">инвентаризация учёток и групп для отчётности</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>repadmin</code></td>
+<td style="text-align:left">состояние и форсирование репликации</td>
+<td style="text-align:left">разбор рассинхрона</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>dcdiag</code></td>
+<td style="text-align:left">комплексная диагностика DC</td>
+<td style="text-align:left">универсальный первый инструмент</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ntdsutil</code></td>
+<td style="text-align:left">снимки и экспорт базы AD</td>
+<td style="text-align:left">бэкап и восстановление</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Get-AD*</code> (RSAT)</td>
+<td style="text-align:left">скриптуемый доступ к AD</td>
+<td style="text-align:left">автоматизация учёта и выдачи прав</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># экспорт ветки в LDIF — делай до любых массовых изменений</span></span>
+<span class="ln"><span class="ln-i">2</span>ldifde /d <span class="tok-str">"OU=LLM-Services,DC=corp,DC=example,DC=com"</span> /f C:\backup\llm-services.ldif</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># инвентаризация для отчётности руководству</span></span>
+<span class="ln"><span class="ln-i">5</span>csvde -d <span class="tok-str">"DC=corp,DC=example,DC=com"</span> -r <span class="tok-str">"(objectClass=user)"</span> -l sAMAccountName,mail,memberOf,accountExpires `</span>
+<span class="ln"><span class="ln-i">6</span>  -f C:\reports\users.csv</span>
+<span class="ln"><span class="ln-i">7</span>csvde -d <span class="tok-str">"DC=corp,DC=example,DC=com"</span> -r <span class="tok-str">"(objectClass=group)"</span> -l sAMAccountName,member -f C:\reports\groups.csv</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># импорт обратно (осторожно: конфликты SID и objectGUID)</span></span>
+<span class="ln"><span class="ln-i">10</span>ldifde /i /f C:\backup\llm-services.ldif</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-cmt"># общая проверка домена перед совещанием</span></span>
+<span class="ln"><span class="ln-i">13</span>dcdiag /e /c /v /test:dns /test:replications /test:services /test:netlogon</span>
+<span class="ln"><span class="ln-i">14</span>dcdiag /test:advertising /v</span>
+</code></pre></div>
+<h2 id="nablyudaemost-ad">Наблюдаемость AD</h2>
+<p>Экспортёр <code>windows_exporter</code> с коллектором <code>ad</code> отдаёт метрики, которые ловят деградацию до того, как пользователи её заметят. Полная схема — в <a href="../../lectures/devops/18-lab-proxmox-monitoring.html">лабораторной лекции</a>; здесь — что именно смотреть и почему:</p>
+<div class="codeblock" data-lang="promql"><div class="codehead"><span class="code-lang">promql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># очередь репликации: если не ноль дольше двух интервалов — репликация отстала</span></span>
+<span class="ln"><span class="ln-i">2</span>windows_ad_replication_pending_operations &gt; <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># LDAP-сессии на контроллере: рост без снижения = утечка соединений или поток LDAP-поисков</span></span>
+<span class="ln"><span class="ln-i">5</span>windows_ad_ldap_client_sessions</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># рассинхрон схемы: сразу разбираться, иначе новые атрибуты не поедут</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-fn">increase</span>(windows_ad_replication_sync_requests_schema_mismatch_failure_total[1h]) &gt; <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt"># размер базы домена: NTDS.dit растёт монотонно, резкий скачок — обследовать</span></span>
+<span class="ln"><span class="ln-i">11</span>ad_ntds_dit_size_bytes</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># доля неуспешных входов: всплеск = подбор или проблема с доменными паролями</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-fn">increase</span>(ad_failed_logon_total[15m]) &gt; <span class="tok-n">20</span></span>
+</code></pre></div>
+<p>Плюс четыре алерта, которые стоит настроить до первого инцидента: недоступность службы <code>NTDS</code>, ненулевой <code>replication_pending_operations</code>, <code>1102</code> (журнал аудита очищен) и <code>4776</code> с положительным счётчиком NTLM.</p>
+<h2 id="praktika-polzovateli-ne-mogut-zaloginitsya">Практика: «пользователи не могут залогиниться»</h2>
+<p>Сценарий: утро понедельника, часть сотрудников пишет «не пускает в домен». Порядок действий — от дешёвого к дорогому, без прыжков сразу в <code>dcdiag</code> на каждой машине.</p>
+<p><strong>Шаг 1. Выяснить, у кого именно и как именно.</strong> Это экономит половину времени: «не пускает» — это либо DNS-ошибка, либо неверный пароль, либо политика, либо машина вне сети.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># 1.1 на клиенте: контекст безопасности и кэш билетов</span></span>
+<span class="ln"><span class="ln-i">2</span>whoami /all</span>
+<span class="ln"><span class="ln-i">3</span>klist /purge            <span class="tok-cmt"># сбросить кэш Kerberos, потом попробовать снова</span></span>
+<span class="ln"><span class="ln-i">4</span>klist</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># 1.2 видит ли клиент домен вообще</span></span>
+<span class="ln"><span class="ln-i">7</span>nltest /dsgetdc:corp.example.com</span>
+<span class="ln"><span class="ln-i">8</span>nslookup -type=SRV _ldap._tcp.dc._msdcs.corp.example.com</span>
+<span class="ln"><span class="ln-i">9</span>nslookup dc01.corp.example.com</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># 1.3 время: расхождение больше 5 минут ломает Kerberos полностью</span></span>
+<span class="ln"><span class="ln-i">12</span>w32tm /query /status</span>
+<span class="ln"><span class="ln-i">13</span>w32tm /resync</span>
+</code></pre></div>
+<p><strong>Шаг 2. Ответить, где именно ломается.</strong> Три команды на контроллере домена покрывают большинство случаев:</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>dcdiag /e /c /v /test:dns /test:replications /test:services /test:netlogon</span>
+<span class="ln"><span class="ln-i">2</span>repadmin /replsummary</span>
+<span class="ln"><span class="ln-i">3</span>repadmin /showrepl * /csv | Import-Csv | Where-Object { $_.Status -ne <span class="tok-str">'0'</span> }</span>
+</code></pre></div>
+<p>Типичные находки: <code>Advertising test failed</code> (DC не отвечает), <code>Replications check failed</code> с указанием на конкретный партнёр (исправляется <code>repadmin /replicate</code>), <code>SysVol check failed</code> (рассинхронизован SYSVOL).</p>
+<p><strong>Шаг 3. Проверить политику на самой машине клиента.</strong></p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>gpresult /h C:\gpo.html /scope:user /r</span>
+<span class="ln"><span class="ln-i">2</span>gpresult /h C:\gpo-comp.html /scope:computer /r</span>
+<span class="ln"><span class="ln-i">3</span>gpresult /r /scope:user /v | Select-String -Pattern <span class="tok-str">"Not Applied|Access Denied|Denied"</span></span>
+</code></pre></div>
+<p>Читаешь HTML-отчёт: политика в статусе <code>Not Applied (Filtered)</code> — не пройдена фильтрация безопасности или неверно привязана к OU; <code>Access Denied</code> — проблема с правами на объект OU или на сам GPO; политики нет в списке вообще — ты смотришь не на тот OU или политика не привязана.</p>
+<p><strong>Шаг 4. Проверить учётку и группы.</strong></p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-ADUser -Identity ivanov -Properties PasswordLastSet, LockoutTime, AccountExpires, MemberOf |</span>
+<span class="ln"><span class="ln-i">2</span>  Format-List Name, Enabled, PasswordLastSet, PasswordExpired, LockoutTime, AccountExpires, MemberOf</span>
+<span class="ln"><span class="ln-i">3</span>Get-ADPrincipalGroupMembership -Identity ivanov | Select-Object SamAccountName</span>
+<span class="ln"><span class="ln-i">4</span>Reset-ADAccountLockout -Identity ivanov</span>
+<span class="ln"><span class="ln-i">5</span>Unlock-ADAccount -Identity ivanov</span>
+</code></pre></div>
+<p><strong>Шаг 5. Журналы на клиенте и на контроллере.</strong></p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-WinEvent -FilterHashtable @{ LogName=<span class="tok-str">'Security'</span>; Id=<span class="tok-n">4624</span>,<span class="tok-n">4625</span>,<span class="tok-n">4771</span>,<span class="tok-n">4776</span>; StartTime=(Get-Date).<span class="tok-fn">AddMinutes</span>(-<span class="tok-n">30</span>) } |</span>
+<span class="ln"><span class="ln-i">2</span>  Select-Object TimeCreated, Id, Message | Format-List</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># на DC: что именно произошло с этой учёткой</span></span>
+<span class="ln"><span class="ln-i">5</span>Get-WinEvent -FilterHashtable @{ LogName=<span class="tok-str">'Security'</span>; StartTime=(Get-Date).<span class="tok-fn">AddMinutes</span>(-<span class="tok-n">30</span>) } |</span>
+<span class="ln"><span class="ln-i">6</span>  Where-Object { $_.Message -match <span class="tok-str">'ivanov'</span> } | Select-Object TimeCreated, Id, Message</span>
+</code></pre></div>
+<p><strong>Шаг 6. Если вход проходит, но не с той политикой или не с теми правами.</strong> Тогда проблема уже не в Kerberos, а в GPO и ACL, и порядок другой: <code>gpresult</code> → <code>dsacls</code> на OU → членство в группах → при необходимости <code>repadmin /replicate</code> и повторный <code>gpupdate /force</code>.</p>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Заведи себе файл <code>C:\SOP\ad-login-troubleshooting.txt</code> с этими
+командами в порядке выполнения. В 9 случаях из 10 после него остаётся
+только одна нераскрытая причина, и на её разбор уходит час вместо дня.</p></div></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Удалил объект, не дождавшись репликации.</strong> Удаление ушло на один DC, но не на второй, и клиент рядом со вторым продолжает работать со старым состоянием. Всегда проверяй <code>repadmin /replsummary</code> после массовых изменений, и не делай их за минуту до отпуска.</li><li><strong>Фильтрация безопасности на OU закрыла доступ к GPO.</strong> Самая частая причина «политика не применяется». Видно только в <code>gpresult /h</code> — в консоли <code>gpupdate</code> об этом молчит.</li><li><strong>Настройка loopback только на одном компьютере или в одной ветке OU.</strong> Часть машин получает Computer Configuration из пользовательской политики, часть нет. Расхождение выглядит как «у одного сотрудника работает, у другого нет».</li><li><strong>Смена модели безопасности с Sysvol на Security с плохим ACL.</strong> После <code>Change object ownership</code> на <code>SYSVOL\domain\Policies</code> и неверной настройке GPO Folders ломается чтение политик на всех машинах одновременно. Симптом — массовый отказ применения GPO, и лечится <code>dcdiag /test:sysvol</code> плюс проверкой ACL на всей цепочке <code>SYSVOL\domain\Policies</code>.</li><li><strong>Клонировал ВМ, попавшую в домен.</strong> Два одинаковых SID, две записи в DNS, Kerberos выдаёт билет не той машине. Правило простое: снятие с домена должно предшествовать снимку.</li><li><strong>Не настроил блокировку GPO на запись для админов домена.</strong> GPO может удалить любой, у кого есть право на <code>Edit</code>. Одно забытое ограничение — и политика безопасности переписана.</li><li><strong>Синхронизация времени.</strong> Kerberos не прощает расхождения больше 5 минут, и в виртуализированном контуре на Proxmox это встречается после переезда хоста: часы гость отстали, а NTP внутри гостя не настроен.</li><li><strong>Полный аудит включили постфактум и удивились объёму логов.</strong> Аудит изменений (<code>5136</code>) на большом домене пишет десятки тысяч событий в день, и без агента с партиционированием это либо потеря событий, либо переполненный диск. Планируй место заранее.</li><li><strong>Использовали <code>netdom</code> или скрипт для «массовой» правки без выгрузки в LDIF.</strong> Один неверный фильтр — и потеряно членство в группах. <code>ldifde</code> перед массовым изменением занимает секунду.</li><li><strong>Роли FSMO на одном DC без резервного, который в другом сайте.</strong> Потеря этого DC — потеря возможности менять политику домена целиком, даже если в домене есть другие контроллеры.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я объясняю разницу между лесом, доменом, сайтом, OU и контроллером домена и знаю, что топология репликации строится по сайтам, а не по расстоянию</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что такое USN, <code>versionLastChanged</code> и вектор версий, умею читать <code>repadmin /replsummary</code> и знаю, что означает ненулевой статус</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, почему DNS-сервер домена обязан быть на контроллере домена, и умею проверить SRV-записи через <code>nltest /dsgetdc</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я различаю глобальную, доменную локальную и универсальную группу и знаю цену бездумного перевода всех групп в универсальные</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я читаю ACL и SDDL, понимаю порядок ACE, разницу между <code>CI</code> и <code>OI</code> и последствия блокировки наследования</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю порядок применения GPO (site → domain → OU, обратный приоритет), объясняю loopback processing и умею диагностировать «политика не применяется» через <code>gpresult /h</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, что такое SYSVOL и NETLOGON, зачем они реплицируются через DFSR, и умею находить клонированные машины с одинаковым SID</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю про роли FSMO, регулярные VSS-снимки <code>NTDS.dit</code> и выгрузку в LDIF, а по событиям Security нахожу, кто создал учётку, вошёл неудачно и попал в группу администраторов</span></label></li></ul>
+<p>Дальше — <a href="../../lectures/devops/24-n8n.html">n8n</a>: последний элемент контура, который связывает Active Directory, хранилища и LLM в один процесс.</p></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Разберись в репликации через repadmin и dcdiag, проверь состояние SYSVOL и DFSR, сгенерируй отчёт gpresult с клиента, разбери ACL на OU через dsacls и SDDL, а затем пройди сценарий «пользователи не могут залогиниться» от whoami /all до проверки политик.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=ops"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «OPS» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/23-active-directory">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/22-redis.html"><span>← Предыдущая</span><b>Redis: кэш, очереди и лимиты</b></a>
+        <a class="nav-next" href="../../lectures/devops/24-n8n.html"><span>Следующая →</span><b>n8n: автоматизация процессов</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/23-active-directory";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

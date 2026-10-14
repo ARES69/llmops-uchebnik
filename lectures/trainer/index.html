@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тренажёр DevOps — учебник</title>
+<meta name="description" content="Интерактивный тренажёр: настоящие команды в браузере. DevOps, RAG, промпты, инференс и сетевое оборудование.">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="stylesheet" href="../../assets/trainer/trainer.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9650;</text></svg>">
+<style>
+  :root { --grn: var(--tr-ok); --dim: var(--tr-ok-mute); --ln: var(--tr-line); }
+  body { background: var(--tr-bg3); }
+  .container { max-width: 1180px; }
+</style>
+</head>
+<body class="tr-body">
+
+<div class="tr-top">
+  <div class="in">
+    <a class="tr-back" href="../index.html">
+      <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      К учебнику
+    </a>
+    <span class="tr-name">Тренажёр <em>настоящие команды, ничего не ломается</em></span>
+    <button class="tr-theme" id="trTheme" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="off" style="width:17px;height:17px"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="on" style="width:17px;height:17px"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</div>
+
+
+<div class="bgfx"></div>
+
+<div id="welM" class="ovl ovl-welcome open">
+ <div class="mc wlc max-h-[92vh] overflow-y-auto scr">
+  <div class="wlc-head">
+   <div class="wlc-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--tr-ok)" stroke-width="1.5"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z"/><circle cx="12" cy="12" r="3.2"/><path d="M12 5.5v3.3M12 15.2v3.3M6.3 8.8l2.9 1.6M14.8 13.6l2.9 1.6M6.3 15.2l2.9-1.6M14.8 10.4l2.9-1.6"/></svg>
+   </div>
+   <div>
+    <div class="wlc-kicker">практический стенд учебника</div>
+    <h2 class="wlc-title">DevOps Terminal Pro</h2>
+    <p class="wlc-sub"><b id="wlcCourses">—</b> <span id="wlcCoursesW">курсов</span> ·
+     <b id="wlcTasks">—</b> <span id="wlcTasksW">заданий</span> ·
+     настоящие команды, ничего не ломается</p>
+   </div>
+  </div>
+
+  <div class="wlc-boot">
+   <div><i></i>loading kernel modules: kubectl, git, docker, ansible, terraform</div>
+   <div><i></i>mounting /dev/brain &rarr; /skills</div>
+   <div><i></i>starting cluster: 3 nodes ready · control node online</div>
+   <div><i></i><span id="wlcFound">—</span> courses online</div>
+   <div class="wlc-boot-wait">waiting for operator input<i class="caret-inline"></i></div>
+  </div>
+
+  <div class="wlc-grid" id="wlcGrid"></div>
+
+  <div class="wlc-how">
+   Читаете задание, вводите команду, среда реагирует. Застряли — три уровня
+   подсказок и теория.
+  </div>
+  <div class="wlc-keys">
+   <span><kbd>help</kbd> справка</span><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> история</span>
+   <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> курсор</span><span><kbd>Ctrl</kbd>+<kbd>L</kbd> очистка</span>
+  </div>
+
+  <button onclick="startCourse()" class="wlc-go">
+   <span>&rarr;</span> Начать обучение — задание 1
+  </button>
+ </div>
+</div>
+
+<header class="sticky top-0 z-40 border-b" style="background:rgba(8,13,18,.92);backdrop-filter:blur(8px);border-color:var(--tr-line)">
+ <div class="container mx-auto px-3 py-2">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+   <div class="flex items-center gap-3">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--tr-ok)" stroke-width="1.6"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z"/><circle cx="12" cy="12" r="3.2"/></svg>
+    <div>
+     <h1 class="fd font-bold text-base leading-none tracking-wide" style="color:var(--tr-ok-bright)">DEVOPS <span style="color:var(--tr-ok)">TERMINAL</span> PRO</h1>
+     <div class="flex items-center gap-2 mt-1"><span class="dot"></span><span class="text-xs" style="color:var(--tr-ok-mute)">connected · 20 курсов</span></div>
+    </div>
+   </div>
+   <div class="flex items-center gap-4 text-center">
+    <div><div class="fd font-bold text-base" id="hXp" style="color:var(--tr-ok)">0 XP</div><div class="text-xs" style="color:var(--tr-ok-mute)">опыт</div></div>
+    <div><div class="fd font-bold text-base" id="hMod" style="color:var(--tr-accent)">1/8</div><div class="text-xs" style="color:var(--tr-ok-mute)">модуль</div></div>
+    <div><div class="fd font-bold text-base" id="hLes" style="color:var(--tr-accent2)">1/50</div><div class="text-xs" style="color:var(--tr-ok-mute)">задание</div></div>
+    <button onclick="showHelp()" class="hb" style="border-color:var(--tr-line3);color:var(--tr-ok-dim)">📖</button>
+    <button onclick="resetEnv(1)" class="hb" style="border-color:var(--tr-line-err);color:var(--tr-err-dim)">⟲</button>
+   </div>
+  </div>
+  <div class="mt-2 flex items-center gap-2">
+   <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background:var(--tr-panel2)"><div id="hBar" class="h-full prg transition-all duration-700" style="width:0%"></div></div>
+   <span class="text-xs font-bold" id="hPct" style="color:var(--tr-ok)">0%</span>
+  </div>
+ </div>
+</header>
+
+<div class="container mx-auto px-3 pt-3">
+ <div id="tabBar" class="flex gap-1 border-b overflow-x-auto scr pb-0" style="border-color:var(--tr-line)"></div>
+</div>
+
+<main class="container mx-auto px-3 py-3 grid grid-cols-1 xl:grid-cols-3 gap-3">
+ <div class="xl:col-span-2 space-y-3">
+  <section class="pn overflow-hidden">
+   <div class="flex items-center justify-between px-3 py-2" style="background:var(--tr-bg);border-bottom:1px solid var(--tr-line)">
+    <div class="flex items-center gap-1.5">
+     <span class="w-2.5 h-2.5 rounded-full" style="background:#ff5f56"></span><span class="w-2.5 h-2.5 rounded-full" style="background:#ffbd2e"></span><span class="w-2.5 h-2.5 rounded-full" style="background:#27c93f"></span>
+     <span class="ml-2 text-xs" style="color:var(--tr-ok-mute)" id="termTitle">kubectl@cluster-master — bash</span>
+    </div>
+    <button onclick="clearTerm()" class="text-xs hover:opacity-70" style="color:var(--tr-ok-mute)">[ Ctrl+L ]</button>
+   </div>
+   <div id="termBox" class="term px-3 py-2 h-80 overflow-y-auto scr cursor-text" onclick="focusIn()">
+    <div id="hist"></div>
+    <div class="flex items-start gap-2 py-1">
+     <span class="text-xs whitespace-nowrap t-ok" style="line-height:22px" id="prompt">root@cluster:~$</span>
+     <span class="cw"><span id="mir" class="mir"></span><span id="curE" class="cur"></span>
+      <input id="inp" autocomplete="off" spellcheck="false" onkeydown="keyIn(event)"></span>
+    </div>
+   </div>
+  </section>
+  <section class="pn p-3">
+   <div class="flex items-center justify-between gap-2 flex-wrap">
+    <div class="flex items-center gap-2">
+     <span class="fd text-xs px-2 py-0.5 rounded font-bold" id="lModChip">МОДУЛЬ 1</span>
+     <h2 class="fd font-bold text-base" id="lTitle" style="color:var(--tr-ok-bright)">—</h2>
+    </div>
+    <span class="text-xs" id="lXp" style="color:var(--tr-ok)">+30 XP</span>
+   </div>
+   <p class="text-sm mt-1.5" id="lTask" style="color:var(--tr-ok-dim)">—</p>
+   <div class="flex flex-wrap gap-1.5 mt-2.5 items-center">
+    <button class="hb" style="border-color:var(--tr-line-accent);color:var(--tr-accent-dim)" onclick="hint(1)">💡 намёк</button>
+    <button class="hb" style="border-color:var(--tr-line-accent2);color:var(--tr-accent2-dim)" onclick="hint(2)">📝 подсказка</button>
+    <button class="hb" style="border-color:var(--tr-line-warn);color:var(--tr-warn-dim)" onclick="hint(3)">✅ ответ</button>
+    <button class="hb ml-auto" style="border-color:var(--tr-line-ok);color:var(--tr-ok-dim)" onclick="$('thP').classList.toggle('hidden')">📚 теория</button>
+   </div>
+   <div id="hintP" class="hidden mt-2.5 rounded-lg p-2.5 space-y-1.5" style="background:var(--tr-bg);border:1px solid var(--tr-line2)"></div>
+   <div id="thP" class="hidden mt-2.5 rounded-lg p-2.5 text-xs leading-relaxed" style="background:rgba(61,220,132,.06);border:1px solid var(--tr-line-ok);color:var(--tr-ok-dim)"></div>
+   <div class="mt-2.5">
+    <div class="text-xs mb-1.5" style="color:var(--tr-ok-mute)" id="lbT">Задания модуля</div>
+    <div id="lBtns" class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto scr py-0.5"></div>
+   </div>
+  </section>
+ </div>
+
+ <section id="k8sP" class="pn p-3">
+  <div class="flex items-center justify-between mb-2">
+   <h2 class="fd font-bold text-sm tracking-wide" style="color:var(--tr-ok-bright)">◈ КЛАСТЕР</h2>
+   <span class="chp" id="clStat" style="color:var(--tr-ok)"><span class="dot"></span>healthy</span>
+  </div>
+  <div id="nodes" class="space-y-2 mb-3"></div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">СЕРВИСЫ → ЭНДПОИНТЫ</div>
+  <div id="svcs" class="space-y-2 mb-3"></div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">CONFIGMAPS / SECRETS</div>
+  <div id="cfgs" class="flex flex-wrap gap-1.5 mb-3"></div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">NAMESPACES</div>
+  <div id="nss" class="flex flex-wrap gap-1.5"></div>
+  <div class="text-xs font-bold mb-1.5 mt-3" style="color:var(--tr-ok-mute)">ЖУРНАЛ РАЗВЁРТЫВАНИЯ</div>
+  <div id="evFeed"></div>
+ </section>
+
+ <section id="linP" class="pn p-3 hidden">
+  <div class="flex items-center justify-between mb-2">
+   <h2 class="fd font-bold text-sm tracking-wide" style="color:var(--tr-ok-bright)">🐧 LINUX LAB</h2>
+   <span class="chp" style="color:var(--tr-orange)"><span class="dot" style="background:var(--tr-orange);box-shadow:0 0 8px var(--tr-orange)"></span>ubuntu 22.04</span>
+  </div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">ФАЙЛОВАЯ СИСТЕМА <span class="t-dim">(клик = cd)</span></div>
+  <div id="fsL" class="rounded-lg p-2 mb-3 max-h-48 overflow-y-auto scr" style="background:var(--tr-bg);border:1px solid var(--tr-line)"></div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">ПРОЦЕССЫ <span class="t-dim">(kill &lt;pid&gt;)</span></div>
+  <div id="prcL" class="mb-3 max-h-36 overflow-y-auto scr"></div>
+  <div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">СИСТЕМА</div>
+  <div class="space-y-1.5">
+   <div class="flex items-center gap-2"><span class="text-xs w-9" style="color:var(--tr-ok-mute)">disk</span><div class="bar flex-1"><i style="width:22%;background:linear-gradient(90deg,var(--tr-orange),var(--tr-warn))"></i></div><span class="text-xs w-9 text-right" style="color:var(--tr-ok-dim)">22%</span></div>
+   <div class="flex items-center gap-2"><span class="text-xs w-9" style="color:var(--tr-ok-mute)">mem</span><div class="bar flex-1"><i style="width:27%;background:linear-gradient(90deg,var(--tr-accent2-dim),var(--tr-accent2))"></i></div><span class="text-xs w-9 text-right" style="color:var(--tr-ok-dim)">27%</span></div>
+   <div class="text-xs" style="color:var(--tr-ok-mute)">load avg: 0.42 0.31 0.27 · up 5 days · x86_64</div>
+  </div>
+ </section>
+
+ <section id="genP" class="pn p-3 hidden">
+  <div class="flex items-center justify-between mb-2">
+   <h2 class="fd font-bold text-sm tracking-wide" style="color:var(--tr-ok-bright)" id="genT">◈ СРЕДА</h2>
+   <span class="chp" id="genC" style="color:var(--tr-ok)"><span class="dot"></span>online</span>
+  </div>
+  <div id="genB" class="space-y-3"></div>
+ </section>
+</main>
+
+<section class="container mx-auto px-3 pb-6">
+ <div class="pn p-3">
+  <div class="flex items-center justify-between mb-2">
+   <h2 class="fd font-bold text-sm tracking-wide" id="mT" style="color:var(--tr-ok-bright)">▤ УЧЕБНЫЙ ПУТЬ</h2>
+   <span class="text-xs" id="mD" style="color:var(--tr-ok-mute)"></span>
+  </div>
+  <div id="mods" class="grid grid-cols-2 sm:grid-cols-5 gap-2"></div>
+ </div>
+</section>
+
+<div id="helpM" class="ovl" onclick="if(event.target===this)this.classList.remove('open')">
+ <div class="mc wlc wlc-wide max-h-[85vh] overflow-y-auto scr">
+  <div class="wlc-head">
+   <div class="wlc-badge wlc-badge-acc">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--tr-accent2)" stroke-width="1.7"><path d="M4 5.5A2.5 2.5 0 016.5 3H19v15H6.5A2.5 2.5 0 004 20.5z"/><path d="M4 20.5A2.5 2.5 0 016.5 18H19v3H6.5"/></svg>
+   </div>
+   <div>
+    <div class="wlc-kicker">справочник</div>
+    <h2 class="wlc-title">Курсы тренажёра</h2>
+    <p class="wlc-sub">в каждом курсе <b>help</b> в терминале показывает доступные команды</p>
+   </div>
+   <button onclick="$('helpM').classList.remove('open')" class="wlc-close" aria-label="Закрыть">&times;</button>
+  </div>
+  <div id="helpG" class="wlc-grid wlc-grid-dense"></div>
+ </div>
+</div>
+
+<div id="finM" class="ovl">
+ <div class="mc wlc wlc-narrow">
+  <div class="wlc-fin-icon">&#127942;</div>
+  <h2 class="fd font-bold text-2xl mb-1" id="finT">КУРС ПРОЙДЕН</h2>
+  <p class="text-sm mb-4" style="color:var(--tr-ok-dim)" id="finS"></p>
+  <div class="wlc-cmds">
+   <div class="wlc-cmds-t">освоенные команды</div>
+   <div id="finC" class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs t-ok"></div>
+  </div>
+  <div class="flex justify-center gap-2">
+   <button onclick="$('finM').classList.remove('open')" class="hb">Закрыть</button>
+   <button onclick="restart()" class="hb wlc-btn-ok">&#8635; Пройти заново</button>
+  </div>
+ </div>
+</div>
+
+<div id="toasts" class="fixed top-14 right-3 space-y-1.5 z-50"></div>
+
+
+
+
+<script src="../../assets/trainer/engine.js"></script>
+<script src="../../assets/trainer/courses.js"></script>
+<script src="../../assets/trainer/course-agents.js"></script>
+<script src="../../assets/trainer/course-incident.js"></script>
+<script src="../../assets/trainer/course-inference.js"></script>
+<script src="../../assets/trainer/course-mlops.js"></script>
+<script src="../../assets/trainer/course-netdev.js"></script>
+<script src="../../assets/trainer/course-prompt.js"></script>
+<script src="../../assets/trainer/course-python.js"></script>
+<script src="../../assets/trainer/course-rag.js"></script>
+<script>
+/* --- счётчики и сетка курсов в окне приветствия --- */
+(function () {
+  function fill() {
+    var list = Object.keys(window.COURSES || {});
+    if (!list.length) return;
+    var tasks = 0;
+    list.forEach(function (k) { tasks += (window.COURSES[k].ls || []).length; });
+    var set = function (id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+    /* Русское склонение: 1 курс / 2 курса / 5 курсов; так же для заданий. */
+    var plural = function (n, one, few, many) {
+      var n10 = n % 10, n100 = n % 100;
+      if (n10 === 1 && n100 !== 11) return one;
+      if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+      return many;
+    };
+    set('wlcCourses', list.length);
+    set('wlcTasks', tasks);
+    set('wlcCoursesW', plural(list.length, 'курс', 'курса', 'курсов'));
+    set('wlcTasksW', plural(tasks, 'задание', 'задания', 'заданий'));
+    set('wlcFound', list.length);
+
+    /* Панель вкладок строит engine.js в момент загрузки, когда в COURSES
+       лежат только 12 базовых курсов. Курсы из course-*.js подключаются
+       позже — без пересборки у них не будет ни вкладки, ни возможности
+       переключиться (?course=). Поэтому строим заново. */
+    if (typeof buildTabs === 'function') {
+      try { buildTabs(); } catch (e) {}
+    }
+    /* Прогресс P[k] движок заводит при загрузке — тоже только для
+       базовых 12. Без P[k] для нового курса switchCourse падает на
+       loadLesson(P[c].cur) и панели остаются от предыдущего курса. */
+    if (window.P) {
+      Object.keys(window.COURSES || {}).forEach(function (k) {
+        if (!window.P[k]) window.P[k] = { xp: 0, cur: 1, done: [] };
+      });
+    }
+    /* Правую панель движок умеет рисовать только для 12 базовых курсов:
+       там зашит список if (course==='net')… if (course==='cloud').
+       Курсы из course-*.js отдают разметку через env(), но её никто
+       не звал — панель оставалась пустой. Подставляем её сами.
+       Базовые курсы env не объявляют, поэтому подмена их не задевает. */
+    if (typeof window.renderEnv === 'function' && !window.__envWrapped) {
+      window.__envWrapped = true;
+      var baseRenderEnv = window.renderEnv;
+      window.renderEnv = function () {
+        var C = window.COURSES && window.COURSES[window.course];
+        if (C && typeof C.env === 'function') {
+          try {
+            var t = document.getElementById('genT');
+            var badge = document.getElementById('genC');
+            var body = document.getElementById('genB');
+            var kp = document.getElementById('k8sP');
+            var lp = document.getElementById('linP');
+            var gp = document.getElementById('genP');
+            if (t) t.textContent = C.i + ' ' + C.n + ' · СРЕДА';
+            if (badge) {
+              badge.style.color = C.c;
+              badge.innerHTML = '<span class="dot" style="background:' + C.c +
+                ';box-shadow:0 0 8px ' + C.c + '"></span>online';
+            }
+            if (kp) kp.classList.add('hidden');
+            if (lp) lp.classList.add('hidden');
+            if (gp) gp.classList.remove('hidden');
+            if (body) body.innerHTML = C.env() || '';
+            return;
+          } catch (e) { /* не вышло — рисуем штатно */ }
+        }
+        return baseRenderEnv.apply(this, arguments);
+      };
+    }
+
+    var grid = document.getElementById('wlcGrid');
+    if (grid && !grid.childNodes.length) {
+      var groups = { 'DevOps': [], 'Данные и ИИ': [], 'Сеть': [] };
+      var DEV = ['k8s', 'linux', 'net', 'git', 'docker', 'auto', 'ansible', 'cicd', 'obs', 'ops', 'data', 'cloud'];
+      list.forEach(function (k) {
+        var C = window.COURSES[k];
+        var g = DEV.indexOf(k) !== -1 ? groups['DevOps']
+              : (k === 'netdev' ? groups['Сеть'] : groups['Данные и ИИ']);
+        g.push({ k: k, C: C });
+      });
+      var html = '';
+      ['DevOps', 'Сеть', 'Данные и ИИ'].forEach(function (name) {
+        var g = groups[name];
+        if (!g.length) return;
+        html += '<div class="wlc-group"><div class="wlc-group-t">' + name + '</div><div class="wlc-chips">';
+        g.forEach(function (x) {
+          html += '<button class="wlc-chip" data-course="' + x.k + '" style="--cc:' + x.C.c + '"'
+            + ' title="' + String(x.C.ti || x.C.n).replace(/"/g, '&quot;') + '">'
+            + '<span class="wlc-chip-i">' + x.C.i + '</span>'
+            + '<span class="wlc-chip-n">' + x.C.n + '</span>'
+            + '<span class="wlc-chip-c">' + (x.C.ls || []).length + '</span></button>';
+        });
+        html += '</div></div>';
+      });
+      grid.innerHTML = html;
+      grid.addEventListener('click', function (e) {
+        var b = e.target.closest('.wlc-chip');
+        if (!b) return;
+        var k = b.getAttribute('data-course');
+        try { localStorage.setItem('devops-trainer-course', k); } catch (err) {}
+        if (typeof switchCourse === 'function') { try { switchCourse(k); } catch (err) {} }
+        var w = document.getElementById('welM');
+        if (w) w.classList.remove('open');
+        var inp = document.getElementById('inp');
+        if (inp) inp.focus();
+      });
+    }
+  }
+  if (window.COURSES) fill();
+  else document.addEventListener('DOMContentLoaded', fill);
+  if (window.addEventListener) window.addEventListener('load', fill);
+})();
+
+/* --- переход из лекции: ?course=linux открывает нужный курс сразу --- */
+(function () {
+  var KEY = 'devops-trainer-course';
+  var want = new URLSearchParams(location.search).get('course');
+  var known = Object.keys(window.COURSES || {});
+  try {
+    if (!want) want = localStorage.getItem(KEY);
+    if (want && known.indexOf(want) === -1) want = null;
+  } catch (e) {}
+  if (want && want !== window.course && typeof switchCourse === 'function') {
+    try { switchCourse(want); } catch (e) {}
+  }
+  if (want) {
+    try { localStorage.setItem(KEY, want); } catch (e) {}
+    setTimeout(function () {
+      var w = document.getElementById('welM');
+      if (w) w.classList.remove('open');
+      if (typeof startCourse === 'function') { try { startCourse(); } catch (e) {} }
+    }, 0);
+  }
+})();
+
+/* --- справочник в теме портала (переопределяем разметку движка) --- */
+(function () {
+  if (typeof window.COURSES === 'undefined') return;
+  window.showHelp = function () {
+    var box = document.getElementById('helpG');
+    if (!box) return;
+    var html = '';
+    Object.keys(window.COURSES).forEach(function (k) {
+      var C = window.COURSES[k];
+      var ls = C.ls || [];
+      html += '<div class="wlc-card" style="--cc:' + C.c + '">'
+        + '<div class="wlc-card-t"><span>' + C.i + ' ' + C.n + '</span>'
+        + '<span class="wlc-card-n">' + ls.length + ' заданий</span></div>'
+        + '<div class="wlc-card-c">'
+        + ls.slice(0, 3).map(function (l) { return '&middot; ' + l.t; }).join('<br>')
+        + (ls.length > 3 ? '<br>&middot; и ещё ' + (ls.length - 3) + ' …' : '')
+        + '</div></div>';
+    });
+    box.innerHTML = html;
+    var m = document.getElementById('helpM');
+    if (m) m.classList.add('open');
+  };
+})();
+
+/* --- тема общая с порталом --- */
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem('devops-mlops-theme'); } catch (e) {}
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  var t = document.getElementById('trTheme');
+  if (!t) return;
+  t.addEventListener('click', function () {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('devops-mlops-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

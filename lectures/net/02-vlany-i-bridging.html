@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VLAN, bridge и трехуровневая модель — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">Сетевое оборудование</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">A. MikroTik / RouterOS</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>VLAN, bridge и трехуровневая модель</h1>
+        <p class="lead">Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час</p>
+        <div class="meta"><span class="badge">75 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">vlan</span><span class="tag">bridge</span><span class="tag">trunk</span><span class="tag">dhcp</span><span class="tag">l2 l3</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#shema-kotoruyu-my-sobiraem">Схема, которую мы собираем</a></li><li class="toc-l2"><a href="#uroven-1-fizicheskiy-port">Уровень 1: физический порт</a></li><li class="toc-l2"><a href="#uroven-2-bridge-eto-svitch">Уровень 2: bridge — это «свитч»</a></li><li class="toc-l2"><a href="#uroven-3-vlan-eto-shlyuz-v-tretem-urovne">Уровень 3: vlan — это шлюз в третьем уровне</a></li><li class="toc-l2"><a href="#pochemu-trafik-ne-prohodit-pravilo-dvuh-zapisey">Почему трафик не проходит: правило двух записей</a></li><li class="toc-l2"><a href="#dva-sposoba-sdelat-trunk">Два способа сделать trunk</a></li><li class="toc-l2"><a href="#tablica-vlan-na-moste-tagged-untagged-bridge">Таблица VLAN на мосте: tagged, untagged, bridge</a></li><li class="toc-l2"><a href="#bridge-firewall-protiv-apparatnoy-razgruzki">Bridge firewall против аппаратной разгрузки</a></li><li class="toc-l2"><a href="#dhcp-server-puly-statika">DHCP: сервер, пулы, статика</a></li><li class="toc-l2"><a href="#dns-chto-otdavat-klientam">DNS: что отдавать клиентам</a></li><li class="toc-l2"><a href="#nat-dlya-vlan-naruzhu-i-vnutr">NAT для VLAN: наружу и внутрь</a></li><li class="toc-l2"><a href="#diagnostika-po-shagam">Диагностика по шагам</a></li><li class="toc-l2"><a href="#sravnenie-mikrotik-cisco-linux-router">Сравнение: MikroTik, Cisco, Linux-роутер</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Половина вопросов «настройки не работают, помогите» в теме MikroTik сводится к одному
+и тому же непониманию: Ethernet-порт, программный мост и VLAN-интерфейс — это три
+<strong>разных</strong> сущности с разными правилами, и работают они только вместе. Схема, где
+управляющий VLAN навешен прямо на физический порт (как на многих домашних роутерах),
+работает сама по себе. Схема с trunk-ом почти всегда не работает, пока инженер не
+осознал, что «добавить VLAN» и «добавить порт в этот VLAN» — это две разные записи в
+двух разных списках. Эта лекция — про эти три уровня и про то, что происходит между ними.</p>
+<h2 id="shema-kotoruyu-my-sobiraem">Схема, которую мы собираем</h2>
+<p>Базовый офис на одном MikroTik: три VLAN, три подсети, доступ в интернет из двух,
+изоляция гостей. Всё дальнейшее — вариации этой схемы.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">VLAN</th>
+<th style="text-align:center">Тег</th>
+<th style="text-align:left">Подсеть</th>
+<th style="text-align:center">Интернет</th>
+<th style="text-align:center">Доступ к management</th>
+<th style="text-align:left">DHCP</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">management</td>
+<td style="text-align:center">10</td>
+<td style="text-align:left">10.10.10.0/24</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center">сам</td>
+<td style="text-align:left">статика</td>
+</tr>
+<tr>
+<td style="text-align:left">users</td>
+<td style="text-align:center">20</td>
+<td style="text-align:left">10.10.20.0/24</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center">да</td>
+<td style="text-align:left">8 часов</td>
+</tr>
+<tr>
+<td style="text-align:left">guests</td>
+<td style="text-align:center">30</td>
+<td style="text-align:left">10.10.30.0/24</td>
+<td style="text-align:center">да</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:left">2 часа</td>
+</tr>
+</tbody></table></div>
+<h2 id="uroven-1-fizicheskiy-port">Уровень 1: физический порт</h2>
+<p><code>/interface ethernet</code> — это то, что впаяно в плату. Управлять ими почти не нужно: только
+включить, задать имя и скорость, если она не определяется.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface ethernet print</span>
+<span class="ln"><span class="ln-i">2</span>/interface ethernet monitor ether2 once</span>
+<span class="ln"><span class="ln-i">3</span>/interface ethernet set [find default-name=ether2] name=to-switch comment=<span class="tok-str">"uplink к 802.1Q-свитчу"</span></span>
+<span class="ln"><span class="ln-i">4</span>/interface ethernet set [find default-name=ether3] disabled=yes</span>
+</code></pre></div>
+<p>По умолчанию порты включены в первом bridge — в RouterOS есть неявная «нулевая группа
+ether1…etherN» (<code>bridge=ether1</code>), созданная при первом запуске. Это источник путаницы:
+интерфейс, который ты думал, что снял с моста, всё ещё в нём. Проверяй колонку <code>bridge</code>
+в <code>print</code>, а не догадывайся.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface print where type=<span class="tok-str">"ether bridge"</span>   <span class="tok-cmt"># все порты, сидящие на мостах</span></span>
+<span class="ln"><span class="ln-i">2</span>/interface print detail where name=<span class="tok-str">"ether3"</span></span>
+</code></pre></div>
+<h2 id="uroven-2-bridge-eto-svitch">Уровень 2: bridge — это «свитч»</h2>
+<p>Программный мост объединяет порты в один L2-сегмент: то, что пришло на <code>ether2</code> с
+тегом 20, уйдёт на <code>ether3</code> с тем же тегом. Мост — это чистый второй уровень, он ничего
+не знает про IP.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface bridge add name=bridge1 vlan-filtering=no comment=<span class="tok-str">"все VLAN в одном мосте"</span></span>
+<span class="ln"><span class="ln-i">2</span>/interface bridge port add bridge=bridge1 interface=ether2 pvid=<span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">3</span>/interface bridge port add bridge=bridge1 interface=ether3</span>
+<span class="ln"><span class="ln-i">4</span>/interface bridge print</span>
+<span class="ln"><span class="ln-i">5</span>/interface bridge port print</span>
+<span class="ln"><span class="ln-i">6</span>/interface bridge monitor bridge1 once</span>
+<span class="ln"><span class="ln-i">7</span>/interface bridge host print          <span class="tok-cmt"># кто за каким портом — главная диагностика L2</span></span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>/interface bridge host print</code> — твой <code>ip neigh</code> для второго уровня. Он показывает
+MAC-адрес, порт и VLAN каждого видимого устройства. Если в этой таблице пусто или
+нет твоего клиента — проблема на L2 (порт, VLAN, кабель), а всё, что ты дальше
+будешь проверять на третьем уровне, враньёт.</p></div></div>
+<h2 id="uroven-3-vlan-eto-shlyuz-v-tretem-urovne">Уровень 3: vlan — это шлюз в третьем уровне</h2>
+<p><code>/interface vlan</code> создаёт <strong>логический интерфейс</strong>, у которого есть собственный MAC и
+собственный IP. Это и есть «шлюз VLAN в третьем уровне»: подсеть пробрасывается сквозь
+мост, а маршрутизацией занимается уже RouterOS.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface vlan</span>
+<span class="ln"><span class="ln-i">2</span>add name=vlan10-mgmt interface=bridge1 vlan-id=<span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">3</span>add name=vlan20-users interface=bridge1 vlan-id=<span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">4</span>add name=vlan30-guests interface=bridge1 vlan-id=<span class="tok-n">30</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>/ip address</span>
+<span class="ln"><span class="ln-i">7</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>/<span class="tok-n">24</span> interface=vlan10-mgmt network=<span class="tok-n">10.10</span>.<span class="tok-n">10.0</span> comment=<span class="tok-str">"mgmt"</span></span>
+<span class="ln"><span class="ln-i">8</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">20.1</span>/<span class="tok-n">24</span> interface=vlan20-users network=<span class="tok-n">10.10</span>.<span class="tok-n">20.0</span> comment=<span class="tok-str">"users"</span></span>
+<span class="ln"><span class="ln-i">9</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">30.1</span>/<span class="tok-n">24</span> interface=vlan30-guests network=<span class="tok-n">10.10</span>.<span class="tok-n">30.0</span> comment=<span class="tok-str">"guests"</span></span>
+</code></pre></div>
+<p>Названия <code>vlan10-mgmt</code> вместо <code>vlan10</code> — не украшательство. Через полгода в выводе
+<code>/ip firewall filter</code> ты увидишь <code>in-interface=vlan20-users</code> и сразу поймёшь, о каком
+VLAN речь, без обращения к документации.</p>
+<h2 id="pochemu-trafik-ne-prohodit-pravilo-dvuh-zapisey">Почему трафик не проходит: правило двух записей</h2>
+<p>Для того чтобы кадр с тегом 20 дошёл до <code>vlan20-users</code>, нужны <strong>две</strong> записи:</p>
+<ol><li>Порт <code>ether3</code> должен быть <strong>в мосте</strong> — <code>/interface bridge port</code> с <code>bridge=bridge1</code>.</li><li>Порт <code>ether3</code> должен быть <strong>в VLAN 20</strong> — либо через <code>pvid=20</code> (кадр приходит без
+тега, коммутатор добавляет 20), либо через <code>/interface bridge vlan</code> с <code>untagged</code>,
+либо он <code>tagged</code> (кадр приходит уже с тегом).</li></ol>
+<p>Убери любое из двух — и VLAN будет «полупроводящим»: адрес на <code>vlan20-users</code> есть,
+интерфейс <code>up</code>, а пакеты не доходят. Именно это ощущается как «настроил и не работает».</p>
+<h2 id="dva-sposoba-sdelat-trunk">Два способа сделать trunk</h2>
+<p>Есть две принципиально разные схемы, и их нельзя смешивать в голове.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Вариант A: PVID, <code>vlan-filtering=no</code></th>
+<th style="text-align:left">Вариант B: таблица VLAN, <code>vlan-filtering=yes</code></th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Что делает <code>pvid</code> на порту</td>
+<td style="text-align:left">железо добавляет тег «из ничего», тег в трафике не нужен</td>
+<td style="text-align:left">тег приравнивается к VLAN 1</td>
+</tr>
+<tr>
+<td style="text-align:left">Когда подходит</td>
+<td style="text-align:left">один VLAN на порт доступа; trunk — только если отдельно</td>
+<td style="text-align:left">настоящий 802.1Q-trunk с несколькими VLAN на одном порту</td>
+</tr>
+<tr>
+<td style="text-align:left">Где описывается тег для trunk</td>
+<td style="text-align:left">нигде — порт с <code>frame-types=admit-all</code> пропускает всё как есть</td>
+<td style="text-align:left"><code>/interface bridge vlan</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Почему интерфейсы с тегами</td>
+<td style="text-align:left">не работают (провайдер на <code>ether1</code> с тегами не пройдёт)</td>
+<td style="text-align:left">работают</td>
+</tr>
+<tr>
+<td style="text-align:left">Расход CPU</td>
+<td style="text-align:left">минимальный, есть аппаратная разгрузка</td>
+<td style="text-align:left">почти весь трафик идёт через CPU</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># --- Вариант A: доступ + PVID ---</span></span>
+<span class="ln"><span class="ln-i">2</span>/interface bridge</span>
+<span class="ln"><span class="ln-i">3</span>set bridge1 vlan-filtering=no</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>/interface bridge port</span>
+<span class="ln"><span class="ln-i">6</span>add bridge=bridge1 interface=ether2 pvid=<span class="tok-n">10</span> frame-types=admit-only-untagged-and-priority-tagged \</span>
+<span class="ln"><span class="ln-i">7</span>    ingress-filtering=yes</span>
+<span class="ln"><span class="ln-i">8</span>add bridge=bridge1 interface=ether2 pvid=<span class="tok-n">20</span> frame-types=admit-only-untagged-and-priority-tagged \</span>
+<span class="ln"><span class="ln-i">9</span>    ingress-filtering=yes</span>
+<span class="ln"><span class="ln-i">10</span>add bridge=bridge1 interface=ether3 pvid=<span class="tok-n">30</span> frame-types=admit-only-untagged-and-priority-tagged \</span>
+<span class="ln"><span class="ln-i">11</span>    ingress-filtering=yes</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># trunk к внешнему свитчу: без pvid, пропускает кадры с тегами как есть</span></span>
+<span class="ln"><span class="ln-i">14</span>/interface bridge port</span>
+<span class="ln"><span class="ln-i">15</span>add bridge=bridge1 interface=ether1 frame-types=admit-all ingress-filtering=yes</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>В варианте A порт с <code>pvid</code> <strong>обязан</strong> пропускать нетегированные кадры
+(<code>admit-only-untagged-and-priority-tagged</code>). Если поставить
+<code>frame-types=admit-only-vlan-tagged</code>, то клиент, который прислал кадр без тега,
+получит тишину — а ошибка выглядит как «не горит индикатор, но порт поднят».</p></div></div>
+<h2 id="tablica-vlan-na-moste-tagged-untagged-bridge">Таблица VLAN на мосте: tagged, untagged, bridge</h2>
+<p>Когда <code>vlan-filtering=yes</code>, теги задаются явно списком. Здесь важно понимать смысл трёх
+слов: <code>tagged</code> — кадры этого порта уходят в интернет с тегом; <code>untagged</code> — порт отдаёт
+кадр в VLAN <strong>без</strong> тега (это порт доступа для конечного устройства, которое не
+понимает VLAN); <code>bridge</code> — сам роутер, который тоже является членом VLAN.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface bridge</span>
+<span class="ln"><span class="ln-i">2</span>set bridge1 vlan-filtering=yes</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>/interface bridge vlan</span>
+<span class="ln"><span class="ln-i">5</span>add bridge=bridge1 vlan-ids=<span class="tok-n">10</span> tagged=bridge1,ether1</span>
+<span class="ln"><span class="ln-i">6</span>add bridge=bridge1 vlan-ids=<span class="tok-n">20</span> tagged=bridge1,ether1 untagged=ether2</span>
+<span class="ln"><span class="ln-i">7</span>add bridge=bridge1 vlan-ids=<span class="tok-n">30</span> tagged=bridge1,ether1 untagged=ether3</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>/interface bridge port</span>
+<span class="ln"><span class="ln-i">10</span>set [find interface=ether2] pvid=<span class="tok-n">20</span> frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes</span>
+<span class="ln"><span class="ln-i">11</span>set [find interface=ether3] pvid=<span class="tok-n">30</span> frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes</span>
+<span class="ln"><span class="ln-i">12</span>set [find interface=ether1] frame-types=admit-only-vlan-tagged ingress-filtering=yes</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>bridge1</code> в списке <code>tagged</code> — не формальность. Без него роутер не считается членом
+VLAN, и интерфейс <code>vlan20-users</code> не получит ни одного кадра: трафик пойдёт между
+портами, но не к процессу маршрутизации. Это вторая по частоте причина «VLAN настроен,
+а шлюз не отвечает».</p></div></div>
+<p>Если во внутренней сети есть ещё коммутаторы, <code>ether1</code> (trunk) должен быть в <code>tagged</code>
+<strong>во всех</strong> VLAN. Для VLAN по умолчанию (<code>vlan-ids=1</code>) добавь явную запись — иначе
+нетегированный трафик без PVID упадёт.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface bridge vlan print</span>
+<span class="ln"><span class="ln-i">2</span>/interface bridge vlan print detail where vlan-ids=<span class="tok-n">20</span></span>
+</code></pre></div>
+<h2 id="bridge-firewall-protiv-apparatnoy-razgruzki">Bridge firewall против аппаратной разгрузки</h2>
+<p>Пока включён <code>bridge firewall</code> (<code>/interface bridge filter</code>) или <code>vlan-filtering=yes</code>, весь
+трафик идёт через процессор: чип очистки не трогает, форвардинг — программный. На
+hEX с загрузкой под 200 Мбит/с это уже видно в <code>cpu-load</code> и в <code>/interface bridge
+monitor</code>. Отключение bridge-фильтра переводит часть трафика на железо.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/interface bridge set bridge1 fast-forward=yes</span>
+<span class="ln"><span class="ln-i">2</span>/interface bridge print                    <span class="tok-cmt"># колонка hw: есть ли разгрузка</span></span>
+<span class="ln"><span class="ln-i">3</span>/interface bridge port print               <span class="tok-cmt"># колонка hw по каждому порту</span></span>
+<span class="ln"><span class="ln-i">4</span>/interface bridge filter print             <span class="tok-cmt"># если список не пуст — разгрузки нет</span></span>
+<span class="ln"><span class="ln-i">5</span>/system resource print                     <span class="tok-cmt"># cpu-load, free-memory, uptime</span></span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что включено</th>
+<th style="text-align:center">Аппаратная разгрузка</th>
+<th style="text-align:left">Что чинить, если сломалось</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">мост, <code>vlan-filtering=no</code>, без bridge-фильтра</td>
+<td style="text-align:center">да</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left">мост, <code>vlan-filtering=yes</code></td>
+<td style="text-align:center">нет</td>
+<td style="text-align:left">пересчитать, хватит ли CPU; для крупных сетей — отдельный L3-коммутатор</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/interface bridge filter</code> с правилами</td>
+<td style="text-align:center">нет</td>
+<td style="text-align:left">фильтр на мосте, а не на IP-уровне: удобно для привязки к порту, но дорого</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>fast-forward=yes</code></td>
+<td style="text-align:center">да</td>
+<td style="text-align:left">требует <code>vlan-filtering=no</code> и отсутствия bridge-фильтра</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Подводный камень: часть моделей вообще не умеет форвардить между портами на чипе, и
+тогда разгрузки не будет вовсе, независимо от настроек. Проверяй колонку <code>hw</code> в
+<code>print</code>, а не верь документации конкретной модели. И не включай мостовой фильтр
+«на всякий случай», если он не делает ничего полезного: он молча убирает разгрузку.</p></div></div>
+<h2 id="dhcp-server-puly-statika">DHCP: сервер, пулы, статика</h2>
+<p>DHCP-сервер в RouterOS требует три вещи: пул адресов, сервер на интерфейсе (или в
+группе интерфейсов) и сетевые параметры для клиентов.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/ip pool</span>
+<span class="ln"><span class="ln-i">2</span>add name=pool-users ranges=<span class="tok-n">10.10</span>.<span class="tok-n">20.10</span>-<span class="tok-n">10.10</span>.<span class="tok-n">20.200</span></span>
+<span class="ln"><span class="ln-i">3</span>add name=pool-guests ranges=<span class="tok-n">10.10</span>.<span class="tok-n">30.10</span>-<span class="tok-n">10.10</span>.<span class="tok-n">30.100</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>/ip dhcp-server</span>
+<span class="ln"><span class="ln-i">6</span>add name=dhcp-users interface=vlan20-users address-pool=pool-users lease-time=8h disabled=no</span>
+<span class="ln"><span class="ln-i">7</span>add name=dhcp-guests interface=vlan30-guests address-pool=pool-guests lease-time=2h disabled=no</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>/ip dhcp-server network</span>
+<span class="ln"><span class="ln-i">10</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">20.0</span>/<span class="tok-n">24</span> gateway=<span class="tok-n">10.10</span>.<span class="tok-n">20.1</span> dns-server=<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>,<span class="tok-n">1.1</span>.<span class="tok-n">1.1</span> \</span>
+<span class="ln"><span class="ln-i">11</span>    domain=company.local</span>
+<span class="ln"><span class="ln-i">12</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">30.0</span>/<span class="tok-n">24</span> gateway=<span class="tok-n">10.10</span>.<span class="tok-n">30.1</span> dns-server=<span class="tok-n">10.10</span>.<span class="tok-n">30.1</span> comment=<span class="tok-str">"гости во внешний DNS"</span></span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>/ip dhcp-server lease</span>
+<span class="ln"><span class="ln-i">15</span>add address=<span class="tok-n">10.10</span>.<span class="tok-n">20.50</span> mac-address=AA:BB:CC:DD:EE:FF server=dhcp-users comment=<span class="tok-str">"принтер"</span></span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span>/ip dhcp-server lease print</span>
+<span class="ln"><span class="ln-i">18</span>/ip dhcp-server lease make-static [find address=<span class="tok-n">10.10</span>.<span class="tok-n">20.77</span>]</span>
+<span class="ln"><span class="ln-i">19</span>/ip dhcp-server lease print status=waited</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Привязка по MAC делается в <code>/ip dhcp-server lease</code>, а <strong>не</strong> в
+<code>/interface bridge port</code>. Портовый <code>static-mac</code> в bridge работает на уровне MAC-адреса
+и не имеет никакого отношения к выдаче адреса. Ошибка «назначил статический IP в
+bridge port, а DHCP всё равно выдал другой» встречается постоянно.</p></div></div>
+<p>Ещё две вещи, которые стоит знать:</p>
+<ul><li><code>address-limit</code> в аренде ограничивает количество выдаваемых адресов конкретному
+клиенту (полезно против однократного подключения поддельного MAC).</li><li>Для DHCP-клиента, у которого MAC меняется (Windows рандомизирует MAC для приватности),
+статическая привязка перестанет работать — у клиента нужно отключить «случайный
+аппаратный адрес».</li></ul>
+<p><strong>Про две подсети с одного сервера.</strong> Классическая ошибка: один <code>/ip dhcp-server</code> на
+интерфейсе, две подсети в <code>/ip dhcp-server network</code>. Не сработает: сервер отдаёт адреса
+из одного пула и маршрут клиентам выдаёт из той сети, которую он посчитал по адресу
+сервера. И обойти это нельзя — свойства <code>interface-list</code> у <code>/ip dhcp-server</code> не
+существует, сервер всегда вешается на <strong>один конкретный интерфейс</strong>.</p>
+<p>Два сервера на одном интерфейсе тоже не запустятся: для непосредственно подключённых
+клиентов на интерфейсе допустим ровно один сервер. Несколько серверов на одном
+интерфейсе возможны только с разными значениями <code>relay</code> — это уже схема с DHCP-релеем,
+а не «две подсети на одной точке доступа».</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Правильное решение простое и скучное: <strong>по одному DHCP-серверу на VLAN</strong>, у каждого
+свой пул, своя запись в <code>/ip/dhcp-server network</code>. Три VLAN — три сервера. Если
+серверов становится много, повторяющиеся куски удобно выносить в
+<code>/ip dhcp-server option</code> (наборы опций), а не пытаться ужать всё в один сервер.</p></div></div>
+<p>Побочный эффект одного сервера на VLAN: аренда видна в одном списке, и ты сразу видишь,
+в каком сегменте находится клиент. Это дешевле, чем разбираться с агрегированной
+таблицей аренд из десяти подсетей.</p>
+<h2 id="dns-chto-otdavat-klientam">DNS: что отдавать клиентам</h2>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/ip dns</span>
+<span class="ln"><span class="ln-i">2</span>set servers=<span class="tok-n">10.10</span>.<span class="tok-n">10.10</span>,<span class="tok-n">1.1</span>.<span class="tok-n">1.1</span>,<span class="tok-n">9.9</span>.<span class="tok-n">9.9</span> allow-remote-requests=yes cache-size=<span class="tok-n">2048</span></span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>/ip dns static</span>
+<span class="ln"><span class="ln-i">5</span>add name=ad.company.local address=<span class="tok-n">10.10</span>.<span class="tok-n">10.10</span> ttl=1d</span>
+<span class="ln"><span class="ln-i">6</span>add name=gitlab.company.local address=<span class="tok-n">10.10</span>.<span class="tok-n">20.15</span></span>
+</code></pre></div>
+<p><code>allow-remote-requests</code> — это разрешение роутеру <strong>отвечать клиентам</strong> на порт 53.
+Значение по умолчанию — <code>no</code>, то есть резолвер работает только для самого роутера.
+Клиенты получают <code>10.10.20.1</code> шлюзом, идут к нему по DNS и получают отказ, который
+выглядит как «интернет есть, а сайты не открываются» — при том что пинг до шлюза и до
+<code>1.1.1.1</code> проходит идеально. Это одна из самых обидных поломок в RouterOS, потому что
+первые четыре шага диагностики дают правильный ответ. Проверяй:</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/ip dns print</span>
+<span class="ln"><span class="ln-i">2</span>/ping <span class="tok-n">1.1</span>.<span class="tok-n">1.1</span> count=<span class="tok-n">2</span>                  <span class="tok-cmt"># связность есть?</span></span>
+<span class="ln"><span class="ln-i">3</span>/ip dns cache print</span>
+<span class="ln"><span class="ln-i">4</span>/ip dns cache flush</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Второй важный момент: <code>allow-remote-requests=yes</code> открывает 53/udp и 53/tcp на <strong>все
+адреса роутера</strong>, включая WAN. Защищает только файрвол по умолчанию. Если ты
+переписывал цепочку <code>input</code> — не забудь правило на 53, иначе либо не работает DNS у
+клиентов, либо твой роутер становится открытым рекурсивным резолвером для интернета.
+Второй вариант заканчивается письмом от провайдера.</p></div></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>В RouterOS нет полноценных DNS-views. Две записи <code>/ip dns static</code> с одинаковым именем
+и разными адресами дадут тебе чередование ответов, а не split-horizon. Если нужен
+честный split-horizon (внутри — внутренний адрес, снаружи — внешний), вариантов три:
+внешний DNS-резолвер (AdGuard Home, UniFi, Technitium) на внутреннем сервере, два
+разных сетевых на правилах <code>/ip firewall</code>, либо split-horizon на стороне Windows AD.
+Третий вариант — правильный, потому что DNS-резолвер у тебя в контуре всё равно есть.</p></div></div>
+<h2 id="nat-dlya-vlan-naruzhu-i-vnutr">NAT для VLAN: наружу и внутрь</h2>
+<p>Гостям нужен интернет, но не нужна внутренняя сеть. Это делается двумя правилами:
+<code>masquerade</code> на выход и <code>drop</code> в цепочке <code>forward</code> между подсетями.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/ip firewall nat</span>
+<span class="ln"><span class="ln-i">2</span>add action=masquerade chain=srcnat out-interface=ether1 out-interface-list=WAN</span>
+<span class="ln"><span class="ln-i">3</span>add action=dst-nat chain=dstnat protocol=tcp dst-port=<span class="tok-n">8443</span> in-interface=ether1 \</span>
+<span class="ln"><span class="ln-i">4</span>    to-addresses=<span class="tok-n">10.10</span>.<span class="tok-n">20.10</span> to-ports=<span class="tok-n">8443</span> comment=<span class="tok-str">"внутренний сервис наружу"</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>/ip firewall filter</span>
+<span class="ln"><span class="ln-i">7</span>add chain=forward action=accept connection-state=established,related</span>
+<span class="ln"><span class="ln-i">8</span>add chain=forward action=drop connection-state=invalid</span>
+<span class="ln"><span class="ln-i">9</span>add chain=forward action=drop in-interface=vlan30-guests out-interface=vlan20-users \</span>
+<span class="ln"><span class="ln-i">10</span>    comment=<span class="tok-str">"гости не видят пользователей"</span></span>
+<span class="ln"><span class="ln-i">11</span>add chain=forward action=drop in-interface=vlan30-guests out-interface=vlan10-mgmt \</span>
+<span class="ln"><span class="ln-i">12</span>    comment=<span class="tok-str">"гости не видят management"</span></span>
+<span class="ln"><span class="ln-i">13</span>add chain=forward action=accept in-interface=vlan20-users out-interface=ether1</span>
+<span class="ln"><span class="ln-i">14</span>add chain=forward action=accept in-interface=vlan30-guests out-interface=ether1</span>
+<span class="ln"><span class="ln-i">15</span>add chain=forward action=drop</span>
+</code></pre></div>
+<p>Ключевая идея — изоляция через <strong>отсутствие правила</strong>, а не через запрет. Гость может
+идти наружу, потому что есть <code>accept</code> для <code>out-interface=ether1</code>. Гость не может идти
+внутрь, потому что подходящего <code>accept</code> нет, а финальный <code>drop</code> ловит всё остальное.</p>
+<p>Проброс порта внутрь требует двух вещей: правила <code>dst-nat</code> <strong>и</strong> того, чтобы хост
+не отвечал сам. На клиенте должен быть маршрут по умолчанию через <code>10.10.20.1</code> — иначе
+ответ уйдёт напрямую провайдеру, и соединение не соберётся. Это второй по частоте
+провал проброса: правило есть, порт открыт, <code>curl</code> не подключается.</p>
+<h2 id="diagnostika-po-shagam">Диагностика по шагам</h2>
+<p>Держи последовательность жёсткой и не переходи дальше, пока текущий шаг не дал ответа.
+Это тот же принцип, что и в <a href="../../lectures/devops/04-set-i-diagnostika.html">лекции про диагностику сети</a>,
+только на сетевом оборудовании.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">#</th>
+<th style="text-align:left">Проверка</th>
+<th style="text-align:left">Команда</th>
+<th style="text-align:left">«Плохо» значит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">порт видит соседей</td>
+<td style="text-align:left"><code>/interface bridge host print</code></td>
+<td style="text-align:left">нет записей: порт не в мосте, кабель, VLAN</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">интерфейс поднят</td>
+<td style="text-align:left"><code>/ip address print detail where interface=vlan20-users</code></td>
+<td style="text-align:left"><code>invalid</code> или <code>disabled</code></td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left">ARP проходит</td>
+<td style="text-align:left"><code>/ip arp print where interface=vlan20-users</code></td>
+<td style="text-align:left">клиента нет: неверная маска или он не в этом VLAN</td>
+</tr>
+<tr>
+<td style="text-align:left">4</td>
+<td style="text-align:left">сам шлюз</td>
+<td style="text-align:left"><code>/ping 10.10.20.1 count=3 interface=vlan20-users</code></td>
+<td style="text-align:left">L3-проблема: адрес, маска, VLAN-интерфейс</td>
+</tr>
+<tr>
+<td style="text-align:left">5</td>
+<td style="text-align:left">шлюз извне</td>
+<td style="text-align:left"><code>/ping 10.10.20.10 count=3</code> с ноутбука клиента</td>
+<td style="text-align:left">маршрутизация между VLAN или правило forward</td>
+</tr>
+<tr>
+<td style="text-align:left">6</td>
+<td style="text-align:left">наружу</td>
+<td style="text-align:left"><code>/ping 1.1.1.1 count=3</code> + <code>/tool ping 1.1.1.1 count=3</code></td>
+<td style="text-align:left">NAT, маршрут по умолчанию, WAN</td>
+</tr>
+<tr>
+<td style="text-align:left">7</td>
+<td style="text-align:left">DNS</td>
+<td style="text-align:left"><code>/tool ping github.com count=3</code>, клиент — <code>nslookup github.com</code></td>
+<td style="text-align:left"><code>/ip dns</code>, <code>allow-remote-requests</code>, <code>dns-server</code> в DHCP</td>
+</tr>
+<tr>
+<td style="text-align:left">8</td>
+<td style="text-align:left">скорость</td>
+<td style="text-align:left"><code>/interface vlan20-users monitor vlan20-users once</code></td>
+<td style="text-align:left">дуплекс, ошибки, отсутствие аппаратной разгрузки</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Для шага 1 есть отдельный приём: посмотри <code>/interface ethernet monitor ether2 once</code> —
+там видно <code>rx-fcs-error</code>, <code>rx-no-buffer</code>, <code>tx-queue</code> и фактическую скорость на
+линке. Дуплекс 100 Мбит на гигабитном порту с жалобой «Wi-Fi тормозит» встречается
+чаще, чем хотелось бы.</p></div></div>
+<h2 id="sravnenie-mikrotik-cisco-linux-router">Сравнение: MikroTik, Cisco, Linux-роутер</h2>
+<p>Знание одной из этих моделей легко переносится на две другие — если понимать, что
+решает одна и та же задача.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">MikroTik</th>
+<th style="text-align:left">Cisco IOS</th>
+<th style="text-align:left">Linux (<code>iproute2</code>, <code>dnsmasq</code>, <code>iptables</code>)</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Коммутация портов</td>
+<td style="text-align:left"><code>/interface bridge</code> + <code>/interface bridge port</code></td>
+<td style="text-align:left"><code>switchport</code> + <code>vlan</code></td>
+<td style="text-align:left"><code>ip link add name br0 type bridge</code>, <code>ip link set eth1 master br0</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Тег VLAN на порту</td>
+<td style="text-align:left"><code>pvid</code>, <code>/interface bridge vlan</code></td>
+<td style="text-align:left"><code>switchport trunk allowed vlan</code></td>
+<td style="text-align:left"><code>ip link add link br0 name br0.20 type vlan id 20</code></td>
+</tr>
+<tr>
+<td style="text-align:left">L3-шлюз VLAN</td>
+<td style="text-align:left">адрес на <code>/interface vlan</code></td>
+<td style="text-align:left">SVI <code>interface vlan 20</code></td>
+<td style="text-align:left">адрес на <code>br0.20</code></td>
+</tr>
+<tr>
+<td style="text-align:left">DHCP</td>
+<td style="text-align:left"><code>/ip dhcp-server</code> + <code>/ip dhcp-server network</code></td>
+<td style="text-align:left"><code>ip dhcp pool</code> + <code>network</code> + <code>default-router</code></td>
+<td style="text-align:left"><code>dnsmasq</code> (<code>dhcp-range</code>, <code>dhcp-option</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left">Таблица маршрутов</td>
+<td style="text-align:left"><code>/ip route</code></td>
+<td style="text-align:left"><code>ip route</code></td>
+<td style="text-align:left"><code>ip route</code></td>
+</tr>
+<tr>
+<td style="text-align:left">NAT наружу</td>
+<td style="text-align:left"><code>action=masquerade</code></td>
+<td style="text-align:left"><code>ip nat inside source</code> / <code>overload</code></td>
+<td style="text-align:left"><code>iptables -t nat -A POSTROUTING -j MASQUERADE</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Проброс порта</td>
+<td style="text-align:left"><code>action=dst-nat</code></td>
+<td style="text-align:left"><code>ip nat inside</code> + <code>static tcp</code></td>
+<td style="text-align:left"><code>iptables -t nat -A PREROUTING -j DNAT</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Фильтр трафика</td>
+<td style="text-align:left"><code>/ip firewall filter</code></td>
+<td style="text-align:left"><code>access-list</code> + <code>interface</code></td>
+<td style="text-align:left"><code>iptables</code> / <code>nftables</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Таблица соседей</td>
+<td style="text-align:left"><code>/interface bridge host print</code>, <code>/ip arp print</code></td>
+<td style="text-align:left"><code>show mac address-table</code>, <code>show ip arp</code></td>
+<td style="text-align:left"><code>bridge fdb show</code>, <code>ip neigh</code></td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Главное отличие не в синтаксисе, а в модели сети. Cisco научит тебя мыслить SVI и
+access/trunk-портами, MikroTik — PVID и мостом с CPU-портом, Linux — namespace и
+<code>br0.20</code>. Как только ты видишь, что все три описывают одно и то же разными словами,
+переключение между платформами перестаёт быть проблемой. Про безопасное хранение
+конфигураций такого оборудования — в
+<a href="../../lectures/net/18-set-kak-kod.html">лекции про «инфраструктуру как код»</a>.</p></div></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Порт добавлен в мост, но не в VLAN (или наоборот).</strong> Самая частая ошибка. Проверка:
+<code>/interface bridge port print</code> и <code>/interface bridge vlan print</code> должны показывать
+согласованную картину.</li><li><strong>В таблице VLAN не указан сам <code>bridge</code>.</strong> Трафик между портами идёт, но процесс
+маршрутизации не видит ничего — VLAN «не работает только для шлюза».</li><li><strong><code>vlan-filtering=yes</code> убил аппаратную разгрузку.</strong> Сеть стала медленнее на том же
+железе. Смотри колонку <code>hw</code> в <code>/interface bridge print</code> и <code>/interface bridge port print</code>.</li><li><strong>Порт доступа с <code>frame-types=admit-only-vlan-tagged</code>.</strong> Конечное устройство шлёт кадры
+без тега, они молча отбрасываются. Для доступа нужен
+<code>admit-only-untagged-and-priority-tagged</code>.</li><li><strong>Один DHCP-сервер на две подсети.</strong> Клиент получает адрес из чужой подсети или вообще
+не получает. Нужен сервер на каждый VLAN со своим пулом.</li><li><strong>Статический IP прописан в <code>/interface bridge port</code> вместо <code>/ip dhcp-server lease</code>.</strong>
+Bridge ничего не знает про DHCP.</li><li><strong>Проброс порта настроен, но у хоста нет шлюза по умолчанию.</strong> Ответы уходят мимо
+роутера, соединение не собирается, а <code>dst-nat</code> в счётчиках растёт.</li><li><strong>MAC-адрес изменился у беспроводного клиента.</strong> Windows рандомизирует MAC для приватности
+— статическая аренда перестаёт совпадать, и принтер «теряется».</li><li><strong>Изоляция гостей сделана через <code>/ip firewall address-list</code>, а не через цепочку
+<code>forward</code>.</strong> <code>address-list</code> работает на <code>input</code>/<code>forward</code>, но без явного <code>drop</code>
+в <code>forward</code> между подсетями клиенты всё равно увидят друг друга, если есть любой
+<code>accept</code> с маской шире, чем ты думаешь.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать три уровня модели MikroTik и сказать, что отвечает за каждый:
+порт, мост, VLAN-интерфейс</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, почему для прохождения кадра нужны две записи — порт в мосте и порт в VLAN</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю разницу между <code>tagged</code>, <code>untagged</code> и <code>bridge</code> в
+<code>/interface bridge vlan</code> и знаю, зачем в <code>tagged</code> указывать сам роутер</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему <code>vlan-filtering=yes</code> отключает аппаратную разгрузку
+и как это проверить по колонке <code>hw</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, где в RouterOS привязывается статический адрес по MAC и почему
+<code>/interface bridge port</code> для этого не подходит</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею проходить связность по шагам от <code>/interface bridge host print</code> до DNS
+и назвать, что означает отказ на каждом шаге</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему гостя без <code>accept</code> не пускает наружу, и зачем нужен
+финальный <code>drop</code> в цепочке <code>forward</code></span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери на тестовом MikroTik схему из трёх VLAN (management 10.10.10.0/24, users 10.10.20.0/24, guests 10.10.30.0/24), раздай адреса DHCP, закрой гостей от внутренних сетей правилом forward, открой им интернет через masquerade и пройди диагностику по шагам из лекции, фиксируя, на каком шаге ломается.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=netdev"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Сеть · оборудование» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="net/02-vlany-i-bridging">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/net/01-routeros-os.html"><span>← Предыдущая</span><b>RouterOS как операционная система</b></a>
+        <a class="nav-next" href="../../lectures/net/03-wifi.html"><span>Следующая →</span><b>Wi-Fi на MikroTik: CAPsMAN и клиенты</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "net/02-vlany-i-bridging";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

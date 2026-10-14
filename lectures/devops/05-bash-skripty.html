@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Скрипты на Bash — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">A. Linux и сеть</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Скрипты на Bash</h1>
+        <p class="lead">Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность</p>
+        <div class="meta"><span class="badge">75 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">bash</span><span class="tag">скрипты</span><span class="tag">пайпы</span><span class="tag">set -euo pipefail</span><span class="tag">автоматизация</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#shebang-i-pochemu-ne-binsh">Shebang и почему не /bin/sh</a></li><li class="toc-l2"><a href="#strogiy-rezhim-set-euo-pipefail">Строгий режим: set -euo pipefail</a></li><li class="toc-l3"><a href="#e-errexit-vyhod-pri-oshibke">-e (errexit): выход при ошибке</a></li><li class="toc-l3"><a href="#u-nounset-oshibka-na-neopredelennoy-peremennoy">-u (nounset): ошибка на неопределённой переменной</a></li><li class="toc-l3"><a href="#o-pipefail-oshibka-v-lyuboy-chasti-konveyera">-o pipefail: ошибка в любой части конвейера</a></li><li class="toc-l3"><a href="#gde-set-e-ne-rabotaet">Где set -e НЕ работает</a></li><li class="toc-l3"><a href="#lovushka-set-e-s-if-cmd">Ловушка set -e с if ! cmd</a></li><li class="toc-l2"><a href="#peremennye-i-podstanovki">Переменные и подстановки</a></li><li class="toc-l2"><a href="#usloviya-protiv">Условия: [[ ]] против [ ]</a></li><li class="toc-l2"><a href="#cikly-i-funkcii">Циклы и функции</a></li><li class="toc-l2"><a href="#argumenty-skripta">Аргументы скрипта</a></li><li class="toc-l2"><a href="#kody-vozvrata-i-obrabotka-oshibok">Коды возврата и обработка ошибок</a></li><li class="toc-l2"><a href="#trap-uborka-pri-lyubom-vyhode">trap: уборка при любом выходе</a></li><li class="toc-l2"><a href="#idempotentnost-i-lock-fayl">Идемпотентность и lock-файл</a></li><li class="toc-l2"><a href="#praktika-dva-rabochih-skripta">Практика: два рабочих скрипта</a></li><li class="toc-l3"><a href="#skript-1-health-check-s-pravilnym-exit-kodom">Скрипт 1: health-check с правильным exit-кодом</a></li><li class="toc-l3"><a href="#skript-2-bekap-s-trap-i-proverkoy">Скрипт 2: бэкап с trap и проверкой</a></li><li class="toc-l3"><a href="#podklyuchenie-k-systemd">Подключение к systemd</a></li><li class="toc-l2"><a href="#horoshie-praktiki-svodka">Хорошие практики — сводка</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Скрипт на bash — это код, который живёт в проде дольше, чем любой релиз. Скрипт
+деплоя, написанный «на бегу» и запущенный из crontab, через год становится
+частью инфраструктуры: его никто не читал, но все боятся тронуть. Разница между
+однострочником из интернета и Production-ready скриптом — не в длине, а в том,
+как он ведёт себя при ошибке. Эта лекция про поведение.</p>
+<hr>
+<h2 id="shebang-i-pochemu-ne-binsh">Shebang и почему не <code>/bin/sh</code></h2>
+<p>Первая строка — <code>#!</code>, ядро читает её, чтобы понять интерпретатор:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+</code></pre></div>
+<p><code>#!/bin/bash</code> — работает, но сломается в системах без <code>/bin</code> (встречается в
+некоторых дистрибутивах и в контейнерах с минимальным образом). <code>/usr/bin/env</code>
+ищет <code>bash</code> в <code>$PATH</code>, это переносимо. Всегда начинай с <code>/usr/bin/env bash</code> и
+заканчивай:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">2</span>IFS=$<span class="tok-str">'\n\t'</span></span>
+</code></pre></div>
+<p>Всегда ставь <code>#</code> в начале строки перед комментарием. Файл с BOM, CRLF или
+пропущенным shebang будет отвергнут systemd-юнитом.</p>
+<h2 id="strogiy-rezhim-set-euo-pipefail">Строгий режим: set -euo pipefail</h2>
+<p>Три флага, каждый закрывает свой класс ошибок. Разбираем отдельно, потому что
+<code>set -e</code> — источник самого неочевидного поведения в bash.</p>
+<h3 id="e-errexit-vyhod-pri-oshibke"><code>-e</code> (errexit): выход при ошибке</h3>
+<p>Прекращает скрипт, если команда вернула ненулевой код.</p>
+<h3 id="u-nounset-oshibka-na-neopredelennoy-peremennoy"><code>-u</code> (nounset): ошибка на неопределённой переменной</h3>
+<p>Без него <code>echo $TYPO</code> молча печатает пустую строку, и через три строки ты
+разбираешь, почему скрипт сделал не то. С <code>-u</code> скрипт падает сразу: «MY_APP_PORT:
+unbound variable».</p>
+<h3 id="o-pipefail-oshibka-v-lyuboy-chasti-konveyera"><code>-o pipefail</code>: ошибка в любой части конвейера</h3>
+<p>Без него код возврата конвейера — это код <strong>последней</strong> команды:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>false | <span class="tok-k">echo</span> ok        <span class="tok-cmt"># код 0 — пайплайн «успешен», хотя первая часть упала</span></span>
+<span class="ln"><span class="ln-i">2</span>set -o pipefail</span>
+<span class="ln"><span class="ln-i">3</span>false | <span class="tok-k">echo</span> ok        <span class="tok-cmt"># код 1 — теперь ложь видна</span></span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Без <code>pipefail</code> в CI-пайплайне <code>json=$(curl -s $URL | jq .status)</code> спокойно
+вернёт пустоту при недоступном API и продолжит работать с <code>null</code>. Это не
+ошибка — это тихое расхождение с продакшном. <code>pipefail</code> делает пайплайн
+честным.</p></div></div>
+<h3 id="gde-set-e-ne-rabotaet">Где <code>set -e</code> НЕ работает</h3>
+<p>Это надо знать дословно, иначе скрипт будет падать там, где ты не ждёшь, или
+— что хуже — не падать там, где должен.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Ситуация</th>
+<th style="text-align:left">Почему <code>set -e</code> не сработает</th>
+<th style="text-align:left">Что делать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">команда в условии <code>if</code></td>
+<td style="text-align:left">условие по определению не должно валить скрипт</td>
+<td style="text-align:left">проверяй явно</td>
+</tr>
+<tr>
+<td style="text-align:left">команда в <code>&amp;&amp;</code> / `</td>
+<td style="text-align:left"></td>
+<td style="text-align:left">` цепочке</td>
+<td style="text-align:left">кроме последней в цепочке</td>
+<td style="text-align:left">проверяй <code>$?</code></td>
+</tr>
+<tr>
+<td style="text-align:left">перенаправление в цикле</td>
+<td style="text-align:left"><code>for f in $(find ...)</code></td>
+<td style="text-align:left">не полагайся на <code>-e</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>$(...)</code> в присваивании</td>
+<td style="text-align:left">ошибка в подстановке</td>
+<td style="text-align:left">проверяй результат явно</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># ТАК ПРАВИЛЬНО</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">if</span> ! <span class="tok-k">grep</span> -q <span class="tok-str">'ERROR'</span> <span class="tok-str">"$LOG"</span>; <span class="tok-k">then</span></span>
+<span class="ln"><span class="ln-i">3</span>  <span class="tok-k">echo</span> <span class="tok-str">"ошибок нет"</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">fi</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># ТАК НЕПРАВИЛЬНО (и не сработает под set -e)</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">grep</span> -q <span class="tok-str">'ERROR'</span> <span class="tok-str">"$LOG"</span> &amp;&amp; <span class="tok-k">echo</span> <span class="tok-str">"есть ошибки"</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">grep</span> -q <span class="tok-str">'ERROR'</span> <span class="tok-str">"$LOG"</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt"># РАБОЧИЙ ВАРИАНТ для цепочек</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-k">grep</span> -q <span class="tok-str">'ERROR'</span> <span class="tok-str">"$LOG"</span> || { <span class="tok-k">echo</span> <span class="tok-str">"ошибок нет"</span>; exit <span class="tok-n">0</span>; }</span>
+</code></pre></div>
+<p>Ключевое правило: <strong><code>set -e</code> — это страховка от цепных ошибок, а не логика
+программы.</strong> Условия, которые определяют поведение, пиши явно через <code>if</code> и
+проверяй код возврата. <code>set -e</code> ловит только то, что ты не предусмотрел.</p>
+<h3 id="lovushka-set-e-s-if-cmd">Ловушка <code>set -e</code> с <code>if ! cmd</code></h3>
+<p>Распространённая ошибка — писать <code>if ! command; then error; exit 1; fi</code> для
+команд, где <code>!</code> инвертирует успех в ошибку. Работает корректно, но <strong>теряет
+код возврата</strong>, и ты не можешь отличить «файл не найден» от «доступ запрещён».
+В <code>set -e</code> сочетание <code>if ! cmd</code> без сохранения кода — потеря информации.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">if</span> ! <span class="tok-k">docker</span> ps -q | <span class="tok-k">grep</span> -q <span class="tok-str">"$name"</span>; <span class="tok-k">then</span></span>
+<span class="ln"><span class="ln-i">2</span>  <span class="tok-k">echo</span> <span class="tok-str">"контейнер $name не найден"</span> &gt;&amp;<span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">3</span>  exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">fi</span></span>
+</code></pre></div>
+<p>Здесь <code>grep</code> может вернуть 2 (ошибка доступа), а ты думаешь «нет контейнера».
+Всегда, когда важна причина, проверяй раздельно:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">docker</span> ps -q | <span class="tok-k">grep</span> -q <span class="tok-str">"$name"</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">case</span> $? in</span>
+<span class="ln"><span class="ln-i">3</span>  <span class="tok-n">0</span>) <span class="tok-k">echo</span> <span class="tok-str">"найден"</span> ;;</span>
+<span class="ln"><span class="ln-i">4</span>  <span class="tok-n">1</span>) <span class="tok-k">echo</span> <span class="tok-str">"не найден"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">1</span> ;;</span>
+<span class="ln"><span class="ln-i">5</span>  *) <span class="tok-k">echo</span> <span class="tok-str">"ошибка проверки"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">2</span> ;;</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">esac</span></span>
+</code></pre></div>
+<h2 id="peremennye-i-podstanovki">Переменные и подстановки</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Конструкция</th>
+<th style="text-align:left">Что делает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>${VAR}</code></td>
+<td style="text-align:left">значение переменной</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>"$VAR"</code></td>
+<td style="text-align:left">значение в кавычках — <strong>всегда так</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR:-default}</code></td>
+<td style="text-align:left">значение или default, если пусто</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR:?сообщение}</code></td>
+<td style="text-align:left">ошибка с сообщением, если пусто</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR:=default}</code></td>
+<td style="text-align:left">значение или присвоить default</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${#VAR}</code></td>
+<td style="text-align:left">длина строки</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR:0:10}</code></td>
+<td style="text-align:left">подстрока</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR#prefix}</code></td>
+<td style="text-align:left">убрать префикс</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${VAR%.log}</code></td>
+<td style="text-align:left">убрать суффикс</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${#ARR[@]}</code></td>
+<td style="text-align:left">число элементов массива</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${ARR[@]}</code> / <code>"${ARR[@]}"</code></td>
+<td style="text-align:left">все элементы</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${ARR[0]}</code></td>
+<td style="text-align:left">первый элемент</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>${ARR[@]:0:3}</code></td>
+<td style="text-align:left">срез: первые три</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>BASE_URL=<span class="tok-str">"${BASE_URL:-https://api.example.com}"</span></span>
+<span class="ln"><span class="ln-i">2</span>: <span class="tok-str">"${API_TOKEN:?API_TOKEN обязателен}"</span>     <span class="tok-cmt"># упадёт сразу, если не задан</span></span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>FILES=(<span class="tok-str">"$HOME"</span>/data/*.csv)                 <span class="tok-cmt"># массив с кавычками внутри</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">echo</span> <span class="tok-str">"файлов: ${#FILES[@]}"</span></span>
+<span class="ln"><span class="ln-i">6</span>printf <span class="tok-str">'%s\n'</span> <span class="tok-str">"${FILES[@]:0:3}"</span>            <span class="tok-cmt"># первые три</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">for</span> f in <span class="tok-str">"${FILES[@]}"</span>; <span class="tok-k">do</span> <span class="tok-k">echo</span> <span class="tok-str">"$f"</span>; <span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>basename=<span class="tok-str">"${LOGFILE%.log}"</span>                <span class="tok-cmt"># без суффикса</span></span>
+<span class="ln"><span class="ln-i">10</span>stripped=<span class="tok-str">"${LOGFILE#*/}"</span>                  <span class="tok-cmt"># без директории</span></span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Массив пишется так: <code>ARR=(one two three)</code> — <strong>без</strong> пробела перед <code>=</code>. Это
+синтаксическая ошибка в bash. И <code>"${ARR[@]}"</code> в кавычках обязателен: без
+кавычек элементы с пробелами разобьются на отдельные аргументы.</p></div></div>
+<h2 id="usloviya-protiv">Условия: <code>[[ ]]</code> против <code>[ ]</code></h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что</th>
+<th style="text-align:left"><code>[</code> (test)</th>
+<th style="text-align:left"><code>[[</code> (bash test)</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Это</td>
+<td style="text-align:left">внешняя программа</td>
+<td style="text-align:left">встроенная конструкция bash</td>
+</tr>
+<tr>
+<td style="text-align:left">Регулярки</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left"><code>=~</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Логика</td>
+<td style="text-align:left"><code>&amp;&amp; ||</code></td>
+<td style="text-align:left"><code>&amp;&amp; ||</code>, слова как операнды</td>
+</tr>
+<tr>
+<td style="text-align:left">Скорость</td>
+<td style="text-align:left">медленнее</td>
+<td style="text-align:left">быстрее (нет fork)</td>
+</tr>
+<tr>
+<td style="text-align:left">Рекомендация</td>
+<td style="text-align:left">для совместимости с <code>sh</code></td>
+<td style="text-align:left"><strong>всегда в bash-скриптах</strong></td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>[[ -f <span class="tok-str">"$f"</span> ]]          <span class="tok-cmt"># файл существует</span></span>
+<span class="ln"><span class="ln-i">2</span>[[ -d <span class="tok-str">"$d"</span> ]]          <span class="tok-cmt"># каталог</span></span>
+<span class="ln"><span class="ln-i">3</span>[[ -n <span class="tok-str">"$s"</span> ]]          <span class="tok-cmt"># строка непустая</span></span>
+<span class="ln"><span class="ln-i">4</span>[[ -z <span class="tok-str">"$s"</span> ]]          <span class="tok-cmt"># строка пустая</span></span>
+<span class="ln"><span class="ln-i">5</span>[[ <span class="tok-str">"$a"</span> == <span class="tok-str">"$b"</span> ]]     <span class="tok-cmt"># равенство</span></span>
+<span class="ln"><span class="ln-i">6</span>[[ <span class="tok-str">"$a"</span> != <span class="tok-str">"$b"</span> ]]</span>
+<span class="ln"><span class="ln-i">7</span>[[ <span class="tok-str">"$a"</span> -gt <span class="tok-n">10</span> ]]      <span class="tok-cmt"># арифметическое: -gt -lt -ge -le -eq -ne</span></span>
+<span class="ln"><span class="ln-i">8</span>[[ <span class="tok-str">"$port"</span> =~ ^[<span class="tok-n">0</span>-<span class="tok-n">9</span>]+$ ]]   <span class="tok-cmt"># проверка, что это число</span></span>
+<span class="ln"><span class="ln-i">9</span>[[ -x <span class="tok-str">"$f"</span> &amp;&amp; -r <span class="tok-str">"$f"</span> ]]    <span class="tok-cmt"># комбинация</span></span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># ВАЖНО: [[ ]] не нужно экранировать, [ ] нужно</span></span>
+<span class="ln"><span class="ln-i">12</span>[ <span class="tok-str">"$a"</span> = <span class="tok-str">"x y"</span> ]       <span class="tok-cmt"># тут нужны кавычки</span></span>
+</code></pre></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Валидация ввода через <code>[[ =~ ]]</code> — первая линия обороны скрипта, который
+будет вызван с аргументами от cron или от соседнего скрипта:
+<code>[[ $PORT =~ ^[0-9]+$ ]] || { echo "порт должен быть числом" &gt;&amp;2; exit 1; }</code>.</p></div></div>
+<h2 id="cikly-i-funkcii">Циклы и функции</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># for по списку</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">for</span> host in web1 web2 web3; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">3</span>  ping -c1 -W1 <span class="tok-str">"$host"</span> &gt;/dev/null &amp;&amp; <span class="tok-k">echo</span> <span class="tok-str">"$host up"</span> || <span class="tok-k">echo</span> <span class="tok-str">"$host down"</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># for по C-стилю</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">for</span> ((i = <span class="tok-n">0</span>; i &lt; <span class="tok-n">5</span>; i++)); <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">8</span>  <span class="tok-k">echo</span> <span class="tok-str">"итерация $i"</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># for по glob</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">for</span> conf in /etc/nginx/sites-enabled/*.conf; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">13</span>  <span class="tok-k">echo</span> <span class="tok-str">"--- $conf"</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-cmt"># while read — построчная обработка</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-k">while</span> IFS= read -r line; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">18</span>  [[ -z <span class="tok-str">"$line"</span> ]] &amp;&amp; continue</span>
+<span class="ln"><span class="ln-i">19</span>  <span class="tok-k">echo</span> <span class="tok-str">"строка: $line"</span></span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-k">done</span> &lt; /etc/hosts</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-cmt"># while по exit-коду команды</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">while</span> ! nc -z <span class="tok-str">"$HOST"</span> <span class="tok-str">"$PORT"</span>; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">24</span>  <span class="tok-k">echo</span> <span class="tok-str">"жду $HOST:$PORT"</span></span>
+<span class="ln"><span class="ln-i">25</span>  sleep <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-k">done</span></span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>read -r</code> без <code>-r</code> обрезает обратные слэши, и пути с <code>\</code> или ввод с
+экранированием испортятся молча. <code>-r</code> почти всегда нужен.
+<code>IFS=</code> — чтобы не резать по пробелам при чтении строк с пробелами.</p></div></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># функции</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-fn">log</span>() {</span>
+<span class="ln"><span class="ln-i">3</span>  <span class="tok-k">local</span> level=<span class="tok-str">"$1"</span>; shift</span>
+<span class="ln"><span class="ln-i">4</span>  printf <span class="tok-str">'%s [%s] %s\n'</span> <span class="tok-str">"$(date -u +%FT%TZ)"</span> <span class="tok-str">"$level"</span> <span class="tok-str">"$*"</span></span>
+<span class="ln"><span class="ln-i">5</span>}</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-fn">retry</span>() {</span>
+<span class="ln"><span class="ln-i">8</span>  <span class="tok-k">local</span> tries=<span class="tok-str">"$1"</span> delay=<span class="tok-str">"$2"</span>; shift <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-k">local</span> n=<span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">10</span>  until <span class="tok-str">"$@"</span>; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">11</span>    (( n &gt;= tries )) &amp;&amp; { log ERROR <span class="tok-str">"не удалось: $*"</span>; <span class="tok-k">return</span> <span class="tok-n">1</span>; }</span>
+<span class="ln"><span class="ln-i">12</span>    log WARN <span class="tok-str">"попытка $n/$tries: $*"</span></span>
+<span class="ln"><span class="ln-i">13</span>    sleep <span class="tok-str">"$delay"</span>; (( n++ ))</span>
+<span class="ln"><span class="ln-i">14</span>  <span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">15</span>}</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span>retry <span class="tok-n">3</span> <span class="tok-n">5</span> <span class="tok-k">curl</span> -sf http://localhost:<span class="tok-n">8080</span>/healthz</span>
+</code></pre></div>
+<p><code>local</code> — обязателен для переменных внутри функций, иначе они перезапишут
+глобальные. <code>shift</code> — убрать первый позиционный аргумент, чтобы <code>$@</code> были
+только «настоящими».</p>
+<h2 id="argumenty-skripta">Аргументы скрипта</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+<span class="ln"><span class="ln-i">2</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># $0 — путь к скрипту, $# — количество, "$@" — все аргументы, "$*" — склеенные</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># $1, $2 ... — по позициям, $? — код возврата последней команды</span></span>
+<span class="ln"><span class="ln-i">6</span>shift   <span class="tok-cmt"># убрать первый аргумент (обычно подкоманду)</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-fn">usage</span>() {</span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-k">cat</span> &lt;&lt;EOF</span>
+<span class="ln"><span class="ln-i">10</span>Использование: $<span class="tok-n">0</span> &lt;host&gt; &lt;port&gt; [-t таймаут]</span>
+<span class="ln"><span class="ln-i">11</span>EOF</span>
+<span class="ln"><span class="ln-i">12</span>}</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>HOST=<span class="tok-str">"${1:?укажите хост}"</span></span>
+<span class="ln"><span class="ln-i">15</span>PORT=<span class="tok-str">"${2:?укажите порт}"</span></span>
+<span class="ln"><span class="ln-i">16</span>shift <span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">17</span>TIMEOUT=<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-k">while</span> [[ $<span class="tok-cmt"># -gt 0 ]]; do</span></span>
+<span class="ln"><span class="ln-i">19</span>  <span class="tok-k">case</span> <span class="tok-str">"$1"</span> in</span>
+<span class="ln"><span class="ln-i">20</span>    -t) TIMEOUT=<span class="tok-str">"$2"</span>; shift <span class="tok-n">2</span> ;;</span>
+<span class="ln"><span class="ln-i">21</span>    -h|--help) usage; exit <span class="tok-n">0</span> ;;</span>
+<span class="ln"><span class="ln-i">22</span>    *) <span class="tok-k">echo</span> <span class="tok-str">"неизвестный аргумент: $1"</span> &gt;&amp;<span class="tok-n">2</span>; usage; exit <span class="tok-n">1</span> ;;</span>
+<span class="ln"><span class="ln-i">23</span>  <span class="tok-k">esac</span></span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-k">done</span></span>
+</code></pre></div>
+<p><code>${1:?}</code> и <code>${2:?}</code> — валидация обязательных аргументов: скрипт падает с
+понятным сообщением, а не с <code>host: command not found</code> двумя строками ниже.</p>
+<h2 id="kody-vozvrata-i-obrabotka-oshibok">Коды возврата и обработка ошибок</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>cmd</span>
+<span class="ln"><span class="ln-i">2</span>rc=$?          <span class="tok-cmt"># сразу, пока код не перезаписан</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">if</span> cmd; <span class="tok-k">then</span></span>
+<span class="ln"><span class="ln-i">4</span>  <span class="tok-k">echo</span> <span class="tok-str">"успех"</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">else</span></span>
+<span class="ln"><span class="ln-i">6</span>  rc=$?</span>
+<span class="ln"><span class="ln-i">7</span>  <span class="tok-k">case</span> <span class="tok-str">"$rc"</span> in</span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-n">2</span>) <span class="tok-k">echo</span> <span class="tok-str">"плохие аргументы"</span> ;;</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-n">7</span>) <span class="tok-k">echo</span> <span class="tok-str">"не удалось подключиться"</span> ;;</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-n">28</span>) <span class="tok-k">echo</span> <span class="tok-str">"таймаут"</span> ;;</span>
+<span class="ln"><span class="ln-i">11</span>    *) <span class="tok-k">echo</span> <span class="tok-str">"ошибка $rc"</span> ;;</span>
+<span class="ln"><span class="ln-i">12</span>  <span class="tok-k">esac</span></span>
+<span class="ln"><span class="ln-i">13</span>  exit <span class="tok-str">"$rc"</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">fi</span></span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-cmt"># || для обязательного шага</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-k">mkdir</span> -p <span class="tok-str">"$DIR"</span> || { <span class="tok-k">echo</span> <span class="tok-str">"нет прав на $DIR"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">1</span>; }</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Код</th>
+<th style="text-align:left">Значение</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">0</td>
+<td style="text-align:left">успех</td>
+</tr>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">общая ошибка / usage</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">неверные аргументы</td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left">временная ошибка (можно повторить)</td>
+</tr>
+<tr>
+<td style="text-align:left">126</td>
+<td style="text-align:left">файл найден, но не исполняемый</td>
+</tr>
+<tr>
+<td style="text-align:left">127</td>
+<td style="text-align:left">команда не найдена</td>
+</tr>
+<tr>
+<td style="text-align:left">128+N</td>
+<td style="text-align:left">убит сигналом N</td>
+</tr>
+<tr>
+<td style="text-align:left">255</td>
+<td style="text-align:left">ошибка самого скрипта</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>curl -sS</code> — обязательная пара: <code>-s</code> глушит прогресс-бар, <code>-S</code> показывает
+ошибки, которые <code>-s</code> проглотил бы. Для API-вызовов добавляй <code>--fail-with-body</code>
+или <code>--fail</code>: без него HTTP 500 вернёт код 0, и твой скрипт посчитает
+несуществующий ответ валидным. И всегда <code>--max-time</code>, иначе зависший API
+навсегда остановит скрипт.</p></div></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># curl: -sS молчаливый, но ошибки видны</span></span>
+<span class="ln"><span class="ln-i">2</span>resp=$(<span class="tok-k">curl</span> -sS --fail-with-body --max-time <span class="tok-n">10</span> -H <span class="tok-str">"Authorization: Bearer $TOKEN"</span> <span class="tok-str">"$URL"</span>) \</span>
+<span class="ln"><span class="ln-i">3</span>  || { <span class="tok-k">echo</span> <span class="tok-str">"API недоступен"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">3</span>; }</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># jq: парсим JSON безопасно</span></span>
+<span class="ln"><span class="ln-i">6</span>ver=$(<span class="tok-k">echo</span> <span class="tok-str">"$resp"</span> | jq -r <span class="tok-str">'.version // empty'</span>) \</span>
+<span class="ln"><span class="ln-i">7</span>  || { <span class="tok-k">echo</span> <span class="tok-str">"невалидный JSON"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">4</span>; }</span>
+<span class="ln"><span class="ln-i">8</span>[[ -n <span class="tok-str">"$ver"</span> ]] || { <span class="tok-k">echo</span> <span class="tok-str">"нет поля version"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">4</span>; }</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Проверка</th>
+<th style="text-align:left">Команда</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">валидный JSON</td>
+<td style="text-align:left"><code>echo "$r" | jq -e . &gt;/dev/null</code></td>
+</tr>
+<tr>
+<td style="text-align:left">поле существует</td>
+<td style="text-align:left"><code>echo "$r" | jq -e 'has("status")'</code></td>
+</tr>
+<tr>
+<td style="text-align:left">тип правильный</td>
+<td style="text-align:left"><code>echo "$r" | jq -e '.items | type == "array"'</code></td>
+</tr>
+<tr>
+<td style="text-align:left">достать значение</td>
+<td style="text-align:left"><code>echo "$r" | jq -r '.items[].id'</code></td>
+</tr>
+<tr>
+<td style="text-align:left">красивый вывод</td>
+<td style="text-align:left"><code>echo "$r" | jq .</code></td>
+</tr>
+<tr>
+<td style="text-align:left">из массива в TSV</td>
+<td style="text-align:left"><code>echo "$r" | jq -r '.items[] | [.id, .name] | @tsv'</code></td>
+</tr>
+</tbody></table></div>
+<h2 id="trap-uborka-pri-lyubom-vyhode">trap: уборка при любом выходе</h2>
+<p>Скрипт может упасть где угодно. <code>trap</code> гарантирует, что временные файлы
+уйдут, а lock снимется — даже по <code>Ctrl+C</code> (SIGINT), <code>kill</code> (SIGTERM) или при
+ошибке из-за <code>set -e</code>.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+<span class="ln"><span class="ln-i">2</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>TMPDIR_CREATED=<span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">5</span>LOCKFILE=<span class="tok-str">"/var/lock/myapp-backup.lock"</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-fn">cleanup</span>() {</span>
+<span class="ln"><span class="ln-i">8</span>  <span class="tok-k">local</span> rc=$?</span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-cmt"># сначала убрать lock, потом — временное (порядок важен при ошибке)</span></span>
+<span class="ln"><span class="ln-i">10</span>  [[ -n <span class="tok-str">"$TMPDIR_CREATED"</span> ]] &amp;&amp; <span class="tok-k">rm</span> -rf <span class="tok-str">"$TMPDIR_CREATED"</span></span>
+<span class="ln"><span class="ln-i">11</span>  <span class="tok-k">rm</span> -f <span class="tok-str">"$LOCKFILE"</span></span>
+<span class="ln"><span class="ln-i">12</span>  log INFO <span class="tok-str">"завершено с кодом $rc"</span></span>
+<span class="ln"><span class="ln-i">13</span>  exit <span class="tok-str">"$rc"</span>     <span class="tok-cmt"># сохранить исходный код!</span></span>
+<span class="ln"><span class="ln-i">14</span>}</span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span>trap cleanup EXIT           <span class="tok-cmt"># при любом выходе, включая ошибку</span></span>
+<span class="ln"><span class="ln-i">17</span>trap <span class="tok-str">'log WARN "прервано пользователем"; exit 130'</span> INT</span>
+<span class="ln"><span class="ln-i">18</span>trap <span class="tok-str">'log WARN "получен SIGTERM"; exit 143'</span> TERM</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-fn">log</span>() { printf <span class="tok-str">'%s [%s] %s\n'</span> <span class="tok-str">"$(date -u +%FT%TZ)"</span> <span class="tok-str">"$1"</span> <span class="tok-str">"${*:2}"</span>; }</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-cmt"># Проверка lock-файла: не запущен ли уже другой экземпляр?</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">if</span> ! ( set -o noclobber; <span class="tok-k">echo</span> $$ &gt; <span class="tok-str">"$LOCKFILE"</span> ) <span class="tok-n">2</span>&gt;/dev/null; <span class="tok-k">then</span></span>
+<span class="ln"><span class="ln-i">24</span>  log WARN <span class="tok-str">"уже запущен другой экземпляр (pid $(cat "</span>$LOCKFILE<span class="tok-str">" 2&gt;/dev/null))"</span></span>
+<span class="ln"><span class="ln-i">25</span>  exit <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-k">fi</span></span>
+<span class="ln"><span class="ln-i">27</span>TMPDIR_CREATED=$(mktemp -d /tmp/myapp-backup.XXXXXX)</span>
+<span class="ln"><span class="ln-i">28</span>log INFO <span class="tok-str">"начало, временный каталог $TMPDIR_CREATED"</span></span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>В <code>cleanup</code> <strong>первой строкой</strong> пиши <code>local rc=$?</code>. Если этого не сделать,
+код возврата функции <code>cleanup</code> (скорее всего 0) перезапишет код, с которым
+скрипт завершался — и systemd увидит «успех» там, где был провал. Очень
+неприятный баг, потому что скрипт всё делает правильно, а <code>systemctl status</code>
+показывает <code>active (exited)</code>.</p></div></div>
+<h2 id="idempotentnost-i-lock-fayl">Идемпотентность и lock-файл</h2>
+<p><strong>Идемпотентный</strong> скрипт — тот, который можно запустить дважды и третий раз,
+и результат будет тем же. Для бэкапа, деплоя и миграции это обязательное
+свойство: cron упадёт, ты перезапустишь systemd-юнит, ночной запуск случится
+дважды.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Приём</th>
+<th style="text-align:left">Как</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>mkdir</code> как атомарный lock</td>
+<td style="text-align:left"><code>mkdir "$LOCK" 2&gt;/dev/null || exit 0</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>noclobber</code></td>
+<td style="text-align:left">перенаправление в файл с <code>set -o noclobber</code> — атомарно</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>flock</code></td>
+<td style="text-align:left">`flock -n 9</td>
+<td style="text-align:left"></td>
+<td style="text-align:left">exit 0` с дескриптором 9</td>
+</tr>
+<tr>
+<td style="text-align:left">дата в имени</td>
+<td style="text-align:left">архивы не перезаписываются: <code>backup-$(date +%F).sql.gz</code></td>
+</tr>
+<tr>
+<td style="text-align:left">проверка перед работой</td>
+<td style="text-align:left">«уже существует — выходим» или «заменяем атомарно»</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># flock: канонический способ</span></span>
+<span class="ln"><span class="ln-i">2</span>(</span>
+<span class="ln"><span class="ln-i">3</span>  flock -n <span class="tok-n">9</span> || { <span class="tok-k">echo</span> <span class="tok-str">"уже выполняется"</span>; exit <span class="tok-n">0</span>; }</span>
+<span class="ln"><span class="ln-i">4</span>  <span class="tok-cmt"># здесь работа</span></span>
+<span class="ln"><span class="ln-i">5</span>) <span class="tok-n">9</span>&gt;/var/lock/myapp-backup.lock</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># атомарная замена: пишем во временное, потом mv (mv атомарен в пределах ФС)</span></span>
+<span class="ln"><span class="ln-i">8</span>tmp=$(mktemp)</span>
+<span class="ln"><span class="ln-i">9</span>mysqldump ... &gt; <span class="tok-str">"$tmp"</span> &amp;&amp; gzip <span class="tok-str">"$tmp"</span> &amp;&amp; <span class="tok-k">mv</span> <span class="tok-str">"$tmp"</span> /backups/latest.sql.gz</span>
+</code></pre></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p><code>flock -n 9 || exit 0</code> — правильный паттерн для cron-задачи: если
+предыдущий запуск ещё не закончился, новый просто выходит, не падает и не
+создаёт второй экземпляр. Для systemd-юнитов lock не нужен — там этим
+занимается сам systemd, <code>Restart=on-failure</code> не даст запуститься второму.</p></div></div>
+<hr>
+<h2 id="praktika-dva-rabochih-skripta">Практика: два рабочих скрипта</h2>
+<h3 id="skript-1-health-check-s-pravilnym-exit-kodom">Скрипт 1: health-check с правильным exit-кодом</h3>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> tee /usr/<span class="tok-k">local</span>/bin/healthcheck &gt; /dev/null &lt;&lt;<span class="tok-str">'EOF'</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+<span class="ln"><span class="ln-i">3</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>readonly SCRIPT_NAME=<span class="tok-str">"${0##*/}"</span></span>
+<span class="ln"><span class="ln-i">6</span>readonly LOG=<span class="tok-str">"/var/log/healthcheck.log"</span></span>
+<span class="ln"><span class="ln-i">7</span>readonly URL=<span class="tok-str">"${1:?укажите URL для проверки}"</span></span>
+<span class="ln"><span class="ln-i">8</span>readonly MAX_TIME=<span class="tok-str">"${2:-5}"</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-fn">log</span>() {</span>
+<span class="ln"><span class="ln-i">11</span>  printf <span class="tok-str">'%s [%s] %s\n'</span> <span class="tok-str">"$(date -u +%FT%TZ)"</span> <span class="tok-str">"$1"</span> <span class="tok-str">"${*:2}"</span> | tee -a <span class="tok-str">"$LOG"</span></span>
+<span class="ln"><span class="ln-i">12</span>}</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>body=$(<span class="tok-k">curl</span> -sS --fail-with-body --max-time <span class="tok-str">"$MAX_TIME"</span> <span class="tok-str">"$URL"</span> <span class="tok-n">2</span>&gt;&amp;<span class="tok-n">1</span>) &amp;&amp; rc=<span class="tok-n">0</span> || rc=$?</span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-k">case</span> <span class="tok-str">"$rc"</span> in</span>
+<span class="ln"><span class="ln-i">17</span>  <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">18</span>    log OK <span class="tok-str">"$URL отвечает: ${body:0:120}"</span></span>
+<span class="ln"><span class="ln-i">19</span>    exit <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">20</span>    ;;</span>
+<span class="ln"><span class="ln-i">21</span>  <span class="tok-n">6</span>|<span class="tok-n">7</span>)  <span class="tok-cmt"># не удалось разрешить хост / не удалось подключиться</span></span>
+<span class="ln"><span class="ln-i">22</span>    log CRIT <span class="tok-str">"$URL недоступен (curl rc=$rc): $body"</span></span>
+<span class="ln"><span class="ln-i">23</span>    exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">24</span>    ;;</span>
+<span class="ln"><span class="ln-i">25</span>  <span class="tok-n">28</span>)  <span class="tok-cmt"># таймаут</span></span>
+<span class="ln"><span class="ln-i">26</span>    log CRIT <span class="tok-str">"$URL не ответил за ${MAX_TIME}s"</span></span>
+<span class="ln"><span class="ln-i">27</span>    exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">28</span>    ;;</span>
+<span class="ln"><span class="ln-i">29</span>  <span class="tok-n">22</span>)  <span class="tok-cmt"># --fail: HTTP-ошибка</span></span>
+<span class="ln"><span class="ln-i">30</span>    log WARN <span class="tok-str">"$URL вернул HTTP-ошибку: $body"</span></span>
+<span class="ln"><span class="ln-i">31</span>    exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">32</span>    ;;</span>
+<span class="ln"><span class="ln-i">33</span>  *)</span>
+<span class="ln"><span class="ln-i">34</span>    log WARN <span class="tok-str">"curl rc=$rc: $body"</span></span>
+<span class="ln"><span class="ln-i">35</span>    exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">36</span>    ;;</span>
+<span class="ln"><span class="ln-i">37</span><span class="tok-k">esac</span></span>
+<span class="ln"><span class="ln-i">38</span>EOF</span>
+<span class="ln"><span class="ln-i">39</span><span class="tok-k">sudo</span> <span class="tok-k">chmod</span> <span class="tok-n">755</span> /usr/<span class="tok-k">local</span>/bin/healthcheck</span>
+<span class="ln"><span class="ln-i">40</span></span>
+<span class="ln"><span class="ln-i">41</span><span class="tok-cmt"># проверка</span></span>
+<span class="ln"><span class="ln-i">42</span>/usr/<span class="tok-k">local</span>/bin/healthcheck https://api.example.com/healthz</span>
+<span class="ln"><span class="ln-i">43</span>/usr/<span class="tok-k">local</span>/bin/healthcheck https://несуществующий.домен ; <span class="tok-k">echo</span> <span class="tok-str">"код: $?"</span></span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Обрати внимание на <code>... &amp;&amp; rc=0 || rc=$?</code>. Это самый надёжный способ поймать
+код возврата команды, не ломая <code>set -e</code>. Альтернатива — <code>if ! cmd; then rc=$?</code>
+(теряет код), поэтому используй именно форму с <code>&amp;&amp;</code>/<code>||</code>.</p></div></div>
+<h3 id="skript-2-bekap-s-trap-i-proverkoy">Скрипт 2: бэкап с trap и проверкой</h3>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> tee /usr/<span class="tok-k">local</span>/bin/pg-backup &gt; /dev/null &lt;&lt;<span class="tok-str">'EOF'</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+<span class="ln"><span class="ln-i">3</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>readonly DEST=<span class="tok-str">"/var/backups/postgres"</span></span>
+<span class="ln"><span class="ln-i">6</span>readonly RETENTION_DAYS=<span class="tok-n">7</span></span>
+<span class="ln"><span class="ln-i">7</span>readonly LOCK=<span class="tok-str">"/var/lock/pg-backup.lock"</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-fn">log</span>() { printf <span class="tok-str">'%s [%s] %s\n'</span> <span class="tok-str">"$(date -u +%FT%TZ)"</span> <span class="tok-str">"$1"</span> <span class="tok-str">"${*:2}"</span>; }</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-fn">cleanup</span>() {</span>
+<span class="ln"><span class="ln-i">12</span>  <span class="tok-k">local</span> rc=$?</span>
+<span class="ln"><span class="ln-i">13</span>  [[ -n <span class="tok-str">"${TMP:-}"</span> ]] &amp;&amp; <span class="tok-k">rm</span> -f <span class="tok-str">"$TMP"</span></span>
+<span class="ln"><span class="ln-i">14</span>  <span class="tok-k">rm</span> -f <span class="tok-str">"$LOCK"</span></span>
+<span class="ln"><span class="ln-i">15</span>  log INFO <span class="tok-str">"завершено, код $rc"</span></span>
+<span class="ln"><span class="ln-i">16</span>  exit <span class="tok-str">"$rc"</span></span>
+<span class="ln"><span class="ln-i">17</span>}</span>
+<span class="ln"><span class="ln-i">18</span>trap cleanup EXIT</span>
+<span class="ln"><span class="ln-i">19</span>trap <span class="tok-str">'log WARN "прервано"; exit 130'</span> INT</span>
+<span class="ln"><span class="ln-i">20</span>trap <span class="tok-str">'log WARN "SIGTERM"; exit 143'</span> TERM</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-cmt"># Атомарный lock: если папка создалась — мы первые</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">mkdir</span> <span class="tok-str">"$LOCK"</span> <span class="tok-n">2</span>&gt;/dev/null || { log INFO <span class="tok-str">"уже выполняется"</span>; exit <span class="tok-n">0</span>; }</span>
+<span class="ln"><span class="ln-i">24</span></span>
+<span class="ln"><span class="ln-i">25</span><span class="tok-k">mkdir</span> -p <span class="tok-str">"$DEST"</span></span>
+<span class="ln"><span class="ln-i">26</span>readonly STAMP=<span class="tok-str">"$(date -u +%Y%m%dT%H%M%SZ)"</span></span>
+<span class="ln"><span class="ln-i">27</span>readonly FINAL=<span class="tok-str">"$DEST/pg-$STAMP.sql.gz"</span></span>
+<span class="ln"><span class="ln-i">28</span>TMP=$(mktemp /tmp/pg-backup.XXXXXX)</span>
+<span class="ln"><span class="ln-i">29</span></span>
+<span class="ln"><span class="ln-i">30</span>log INFO <span class="tok-str">"начало бэкапа -&gt; $FINAL"</span></span>
+<span class="ln"><span class="ln-i">31</span>PGPASSWORD=<span class="tok-str">"${PGPASSWORD:?задайте PGPASSWORD}"</span> \</span>
+<span class="ln"><span class="ln-i">32</span>  pg_dumpall --clean --<span class="tok-k">if</span>-exists -h <span class="tok-n">127.0</span>.<span class="tok-n">0.1</span> -U postgres \</span>
+<span class="ln"><span class="ln-i">33</span>  | gzip -<span class="tok-n">9</span> &gt; <span class="tok-str">"$TMP"</span></span>
+<span class="ln"><span class="ln-i">34</span></span>
+<span class="ln"><span class="ln-i">35</span><span class="tok-cmt"># Проверяем архив ДО того, как назовём его финальным именем</span></span>
+<span class="ln"><span class="ln-i">36</span><span class="tok-k">if</span> ! gzip -t <span class="tok-str">"$TMP"</span>; <span class="tok-k">then</span></span>
+<span class="ln"><span class="ln-i">37</span>  log ERROR <span class="tok-str">"архив повреждён — финальное имя не присваиваем"</span></span>
+<span class="ln"><span class="ln-i">38</span>  exit <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">39</span><span class="tok-k">fi</span></span>
+<span class="ln"><span class="ln-i">40</span>[[ $(stat -c %s <span class="tok-str">"$TMP"</span>) -gt <span class="tok-n">1024</span> ]] || { log ERROR <span class="tok-str">"подозрительно мал"</span>; exit <span class="tok-n">1</span>; }</span>
+<span class="ln"><span class="ln-i">41</span></span>
+<span class="ln"><span class="ln-i">42</span><span class="tok-k">mv</span> <span class="tok-str">"$TMP"</span> <span class="tok-str">"$FINAL"</span></span>
+<span class="ln"><span class="ln-i">43</span><span class="tok-k">chmod</span> <span class="tok-n">640</span> <span class="tok-str">"$FINAL"</span></span>
+<span class="ln"><span class="ln-i">44</span>log INFO <span class="tok-str">"готово: $(du -h "</span>$FINAL<span class="tok-str">" | cut -f1)"</span></span>
+<span class="ln"><span class="ln-i">45</span></span>
+<span class="ln"><span class="ln-i">46</span>log INFO <span class="tok-str">"удаление бэкапов старше $RETENTION_DAYS дней"</span></span>
+<span class="ln"><span class="ln-i">47</span>find <span class="tok-str">"$DEST"</span> -name <span class="tok-str">'pg-*.sql.gz'</span> -mtime +$RETENTION_DAYS -print -delete</span>
+<span class="ln"><span class="ln-i">48</span>log INFO <span class="tok-str">"осталось файлов: $(find "</span>$DEST<span class="tok-str">" -name 'pg-*.sql.gz' | wc -l)"</span></span>
+<span class="ln"><span class="ln-i">49</span>EOF</span>
+<span class="ln"><span class="ln-i">50</span><span class="tok-k">sudo</span> <span class="tok-k">chmod</span> <span class="tok-n">755</span> /usr/<span class="tok-k">local</span>/bin/pg-backup</span>
+<span class="ln"><span class="ln-i">51</span><span class="tok-k">sudo</span> <span class="tok-k">chmod</span> <span class="tok-n">700</span> /var/lock <span class="tok-n">2</span>&gt;/dev/null || true</span>
+<span class="ln"><span class="ln-i">52</span></span>
+<span class="ln"><span class="ln-i">53</span>/usr/<span class="tok-k">local</span>/bin/pg-backup</span>
+<span class="ln"><span class="ln-i">54</span><span class="tok-k">sudo</span> -u postgres /usr/<span class="tok-k">local</span>/bin/pg-backup   <span class="tok-cmt"># не запустится: пароль не передан</span></span>
+</code></pre></div>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p>Порядок в бэкапе критичен: сначала во временный файл, потом <strong>проверка</strong>,
+потом <strong>mv</strong> на финальное имя. Если сначала писать в финальное имя, обрыв на</p></div></div>
+<p>середине <code>pg_dumpall</code> оставит файл, который выглядит как валидный бэкап, пока
+не попадёт в ротацию. <code>mv</code> в пределах одной ФС атомарен — читатель никогда
+не увидит половину файла под финальным именем.</p>
+<h3 id="podklyuchenie-k-systemd">Подключение к systemd</h3>
+<p>Скрипты из лекции <a href="../../lectures/devops/03-processy-i-systemd.html">про процессы и systemd</a>
+запускаются через юнит <code>Type=oneshot</code> + <code>RemainAfterExit=yes</code>. Юнит наследует
+<code>set -euo pipefail</code> не от скрипта, а от юнита — код возврата скрипта systemd
+читает сам. Проверь, что скрипт завершается осмысленным кодом:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> tee /etc/systemd/system/healthcheck.service &gt; /dev/null &lt;&lt;<span class="tok-str">'EOF'</span></span>
+<span class="ln"><span class="ln-i">2</span>[Unit]</span>
+<span class="ln"><span class="ln-i">3</span>Description=Проверка внешнего эндпоинта</span>
+<span class="ln"><span class="ln-i">4</span>After=network-online.target</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>[Service]</span>
+<span class="ln"><span class="ln-i">7</span>Type=oneshot</span>
+<span class="ln"><span class="ln-i">8</span>ExecStart=/usr/<span class="tok-k">local</span>/bin/healthcheck https://api.example.com/healthz <span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>[Install]</span>
+<span class="ln"><span class="ln-i">11</span>WantedBy=multi-user.target</span>
+<span class="ln"><span class="ln-i">12</span>EOF</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">sudo</span> <span class="tok-k">systemctl</span> daemon-reload</span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">sudo</span> <span class="tok-k">systemctl</span> start healthcheck.service</span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-k">systemctl</span> status healthcheck.service</span>
+</code></pre></div>
+<h2 id="horoshie-praktiki-svodka">Хорошие практики — сводка</h2>
+<ul><li><code>set -euo pipefail</code> + <code>IFS=$'\n\t'</code> в первых строках каждого скрипта.</li><li>Все переменные в кавычках: <code>"$VAR"</code>, <code>"${ARR[@]}"</code>.</li><li><code>readonly</code> для констант, <code>local</code> для переменных функций.</li><li>Константы в верхнем регистре, переменные цикла — в нижнем.</li><li>Имена переменных: <code>имя_функции_переменная</code> (<code>LOG_FILE_MAX_SIZE</code>).</li><li><code>trap ... EXIT</code> для уборки, с <code>local rc=$?</code> первым действием.</li><li>Логи на stdout — их перехватит systemd; файловые логи — только если нужно.</li><li>Все сообщения об ошибках в stderr: <code>&gt;&amp;2</code>.</li><li>Валидация всех <code>$1</code> до того, как что-то сделано.</li><li><code>--fail</code> и <code>--max-time</code> у каждого <code>curl</code>, <code>--connect-timeout</code> у каждого <code>nc</code>.</li><li><code>flock</code> или <code>mkdir</code>-lock от двойного запуска.</li><li>Проверка результата (<code>gzip -t</code>, <code>jq -e</code>, <code>sha256sum</code>) до того, как файл
+признан успешным.</li><li><code>mktemp -d</code> для временных файлов вместо предсказуемых <code>/tmp/myscript.tmp</code>.</li><li>Никаких <code>rm -rf $VAR</code> — только <code>rm -rf -- "$DIR"</code> с проверкой, что переменная
+не пустая.</li></ul>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong><code>set -e</code> без понимания, где он не работает.</strong> Условие в <code>if</code> не роняет
+скрипт — «проверка» молча всегда проходит. Пиши логику в <code>if</code>, страховку
+оставь <code>-e</code>.</li><li><strong><code>rm -rf $DIR/</code> без кавычек.</strong> При пустой переменной — <code>rm -rf /</code>. Пиши
+<code>rm -rf -- "${DIR:?}"</code>: <code>:</code> заставит скрипт упасть, а не удалить корень.</li><li><strong>Конкатенация вместо проверки exit-кода.</strong> <code>cmd; do_something</code> — ошибка <code>cmd</code>
+проглочена. Пиши <code>cmd || { log ERROR; exit 1; }</code>. И <code>$?</code> не сразу:
+<code>cmd; echo "ошибка: $?"</code> после <code>if</code> уже покажет 0. Записывай <code>rc=$?</code>
+немедленно или используй <code>cmd &amp;&amp; rc=0 || rc=$?</code>.</li><li><strong>Cleanup теряет код возврата.</strong> Без <code>local rc=$?</code> в <code>cleanup</code> systemd увидит
+<code>exited (status 0)</code> вместо реального кода. Десятки минут ложной диагностики.</li><li><strong><code>curl</code> без <code>--fail</code>.</strong> HTTP 500 или 404 возвращают код 0. Скрипт
+разбирает тело и падает в jq с невнятным сообщением. Всегда <code>--fail</code>.</li><li><strong>Бэкап без проверки.</strong> Архив, который не открывается, хуже отсутствующего:
+он занимает место и создаёт иллюзию безопасности. <code>gzip -t</code> обязателен.</li><li><strong>Скрипт в crontab без проверки результата.</strong> Cron не скажет, что упало.
+Всегда заворачивай в юнит с <code>journalctl</code> или пиши в лог через <code>&gt;&gt;</code>.
+Кстати, <code>chmod +x</code> без shebang даёт <code>Exec format error</code> — юнит падает сразу,
+и это самый безобидный из диагностируемых случаев.</li><li><strong>Разбор JSON через <code>grep</code>.</strong> Один лишний пробел в JSON от API — и скрипт
+решил, что данных нет. <code>jq -r</code> и только <code>jq</code>.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, почему shebang пишется как <code>#!/usr/bin/env bash</code> и что будет,
+если его не поставить</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить каждый флаг в <code>set -euo pipefail</code> и привести пример,
+где <code>set -e</code> не сработает</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, зачем нужен <code>local rc=$?</code> первой строкой в <code>trap ... EXIT</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею брать exit-код команды через <code>cmd &amp;&amp; rc=0 || rc=$?</code> и понимаю,
+почему <code>if ! cmd</code> теряет информацию</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю разницу между <code>[[ ]]</code> и <code>[ ]</code> и умею валидировать ввод через
+<code>[[ $x =~ regex ]]</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему <code>curl</code> без <code>--fail</code> и <code>--max-time</code> опасен для
+скрипта в cron</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я написал скрипт, который идемпотентен и защищён lock-файлом от двойного
+запуска</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, зачем в бэкапе сначала <code>mktemp</code>, потом проверка, и только потом
+<code>mv</code> на финальное имя</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Напиши два скрипта: health-check с проверкой HTTP-эндпоинта через curl и выходным кодом для systemd, и бэкап с trap-cleanup, архивированием и проверкой архива. Запусти оба, сломай один намеренно и убедись, что отказ попадает в journalctl.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=auto"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Автоматизация» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/05-bash-skripty">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/04-set-i-diagnostika.html"><span>← Предыдущая</span><b>Сеть: интерфейсы, порты, DNS</b></a>
+        <a class="nav-next" href="../../lectures/devops/06-http-tls-dns.html"><span>Следующая →</span><b>HTTP, HTTPS, DNS и TLS</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/05-bash-skripty";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1032 @@
+/* Движок тренажёра. Логика исходника не изменена.
+ * Правка одна: цветовые литералы заменены на CSS-переменные --tr-*,
+ * чтобы оформление наследовало тему портала.
+ */
+
+'use strict';
+function $(id){return document.getElementById(id);}
+function R(n){return Math.random().toString(36).slice(2,2+n);}
+function hue(s){var a=0,i;for(i=0;i<s.length;i++)a+=s.charCodeAt(i)*7;return a%360;}
+function b64(s){try{return btoa(s);}catch(e){return s;}}
+var course='k8s',cmdsUsed=[],histC=[],histI=-1,P={};
+var H=$('hist');
+function out(t,c){c=c||'t-dim';var d=document.createElement('div');d.className='whitespace-pre-wrap text-xs leading-relaxed '+c;d.textContent=t;H.appendChild(d);$('termBox').scrollTop=$('termBox').scrollHeight;}
+function later(ls,step){ls.forEach(function(l,i){setTimeout(function(){out(l,'t-tbl');},(i+1)*(step||350));});}
+function clearTerm(){H.innerHTML='';out('Терминал очищен.');}
+function toast(m,t){t=t||'ok';var c={ok:'border-[var(--tr-ok)] text-[var(--tr-ok)]',err:'border-[var(--tr-err)] text-[var(--tr-err)]',info:'border-[var(--tr-accent)] text-[var(--tr-accent-dim)]'}[t];var d=document.createElement('div');d.className='tst pn px-3 py-2 text-xs font-bold '+c;d.style.borderLeftWidth='3px';d.textContent=m;$('toasts').appendChild(d);setTimeout(function(){d.style.transition='opacity .4s';d.style.opacity='0';setTimeout(function(){d.remove();},400);},3200);}
+function focusIn(){$('inp').focus();syncCur();}
+/* ===== EVENT FEED ===== */
+var EV=[];
+function pushEv(s,c){EV.unshift({t:new Date().toTimeString().slice(0,8),s:s,c:c||'var(--tr-ok-dim)'});if(EV.length>8)EV.length=8;}
+/* ===== CURSOR ===== */
+function wakeCur(){var cu=$('curE');if(!cu)return;cu.style.animation='none';void cu.offsetWidth;cu.style.animation='';}
+function syncCur(){
+ var inp=$('inp'),mir=$('mir'),cu=$('curE');
+ if(!inp||!mir||!cu)return;
+ var pos;
+ try{pos=inp.selectionStart;}catch(e){pos=inp.value.length;}
+ if(pos==null||pos<0)pos=inp.value.length;
+ mir.textContent=inp.value.slice(0,pos);
+ var x=mir.offsetWidth-(inp.scrollLeft||0);
+ var max=Math.max(0,inp.clientWidth-9);
+ if(x<0)x=0;if(x>max)x=max;
+ cu.style.transform='translateX('+x+'px)';}
+
+/* ===== K8S STATE + LESSONS ===== */
+var S={nodes:[{name:'master',role:'control-plane',bC:16,bM:28,capC:4,capM:8,pods:[]},{name:'worker-1',role:'worker',bC:34,bM:41,capC:8,capM:16,pods:[]},{name:'worker-2',role:'worker',bC:26,bM:33,capC:8,capM:16,pods:[]}],pods:[],deps:[],svcs:[],cms:[],secs:[],nss:['default','kube-system','kube-public']};
+var SYS=[{name:'coredns-5d78c9869d-x2k4j',ns:'kube-system',status:'Running',image:'coredns:v1.10.1',ip:'10.244.0.2',labels:{'k8s-app':'kube-dns'}},{name:'etcd-master',ns:'kube-system',status:'Running',image:'etcd:3.5.9',ip:'10.0.0.1',labels:{component:'etcd'}},{name:'kube-apiserver-master',ns:'kube-system',status:'Running',image:'kube-apiserver:v1.28.0',ip:'10.0.0.1',labels:{component:'apiserver'}},{name:'metrics-server-6b7c9f-x4t2',ns:'kube-system',status:'Running',image:'metrics-server:v0.6.4',ip:'10.244.1.9',labels:{'k8s-app':'metrics-server'}}];
+var KM=[{id:1,n:'Знакомство',c:'var(--tr-accent)'},{id:2,n:'Поды',c:'var(--tr-ok)'},{id:3,n:'Деплойменты',c:'var(--tr-accent2)'},{id:4,n:'Сервисы',c:'var(--tr-warn)'},{id:5,n:'Лейблы',c:'var(--tr-cyan)'},{id:6,n:'CM & Secrets',c:'var(--tr-pink)'},{id:7,n:'Отладка',c:'var(--tr-err)'},{id:8,n:'Метрики',c:'var(--tr-accent2-dim)'},{id:9,n:'Namespaces',c:'var(--tr-orange)'},{id:10,n:'Очистка',c:'var(--tr-gray)'}];
+var KL=[
+{id:1,m:1,t:'Версия kubectl',task:'Проверьте версию клиента и сервера.',re:/^kubectl version\b/,xp:30,th:'kubectl version — версия CLI и API-сервера.',h:['Одно слово после kubectl','kubectl version','kubectl version']},
+{id:2,m:1,t:'Инфо о кластере',task:'Получите адреса control plane.',re:/^kubectl cluster-info$/,xp:30,th:'cluster-info — URL API-сервера и CoreDNS.',h:['cluster-info','kubectl cluster-info','kubectl cluster-info']},
+{id:3,m:1,t:'Узлы кластера',task:'Выведите список узлов.',re:/^kubectl get (nodes|node|no)$/,xp:40,th:'STATUS=Ready — kubelet на связи.',h:['get + тип ресурса','kubectl get nodes','kubectl get nodes']},
+{id:4,m:2,t:'Первый Pod',task:'Создайте pod hello-world с образом nginx.',re:/^kubectl run hello-world --image=nginx(:\S+)?$/,xp:50,th:'Pod — минимальная единица K8s.',h:['run + --image','kubectl run hello-world --image=nginx','kubectl run hello-world --image=nginx']},
+{id:5,m:2,t:'Список подов',task:'Посмотрите поды в default.',re:/^kubectl get (pods|pod|po)$/,xp:30,th:'READY 1/1 — readiness пройден.',h:['get pods','kubectl get pods','kubectl get pods']},
+{id:6,m:2,t:'Детали Pod',task:'Опишите pod hello-world.',re:/^kubectl describe pod hello-world$/,xp:50,th:'describe — состояние, IP, узел, Events.',h:['describe pod <имя>','kubectl describe pod hello-world','kubectl describe pod hello-world']},
+{id:7,m:2,t:'Логи Pod',task:'Прочитайте логи hello-world.',re:/^kubectl logs hello-world$/,xp:40,th:'logs — stdout/stderr контейнера.',h:['logs <pod>','kubectl logs hello-world','kubectl logs hello-world']},
+{id:8,m:2,t:'Exec',task:'Выполните ls внутри hello-world.',re:/^kubectl exec( -[a-z]+)* hello-world -- (ls|env|pwd|whoami)$/,xp:60,th:'exec — команда внутри контейнера.',h:['exec <pod> -- <cmd>','kubectl exec hello-world -- ls','kubectl exec hello-world -- ls']},
+{id:9,m:2,t:'Удаление Pod',task:'Удалите hello-world.',re:/^kubectl delete pod hello-world$/,xp:40,th:'Pod эфемерен — поэтому нужен Deployment.',h:['delete pod <имя>','kubectl delete pod hello-world','kubectl delete pod hello-world']},
+{id:10,m:3,t:'Deployment',task:'Создайте web-app: nginx, 3 реплики.',v:function(r){return /create deployment web-app/.test(r)&&/--image=nginx/.test(r)&&/--replicas=3/.test(r);},xp:70,th:'Deployment держит N подов через ReplicaSet.',h:['create deployment + флаги','kubectl create deployment web-app --image=nginx --replicas=3','kubectl create deployment web-app --image=nginx --replicas=3']},
+{id:11,m:3,t:'Список Deployments',task:'Выведите все деплойменты.',re:/^kubectl get (deployments|deployment|deploy)$/,xp:30,th:'READY / UP-TO-DATE / AVAILABLE.',h:['get deployments','kubectl get deployments','kubectl get deployments']},
+{id:12,m:3,t:'Describe Deployment',task:'Опишите web-app.',re:/^kubectl describe (deployment|deploy) web-app$/,xp:50,th:'Стратегия RollingUpdate, selector, ReplicaSet.',h:['describe deployment web-app','kubectl describe deployment web-app','kubectl describe deployment web-app']},
+{id:13,m:3,t:'Scale Up',task:'Поднимите web-app до 5 реплик.',re:/^kubectl scale deployment\/? ?web-app --replicas=5$/,xp:50,th:'scale — контроллер создаёт поды.',h:['scale --replicas=5','kubectl scale deployment web-app --replicas=5','kubectl scale deployment web-app --replicas=5']},
+{id:14,m:3,t:'Scale Down',task:'Опустите web-app до 2 реплик.',re:/^kubectl scale deployment\/? ?web-app --replicas=2$/,xp:50,th:'Лишним подам — SIGTERM, grace 30 с.',h:['--replicas=2','kubectl scale deployment web-app --replicas=2','kubectl scale deployment web-app --replicas=2']},
+{id:15,m:3,t:'Обновление образа',task:'Обновите web-app до nginx:1.21.',re:/^kubectl set image deployment\/web-app \S+=nginx:1\.21$/,xp:70,th:'set image — rolling update без простоя.',h:['set image deployment/<n> <c>=<img>','kubectl set image deployment/web-app nginx=nginx:1.21','kubectl set image deployment/web-app nginx=nginx:1.21']},
+{id:16,m:3,t:'Откат',task:'Откатите web-app назад.',re:/^kubectl rollout undo deployment\/? ?web-app$/,xp:60,th:'rollout history/undo/status — ревизии.',h:['rollout undo','kubectl rollout undo deployment/web-app','kubectl rollout undo deployment/web-app']},
+{id:17,m:4,t:'NodePort',task:'Откройте web-app: NodePort, порт 80.',v:function(r){return /expose deployment web-app/.test(r)&&/--port=80\b/.test(r)&&/--type=NodePort/.test(r);},xp:70,th:'NodePort — порт 30000–32767 на узлах.',h:['expose + --port + --type','kubectl expose deployment web-app --port=80 --type=NodePort','kubectl expose deployment web-app --port=80 --type=NodePort']},
+{id:18,m:4,t:'Список сервисов',task:'Выведите все сервисы.',re:/^kubectl get (services|service|svc)$/,xp:30,th:'CLUSTER-IP, TYPE, PORT(S).',h:['get services','kubectl get services','kubectl get services']},
+{id:19,m:4,t:'Describe Service',task:'Опишите сервис web-app.',re:/^kubectl describe (service|svc) web-app$/,xp:50,th:'Selector определяет поды за сервисом.',h:['describe service web-app','kubectl describe service web-app','kubectl describe service web-app']},
+{id:20,m:4,t:'Endpoints',task:'IP бэкендов web-app.',re:/^kubectl get (endpoints|ep) web-app$/,xp:50,th:'Endpoints — живые IP:port подов.',h:['get endpoints <svc>','kubectl get endpoints web-app','kubectl get endpoints web-app']},
+{id:21,m:4,t:'Второй Deployment',task:'Создайте api-server: nginx:alpine, 2 реплики.',v:function(r){return /create deployment api-server/.test(r)&&/--image=nginx:alpine/.test(r)&&/--replicas=2/.test(r);},xp:70,th:'Реальное приложение — десятки деплойментов.',h:['create deployment api-server','kubectl create deployment api-server --image=nginx:alpine --replicas=2','kubectl create deployment api-server --image=nginx:alpine --replicas=2']},
+{id:22,m:4,t:'ClusterIP',task:'Сервис api-server: 8080, ClusterIP.',v:function(r){return /expose deployment api-server/.test(r)&&/--port=8080/.test(r)&&/--type=ClusterIP/.test(r);},xp:60,th:'ClusterIP — только внутри кластера.',h:['expose --port=8080 --type=ClusterIP','kubectl expose deployment api-server --port=8080 --type=ClusterIP','kubectl expose deployment api-server --port=8080 --type=ClusterIP']},
+{id:23,m:4,t:'Удаление Service',task:'Удалите сервис web-app.',re:/^kubectl delete (service|svc) web-app$/,xp:40,th:'Поды останутся, точка входа исчезнет.',h:['delete service web-app','kubectl delete service web-app','kubectl delete service web-app']},
+{id:24,m:5,t:'Show labels',task:'Поды вместе с лейблами.',re:/^kubectl get pods --show-labels$/,xp:40,th:'Deployment помечает поды app=<имя>.',h:['--show-labels','kubectl get pods --show-labels','kubectl get pods --show-labels']},
+{id:25,m:5,t:'Фильтр -l',task:'Поды с app=web-app.',re:/^kubectl get pods -l app=web-app$/,xp:50,th:'-l фильтрует: =, !=, in.',h:['-l k=v','kubectl get pods -l app=web-app','kubectl get pods -l app=web-app']},
+{id:26,m:5,t:'Label Pod',task:'Дайте поду web-app лейбл environment=production.',re:/^kubectl label pod web-app\S* environment=production$/,xp:60,th:'Работает префикс имени.',h:['label pod <n> k=v','kubectl label pod web-app environment=production','kubectl label pod web-app environment=production']},
+{id:27,m:5,t:'Фильтр по новому',task:'Поды с environment=production.',re:/^kubectl get pods -l environment=production$/,xp:40,th:'На лейблах построены сервисы, HPA, canary.',h:['-l environment=production','kubectl get pods -l environment=production','kubectl get pods -l environment=production']},
+{id:28,m:5,t:'Label Node',task:'Пометьте worker-1: zone=eu-west.',re:/^kubectl label node worker-1 zone=eu-west$/,xp:50,th:'Лейблы узлов — для nodeSelector/affinity.',h:['label node worker-1 zone=eu-west','kubectl label node worker-1 zone=eu-west','kubectl label node worker-1 zone=eu-west']},
+{id:29,m:5,t:'Аннотации',task:'Аннотация description=main-app на pod web-app.',re:/^kubectl annotate pod web-app\S* description=main-app$/,xp:50,th:'Аннотации — метаданные, не для селекции.',h:['annotate pod <n> k=v','kubectl annotate pod web-app description=main-app','kubectl annotate pod web-app description=main-app']},
+{id:30,m:6,t:'ConfigMap',task:'app-config: DB_HOST=localhost.',v:function(r){return /create configmap app-config/.test(r)&&/--from-literal=DB_HOST=localhost/.test(r);},xp:60,th:'ConfigMap отделяет конфиг от образа.',h:['--from-literal=K=V','kubectl create configmap app-config --from-literal=DB_HOST=localhost','kubectl create configmap app-config --from-literal=DB_HOST=localhost']},
+{id:31,m:6,t:'Список CM',task:'Все configmap.',re:/^kubectl get (configmaps|configmap|cm)$/,xp:30,th:'DATA — число ключей. Алиас cm.',h:['get configmaps','kubectl get configmaps','kubectl get configmaps']},
+{id:32,m:6,t:'Describe CM',task:'Содержимое app-config.',re:/^kubectl describe (configmap|cm) app-config$/,xp:40,th:'Значения видны открыто — не для секретов.',h:['describe configmap app-config','kubectl describe configmap app-config','kubectl describe configmap app-config']},
+{id:33,m:6,t:'CM: 2 ключа',task:'db-config: DB_USER=admin и DB_PASS=secret123.',v:function(r){return /create configmap db-config/.test(r)&&/DB_USER=admin/.test(r)&&/DB_PASS=secret123/.test(r);},xp:60,th:'--from-literal повторяется сколько угодно.',h:['Два --from-literal','kubectl create configmap db-config --from-literal=DB_USER=admin --from-literal=DB_PASS=secret123','kubectl create configmap db-config --from-literal=DB_USER=admin --from-literal=DB_PASS=secret123']},
+{id:34,m:6,t:'Secret',task:'db-secret: password=value123.',v:function(r){return /create secret generic db-secret/.test(r)&&/--from-literal=password=value123/.test(r);},xp:60,th:'Значения кодируются в base64.',h:['create secret generic','kubectl create secret generic db-secret --from-literal=password=value123','kubectl create secret generic db-secret --from-literal=password=value123']},
+{id:35,m:6,t:'Список Secrets',task:'Все secrets.',re:/^kubectl get (secrets|secret)$/,xp:30,th:'Видны имя/тип/DATA, значения скрыты.',h:['get secrets','kubectl get secrets','kubectl get secrets']},
+{id:36,m:6,t:'Describe Secret',task:'Ключи и base64 db-secret.',re:/^kubectl describe secret db-secret$/,xp:50,th:'base64 — кодирование, а не шифрование!',h:['describe secret db-secret','kubectl describe secret db-secret','kubectl describe secret db-secret']},
+{id:37,m:7,t:'ImagePullBackOff',task:'Pod broken-pod с образом nginx:invalid-tag.',re:/^kubectl run broken-pod --image=nginx:invalid-tag$/,xp:70,th:'Образа нет в registry — kubelet бесконечно тянет его.',h:['run broken-pod --image=nginx:invalid-tag','kubectl run broken-pod --image=nginx:invalid-tag','kubectl run broken-pod --image=nginx:invalid-tag']},
+{id:38,m:7,t:'Диагностика',task:'Describe broken-pod — ищите Events.',re:/^kubectl describe pod broken-pod$/,xp:50,th:'"manifest not found" + Back-off — классика.',h:['describe pod broken-pod','kubectl describe pod broken-pod','kubectl describe pod broken-pod']},
+{id:39,m:7,t:'CrashLoopBackOff',task:'Pod crash-pod с busybox.',re:/^kubectl run crash-pod --image=busybox(:\S+)?$/,xp:70,th:'busybox без команды выходит сразу — рестарты по экспоненте.',h:['run crash-pod --image=busybox','kubectl run crash-pod --image=busybox','kubectl run crash-pod --image=busybox']},
+{id:40,m:7,t:'Логи краша',task:'Логи crash-pod.',re:/^kubectl logs crash-pod$/,xp:50,th:'Видно, что вывел контейнер перед смертью.',h:['logs crash-pod','kubectl logs crash-pod','kubectl logs crash-pod']},
+{id:41,m:7,t:'Уборка подов',task:'Удалите broken-pod и crash-pod разом.',v:function(r){return /^kubectl delete pod /.test(r)&&/broken-pod/.test(r)&&/crash-pod/.test(r);},xp:50,th:'Несколько имён через пробел.',h:['delete pod a b','kubectl delete pod broken-pod crash-pod','kubectl delete pod broken-pod crash-pod']},
+{id:42,m:8,t:'Top Nodes',task:'Загрузка CPU/RAM узлов.',re:/^kubectl top (nodes|node)$/,xp:60,th:'metrics-server. 1000m = 1 ядро.',h:['top nodes','kubectl top nodes','kubectl top nodes']},
+{id:43,m:8,t:'Top Pods',task:'Потребление ресурсов подами.',re:/^kubectl top (pods|pod)$/,xp:60,th:'Кто потребляет больше всех — сразу видно.',h:['top pods','kubectl top pods','kubectl top pods']},
+{id:44,m:8,t:'Под нагрузкой',task:'Поднимите web-app до 10 реплик.',re:/^kubectl scale deployment\/? ?web-app --replicas=10$/,xp:50,th:'Основа для понимания HPA.',h:['--replicas=10','kubectl scale deployment web-app --replicas=10','kubectl scale deployment web-app --replicas=10']},
+{id:45,m:8,t:'Ресурсы узла',task:'Describe worker-1: Capacity/Allocatable.',re:/^kubectl describe node worker-1$/,xp:50,th:'Allocatable = Capacity минус резерв системы.',h:['describe node worker-1','kubectl describe node worker-1','kubectl describe node worker-1']},
+{id:46,m:9,t:'Namespaces',task:'Все пространства имён.',re:/^kubectl get (namespaces|namespace|ns)$/,xp:40,th:'Изоляция имён, квоты, RBAC.',h:['get namespaces','kubectl get namespaces','kubectl get namespaces']},
+{id:47,m:9,t:'Create NS',task:'Создайте namespace development.',re:/^kubectl create (namespace|ns) development$/,xp:50,th:'ns по окружениям или командам.',h:['create namespace development','kubectl create namespace development','kubectl create namespace development']},
+{id:48,m:9,t:'kube-system',task:'Системные поды kube-system.',re:/^kubectl get pods -n kube-system$/,xp:50,th:'-n переключает namespace.',h:['-n kube-system','kubectl get pods -n kube-system','kubectl get pods -n kube-system']},
+{id:49,m:10,t:'Чистка конфигов',task:'Удалите app-config, db-config и db-secret.',v:function(r){return /^kubectl delete /.test(r)&&/configmap/.test(r)&&/app-config/.test(r)&&/db-config/.test(r)&&/secret/.test(r)&&/db-secret/.test(r);},xp:50,th:'Типы смешиваются в одной команде.',h:['delete configmap a b secret c','kubectl delete configmap app-config db-config secret db-secret','kubectl delete configmap app-config db-config secret db-secret']},
+{id:50,m:10,t:'Полная очистка',task:'Снесите все ресурсы кластера.',re:/^kubectl delete all --all( --all-namespaces|-A)?$/,xp:100,th:'delete all --all — генеральная уборка.',h:['delete all --all','kubectl delete all --all','kubectl delete all --all --all-namespaces']}
+];
+
+/* ===== LINUX ===== */
+var FS,cwd,PROCS;
+function initLinux(){
+ FS={dir:1,kids:{
+  etc:{dir:1,kids:{passwd:{data:'root:x:0:0:root:/root:/bin/bash\nnginx:x:104:110::/nonexistent:/usr/sbin/nologin\nkube:x:1000:1000::/home/kube:/bin/bash'},hostname:{data:'linux-lab'},'os-release':{data:'PRETTY_NAME="Ubuntu 22.04.3 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\nID=ubuntu'},nginx:{dir:1,kids:{'nginx.conf':{data:'worker_processes auto;\nserver { listen 80; }'}}}}},
+  home:{dir:1,kids:{kube:{dir:1,kids:{'.bashrc':{data:'export PS1="\\u@\\h:\\w$ "'}}}}},
+  root:{dir:1,kids:{'.bash_history':{data:'ls\ncd /etc\nwhoami'}}},
+  tmp:{dir:1,kids:{}},
+  var:{dir:1,kids:{log:{dir:1,kids:{syslog:{data:'Jul 31 10:00:01 linux-lab systemd[1]: Started Daily apt.\nJul 31 10:02:11 linux-lab kernel: eth0: link up'}}}}},
+  usr:{dir:1,kids:{bin:{dir:1,kids:{}}}}}};
+ cwd=['root'];
+ PROCS=[{pid:1,user:'root',cmd:'/sbin/init',cpu:0.1,mem:1.2},{pid:412,user:'root',cmd:'sshd -D',cpu:0.2,mem:0.8},{pid:4242,user:'www-data',cmd:'nginx: worker process',cpu:2.4,mem:3.1},{pid:501,user:'kube',cmd:'node_exporter',cpu:0.6,mem:1.9},{pid:777,user:'root',cmd:'-bash',cpu:0.1,mem:0.6}];
+}
+function resolve(p){if(!p||p==='.')return cwd.slice();var parts;
+ if(p.indexOf('/')===0)parts=p.split('/').filter(Boolean);
+ else if(p==='~')parts=['root'];
+ else if(p.indexOf('~/')===0)parts=['root'].concat(p.slice(2).split('/').filter(Boolean));
+ else parts=cwd.concat(p.split('/').filter(Boolean));
+ var o=[],i;for(i=0;i<parts.length;i++){var s=parts[i];if(s==='.')continue;if(s==='..')o.pop();else o.push(s);}return o;}
+function nodeAt(parts){var n=FS,i;for(i=0;i<parts.length;i++){var s=parts[i];if(!n||!n.dir||!n.kids[s])return null;n=n.kids[s];}return n;}
+function pathStr(p){return p.length?'/'+p.join('/'):'/';}
+function tok(seg){var m=seg.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)||[];return m.map(function(t){return t.replace(/^["']|["']$/g,'');});}
+function runSeg(seg,stdin){
+ var parts=tok(seg),redir=null,append=false;
+ var ri=-1,i;for(i=0;i<parts.length;i++){if(parts[i]==='>'||parts[i]==='>>'){ri=i;break;}}
+ if(ri>-1){append=parts[ri]==='>>';redir=parts[ri+1];parts=parts.slice(0,ri).concat(parts.slice(ri+2));}
+ var cmd=parts[0]||'',args=parts.slice(1);
+ function E(m){return{out:m,err:1};}
+ var o='';
+ if(cmd.indexOf('./')===0){var nm=cmd.slice(2);var snd=nodeAt(resolve(nm));
+  if(!snd||snd.dir)return E('bash: '+cmd+': No such file or directory');
+  if(!snd.x)return E('bash: '+cmd+': Permission denied');
+  var rws=[];snd.data.split('\n').forEach(function(l){l=l.trim();if(!l||l.charAt(0)==='#')return;
+   if(l.indexOf('echo ')===0){var s=l.slice(5).trim();s=s.replace(/^["']|["']$/g,'');rws.push(s);}else rws.push(l);});
+  o=rws.join('\n');
+ }else if(cmd==='whoami')o='root';
+ else if(cmd==='hostname')o='linux-lab';
+ else if(cmd==='pwd')o=pathStr(cwd);
+ else if(cmd==='date')o=new Date().toString();
+ else if(cmd==='uname')o='Linux linux-lab 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux';
+ else if(cmd==='env')o='SHELL=/bin/bash\nUSER=root\nHOME=/root\nPWD='+pathStr(cwd)+'\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\nHOSTNAME=linux-lab';
+ else if(cmd==='history')o=histC.map(function(c,i){return String(i+1).padStart(4)+'  '+c;}).join('\n');
+ else if(cmd==='ls'){var fl=args.filter(function(a){return a.charAt(0)==='-';}).join('').replace(/-/g,'');
+  var pth=null,j;for(j=0;j<args.length;j++){if(args[j].charAt(0)!=='-'){pth=args[j];break;}}
+  var p2=pth?resolve(pth):cwd.slice();var n=nodeAt(p2);
+  if(!n)return E("ls: cannot access '"+(pth||'.')+"': No such file or directory");
+  if(!n.dir){o=pth||'';}
+  else{var names=Object.keys(n.kids).sort();if(fl.indexOf('a')<0)names=names.filter(function(x){return x.charAt(0)!=='.';});
+   if(fl.indexOf('l')>-1){var r2=['total '+names.length];
+    names.forEach(function(x){var k=n.kids[x];var mode=k.dir?'drwxr-xr-x':(k.x?'-rwxr-xr-x':'-rw-r--r--');
+     r2.push(mode+'  1 root root '+String(k.dir?4096:(k.data||'').length).padStart(5)+' Jul 31 10:0'+(x.length%9)+' '+(k.dir?x+'/':x));});
+    o=r2.join('\n');}else o=names.map(function(x){return n.kids[x].dir?x+'/':x;}).join('\n');}}
+ else if(cmd==='cd'){var t=args[0];var p3=resolve(t||'~');var n3=nodeAt(p3);
+  if(!n3)return E('bash: cd: '+(t||'~')+': No such file or directory');
+  if(!n3.dir)return E('bash: cd: '+t+': Not a directory');cwd=p3;o='';}
+ else if(cmd==='mkdir'||cmd==='touch'){args.forEach(function(a){var p=resolve(a);var par=nodeAt(p.slice(0,-1));var m=p[p.length-1];
+   if(par&&par.dir&&!par.kids[m])par.kids[m]=cmd==='mkdir'?{dir:1,kids:{}}:{data:''};});o='';}
+ else if(cmd==='cat'){if(!args.length){o=stdin||'';}else{var rc=[];
+   for(var ci=0;ci<args.length;ci++){var cn=nodeAt(resolve(args[ci]));if(!cn)return E('cat: '+args[ci]+': No such file or directory');
+    if(cn.dir)return E('cat: '+args[ci]+': Is a directory');rc.push(cn.data);}o=rc.join('\n');}}
+ else if(cmd==='echo')o=args.join(' ');
+ else if(cmd==='cp'||cmd==='mv'){if(args.length<2)return E(cmd+': missing operand');
+  var sp=resolve(args[0]),src=nodeAt(sp);if(!src)return E(cmd+": cannot stat '"+args[0]+"'");
+  var dp=resolve(args[1]),dpar=nodeAt(dp.slice(0,-1)),dn=dp[dp.length-1];var dst=nodeAt(dp);
+  if(dst&&dst.dir){dpar=dst;dn=sp[sp.length-1];}
+  if(!dpar||!dpar.dir)return E(cmd+": cannot create '"+args[1]+"'");
+  dpar.kids[dn]=src.dir?{dir:1,kids:src.kids}:{data:src.data,x:src.x};
+  if(cmd==='mv'){delete nodeAt(sp.slice(0,-1)).kids[sp[sp.length-1]];}o='';}
+ else if(cmd==='rm'){var rfl=args.filter(function(a){return a.charAt(0)==='-';}).join('');var rec=rfl.indexOf('r')>-1;
+  var rnm2=args.filter(function(a){return a.charAt(0)!=='-';});if(!rnm2.length)return E('rm: missing operand');
+  for(var rri=0;rri<rnm2.length;rri++){var rp=resolve(rnm2[rri]);var rpar=nodeAt(rp.slice(0,-1));var rk=rp[rp.length-1];
+   if(!rpar||!rpar.kids[rk])return E("rm: cannot remove '"+rnm2[rri]+"'");
+   if(rpar.kids[rk].dir&&!rec)return E("rm: cannot remove '"+rnm2[rri]+"': Is a directory");delete rpar.kids[rk];}o='';}
+ else if(cmd==='grep'){var pat=args[0],gf=args[1];var gsrc=stdin;
+  if(gf){var gn=nodeAt(resolve(gf));if(!gn||gn.dir)return E('grep: '+gf+': No such file');gsrc=gn.data;}
+  o=(gsrc||'').split('\n').filter(function(l){return l.indexOf(pat)>-1;}).join('\n');}
+ else if(cmd==='wc'){var wfl=args.filter(function(a){return a.charAt(0)==='-';}).join('');var wf=null,wj;
+  for(wj=0;wj<args.length;wj++){if(args[wj].charAt(0)!=='-'){wf=args[wj];break;}}
+  var wsrc=stdin,wnm='';if(wf){var wn=nodeAt(resolve(wf));if(!wn||wn.dir)return E('wc: '+wf+': No such file');wsrc=wn.data;wnm=' '+wf;}
+  wsrc=wsrc||'';var ln=wsrc?wsrc.split('\n').length:0,w=wsrc?wsrc.split(/\s+/).filter(Boolean).length:0;
+  o=wfl.indexOf('l')>-1?String(ln)+wnm:wfl.indexOf('w')>-1?String(w)+wnm:ln+' '+w+' '+wsrc.length+wnm;}
+ else if(cmd==='head'||cmd==='tail'){var hn=10,hf=null;
+  for(var hi=0;hi<args.length;hi++){if(args[hi]==='-n')hn=parseInt(args[++hi])||10;else if(args[hi].indexOf('-n')===0)hn=parseInt(args[hi].slice(2))||10;else hf=args[hi];}
+  var hsrc=stdin;if(hf){var hnd=nodeAt(resolve(hf));if(!hnd||hnd.dir)return E(cmd+': '+hf+': No such file');hsrc=hnd.data;}
+  var hls=(hsrc||'').split('\n');o=(cmd==='head'?hls.slice(0,hn):hls.slice(-hn)).join('\n');}
+ else if(cmd==='find'){var fstart=args[0]||'.';var fni=args.indexOf('-name');var fpat=fni>-1?(args[fni+1]||''):null;
+  var fp=resolve(fstart);var fn=nodeAt(fp);if(!fn)return E("find: '"+fstart+"': No such file or directory");
+  var frex=fpat?new RegExp('^'+fpat.replace(/[.+?^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*')+'$'):null;var fres=[];
+  (function w(p,node){Object.keys(node.kids||{}).forEach(function(k){var v=node.kids[k];var q=p.concat([k]);
+   if(!frex||frex.test(k))fres.push(pathStr(q));if(v.dir)w(q,v);});})(fp,fn);o=fres.join('\n');}
+ else if(cmd==='chmod'){var chf=args[1];var chn=nodeAt(resolve(chf));if(!chn)return E("chmod: cannot access '"+chf+"'");chn.x=1;o='';}
+ else if(cmd==='ps'){var psr=['USER       PID %CPU %MEM COMMAND'];
+  PROCS.forEach(function(p){psr.push(p.user.padEnd(9)+String(p.pid).padStart(5)+' '+p.cpu.toFixed(1).padStart(4)+' '+p.mem.toFixed(1).padStart(4)+' '+p.cmd);});o=psr.join('\n');}
+ else if(cmd==='top'){var tr=['top - up 5 days, load average: 0.42, 0.31, 0.27','Tasks: '+(PROCS.length+3)+' total, 1 running, '+(PROCS.length+2)+' sleeping','%Cpu(s): 6.2 us, 2.1 sy, 90.9 id','MiB Mem : 7954.2 total, 3841.5 free, 2113.4 used','','  PID USER      %CPU  %MEM COMMAND'];
+  PROCS.slice().sort(function(a,b){return b.cpu-a.cpu;}).forEach(function(p){tr.push(String(p.pid).padStart(5)+' '+p.user.padEnd(9)+p.cpu.toFixed(1).padStart(5)+'  '+p.mem.toFixed(1).padStart(5)+' '+p.cmd);});o=tr.join('\n');}
+ else if(cmd==='kill'){var kpid=parseInt(args[0]);if(isNaN(kpid))return E('kill: usage: kill pid');
+  var ki=-1,kk;for(kk=0;kk<PROCS.length;kk++){if(PROCS[kk].pid===kpid){ki=kk;break;}}
+  if(ki<0)return E('bash: kill: ('+kpid+') - No such process');
+  toast('Процесс '+kpid+' завершён','ok');PROCS.splice(ki,1);o='';}
+ else if(cmd==='df')o='Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        40G  8.2G   30G  22% /\ntmpfs           3.9G     0  3.9G   0% /dev/shm\n/dev/sdb        100G   41G   55G  43% /var/lib/docker';
+ else if(cmd==='free')o='               total        used        free      buff/cache   available\nMem:            7954        2113        3841        1999        5480\nSwap:           2047           0        2047';
+ else if(cmd==='man'){var MAN={ls:'LS(1) — list directory. -l long, -a hidden',cd:'CD(1) — change dir. cd .. up, cd ~ home',cat:'CAT(1) — print file',grep:'GREP(1) — matching lines',chmod:'CHMOD(1) — +x execute bit',rm:'RM(1) — remove. -rf recursive. Опасно!',find:'FIND(1) — search by name',ps:'PS(1) — process snapshot',kill:'KILL(1) — SIGTERM, -9 SIGKILL'};
+  o=MAN[args[0]]||'No manual entry for '+(args[0]||'');}
+ else return E('bash: '+cmd+': command not found');
+ if(redir){var rp2=resolve(redir);var rpar2=nodeAt(rp2.slice(0,-1));var rk2=rp2[rp2.length-1];
+  if(!rpar2||!rpar2.dir)return E('bash: '+redir+': No such file or directory');
+  var ex=rpar2.kids[rk2];rpar2.kids[rk2]=(ex&&!ex.dir)?{data:append?((ex.data?ex.data+'\n':'')+o):o,x:ex.x}:{data:o};return{out:''};}
+ return{out:o};
+}
+function execLinux(raw){var t=raw.trim();
+ if(/^kubectl\b/.test(t))return{t:'bash: kubectl: command not found — это Linux-терминал, курс K8s во вкладке ☸',c:'t-err'};
+ if(t==='clear'){clearTerm();return null;}
+ var segs=t.split('|').map(function(s){return s.trim();}).filter(Boolean);var stdin='',last=null,si;
+ for(si=0;si<segs.length;si++){last=runSeg(segs[si],stdin);if(last.err){renderLinux();return{t:last.out,c:'t-err'};}stdin=last.out;}
+ renderLinux();return last&&stdin?stdin:null;}
+var LM=[{id:1,n:'Старт',c:'var(--tr-accent)'},{id:2,n:'Навигация',c:'var(--tr-ok)'},{id:3,n:'Файлы',c:'var(--tr-accent2)'},{id:4,n:'Текст и пайпы',c:'var(--tr-cyan)'},{id:5,n:'Права',c:'var(--tr-warn)'},{id:6,n:'Процессы',c:'var(--tr-err)'},{id:7,n:'Система',c:'var(--tr-accent2-dim)'},{id:8,n:'Финал',c:'var(--tr-orange)'}];
+var LL=[
+{id:1,m:1,t:'Кто я?',task:'Узнайте текущего пользователя.',re:/^whoami$/,xp:20,th:'whoami — имя пользователя. Вы — root.',h:['Одно слово','whoami','whoami']},
+{id:2,m:1,t:'Где я?',task:'Выведите текущий каталог.',re:/^pwd$/,xp:20,th:'pwd — абсолютный путь. Дом root — /root.',h:['print working directory','pwd','pwd']},
+{id:3,m:1,t:'Что вокруг?',task:'Содержимое текущего каталога.',re:/^ls$/,xp:25,th:'ls — файлы и каталоги.',h:['list','ls','ls']},
+{id:4,m:1,t:'Все детали',task:'Подробный список со скрытыми файлами.',re:/^ls -(la|al)$/,xp:30,th:'-l — права/размер, -a — скрытые (.bashrc).',h:['-l + -a','ls -la','ls -la']},
+{id:5,m:2,t:'В /etc',task:'Перейдите в /etc.',re:/^cd \/etc$/,xp:25,th:'/etc — конфигурация всей системы.',h:['cd + путь','cd /etc','cd /etc']},
+{id:6,m:2,t:'Наверх',task:'Вернитесь на уровень выше.',re:/^cd \.\.$/,xp:20,th:'.. — родительский каталог.',h:['cd ..','cd ..','cd ..']},
+{id:7,m:2,t:'Домой',task:'Вернитесь домой.',re:/^cd( ~)?$/,xp:20,th:'cd без аргументов ведёт в ~.',h:['просто cd','cd','cd']},
+{id:8,m:2,t:'Песочница',task:'Создайте каталог sandbox.',re:/^mkdir sandbox$/,xp:25,th:'mkdir создаёт каталог.',h:['mkdir <имя>','mkdir sandbox','mkdir sandbox']},
+{id:9,m:3,t:'Пустой файл',task:'Создайте hello.txt.',re:/^touch hello\.txt$/,xp:25,th:'touch создаёт пустой файл.',h:['touch <файл>','touch hello.txt','touch hello.txt']},
+{id:10,m:3,t:'Запись',task:'Запишите Hello, Linux! в hello.txt через >.',v:function(r){return /^echo /.test(r)&&/Hello/.test(r)&&/>/.test(r)&&!/>>/.test(r)&&/hello\.txt/.test(r);},xp:35,th:'> перезаписывает файл выводом.',h:['echo "..." > файл','echo "Hello, Linux!" > hello.txt','echo "Hello, Linux!" > hello.txt']},
+{id:11,m:3,t:'Чтение',task:'Выведите содержимое hello.txt.',re:/^cat hello\.txt$/,xp:20,th:'cat печатает файл.',h:['cat <файл>','cat hello.txt','cat hello.txt']},
+{id:12,m:3,t:'Копия',task:'Скопируйте hello.txt в hello-copy.txt.',re:/^cp hello\.txt hello-copy\.txt$/,xp:25,th:'cp копирует, cp -r — каталоги.',h:['cp <откуда> <куда>','cp hello.txt hello-copy.txt','cp hello.txt hello-copy.txt']},
+{id:13,m:3,t:'Перенос',task:'Переименуйте hello-copy.txt в backup.txt.',re:/^mv hello-copy\.txt backup\.txt$/,xp:25,th:'mv перемещает и переименовывает.',h:['mv <старое> <новое>','mv hello-copy.txt backup.txt','mv hello-copy.txt backup.txt']},
+{id:14,m:3,t:'Удаление',task:'Удалите backup.txt.',re:/^rm backup\.txt$/,xp:25,th:'rm — безвозвратно, корзины нет.',h:['rm <файл>','rm backup.txt','rm backup.txt']},
+{id:15,m:4,t:'Дозапись',task:'Допишите Second line в hello.txt через >>.',v:function(r){return /^echo /.test(r)&&/Second/.test(r)&&/>>/.test(r)&&/hello\.txt/.test(r);},xp:30,th:'>> дописывает в конец.',h:['>> — append','echo "Second line" >> hello.txt','echo "Second line" >> hello.txt']},
+{id:16,m:4,t:'grep',task:'Найдите root в /etc/passwd.',re:/^grep root \/etc\/passwd$/,xp:35,th:'grep фильтрует строки по шаблону.',h:['grep <шаблон> <файл>','grep root /etc/passwd','grep root /etc/passwd']},
+{id:17,m:4,t:'Пайп',task:'Посчитайте файлы в /etc: ls /etc | wc -l.',v:function(r){return /ls \/etc/.test(r)&&/\|/.test(r)&&/wc -l/.test(r);},xp:40,th:'| передаёт вывод на вход другой команде.',h:['cmd1 | cmd2','ls /etc | wc -l','ls /etc | wc -l']},
+{id:18,m:4,t:'head',task:'Первые 2 строки /etc/passwd.',re:/^head -n 2 \/etc\/passwd$/,xp:25,th:'head — начало, tail — конец.',h:['head -n 2','head -n 2 /etc/passwd','head -n 2 /etc/passwd']},
+{id:19,m:4,t:'find',task:'Найдите passwd в /etc.',re:/^find \/etc -name "?passwd"?$/,xp:30,th:'find рекурсивно ищет по имени.',h:['find <путь> -name <имя>','find /etc -name passwd','find /etc -name passwd']},
+{id:20,m:5,t:'Скрипт',task:'Создайте script.sh с командой echo "I am alive!".',v:function(r){return /^echo /.test(r)&&/I am alive/.test(r)&&/>/.test(r)&&!/>>/.test(r)&&/script\.sh/.test(r);},xp:35,th:'Скрипт — файл с командами.',h:['echo ... > script.sh','echo \'echo "I am alive!"\' > script.sh','echo \'echo "I am alive!"\' > script.sh']},
+{id:21,m:5,t:'chmod +x',task:'Сделайте script.sh исполняемым.',re:/^chmod \+x script\.sh$/,xp:35,th:'+x — бит исполнения.',h:['chmod +x <файл>','chmod +x script.sh','chmod +x script.sh']},
+{id:22,m:5,t:'Запуск!',task:'Запустите ./script.sh',re:/^\.\/script\.sh$/,xp:40,th:'./ — запуск из текущего каталога.',h:['./script.sh','./script.sh','./script.sh']},
+{id:23,m:6,t:'Процессы',task:'Полный список процессов.',re:/^ps aux$/,xp:30,th:'PID, владелец, CPU%, MEM%, команда.',h:['ps aux','ps aux','ps aux']},
+{id:24,m:6,t:'top',task:'Откройте монитор процессов.',re:/^top$/,xp:30,th:'load average, память, топ по CPU.',h:['top','top','top']},
+{id:25,m:6,t:'kill',task:'Завершите nginx (PID 4242).',re:/^kill 4242$/,xp:35,th:'SIGTERM мягко, -9 — немедленно.',h:['kill <PID>','kill 4242','kill 4242']},
+{id:26,m:6,t:'Диски',task:'Использование дисков.',re:/^df -h$/,xp:25,th:'df -h — место по ФС в Gi.',h:['df -h','df -h','df -h']},
+{id:27,m:7,t:'Память',task:'Использование памяти.',re:/^free -m$/,xp:25,th:'total/used/free в MiB.',h:['free -m','free -m','free -m']},
+{id:28,m:7,t:'О системе',task:'Ядро и архитектура.',re:/^uname -a$/,xp:25,th:'Ubuntu 22.04, ядро 5.15, x86_64.',h:['uname -a','uname -a','uname -a']},
+{id:29,m:7,t:'Окружение',task:'Переменные окружения.',re:/^env$/,xp:25,th:'PATH — где bash ищет команды.',h:['env','env','env']},
+{id:30,m:8,t:'Уборка',task:'Удалите sandbox со всем содержимым.',re:/^rm -rf sandbox$/,xp:35,th:'rm -rf — рекурсивно и без вопросов.',h:['rm -rf <каталог>','rm -rf sandbox','rm -rf sandbox']},
+{id:31,m:8,t:'Итог',task:'История всех команд.',re:/^history$/,xp:30,th:'!N повторит команду N. Базовый Linux пройден!',h:['history','history','history']}
+];
+
+/* ===== OTHER COURSES ===== */
+var NET={dns:{'ya.ru':'87.250.250.247','google.com':'142.250.190.46','github.com':'140.82.121.4','ifconfig.me':'34.120.54.55','8.8.8.8':'8.8.8.8'},ports:[[22,'sshd'],[80,'nginx'],[5432,'postgres']]};
+function exNet(raw){var tk=raw.trim().split(/\s+/),c=tk[0],a=tk.slice(1);
+ if(c==='ip')return a[0]==='route'?'default via 10.0.0.1 dev eth0 proto dhcp metric 100\n10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.5':'1: lo: <LOOPBACK,UP> mtu 65536\n    inet 127.0.0.1/8 scope host lo\n2: eth0: <BROADCAST,UP> mtu 1500\n    inet 10.0.0.5/24 brd 10.0.0.255';
+ if(c==='ping'){var ip=NET.dns[a[0]]||(/^\d+\.\d+\.\d+\.\d+$/.test(a[0]||'')?a[0]:null);
+  if(!ip)return{t:'ping: '+(a[0]||'')+': Name or service not known',c:'t-err'};
+  later(['PING '+a[0]+' ('+ip+') 56(84) bytes of data.','64 bytes from '+ip+': icmp_seq=1 ttl=57 time='+(9+Math.random()*18).toFixed(1)+' ms','64 bytes from '+ip+': icmp_seq=2 ttl=57 time='+(9+Math.random()*18).toFixed(1)+' ms','64 bytes from '+ip+': icmp_seq=3 ttl=57 time='+(9+Math.random()*18).toFixed(1)+' ms','--- '+a[0]+' ping statistics ---\n3 packets transmitted, 3 received, 0% packet loss'],260);return null;}
+ if(c==='traceroute'){var th2=a[0]||'8.8.8.8';var tip=NET.dns[th2]||'216.58.209.206';
+  later(['traceroute to '+th2+' ('+tip+'), 30 hops max','1  10.0.0.1  0.4 ms','2  72.14.216.13  3.1 ms','3  72.14.233.46  5.8 ms','4  142.250.168.2  8.2 ms','5  '+tip+'  9.4 ms'],240);return null;}
+ if(c==='dig'||c==='nslookup'){var dh=a[0]||'ya.ru';var dip=NET.dns[dh];
+  return c==='dig'?'; <<>> DiG 9.18 <<>> '+dh+'\n;; QUESTION SECTION:\n;'+dh+'.\t\tIN\tA\n\n;; ANSWER SECTION:\n'+dh+'.\t300\tIN\tA\t'+(dip||'— no record —')+'\n\n;; Query time: 12 msec\n;; SERVER: 10.0.0.1#53':'Server:\t\t10.0.0.1\nAddress:\t10.0.0.1#53\n\nNon-authoritative answer:\nName:\t'+dh+'\nAddress: '+(dip||'—');}
+ if(c==='curl'){var cI=a.indexOf('-I')>-1;var url='';var ui;for(ui=0;ui<a.length;ui++){if(a[ui].charAt(0)!=='-'){url=a[ui];break;}}
+  var chost=url.replace(/^https?:\/\//,'').split('/')[0];var cip=NET.dns[chost]||(/^\d+\.\d+\.\d+\.\d+$/.test(chost)?chost:null);
+  if(!cip)return{t:'curl: (6) Could not resolve host: '+chost,c:'t-err'};
+  if(chost==='ifconfig.me')return'34.120.54.55';
+  return cI?'HTTP/2 200\nserver: nginx/1.25.3\ndate: Fri, 31 Jul 2026 10:15:00 GMT\ncontent-type: text/html; charset=UTF-8\ncontent-length: 4832\ncache-control: max-age=3600':'<!DOCTYPE html>\n<html><head><title>'+chost+'</title></head>\n<body><h1>Welcome to '+chost+'</h1><p>It works!</p></body></html>\n\n[HTTP 200 · 4.8 KB · '+(30+Math.random()*90).toFixed(0)+' ms]';}
+ if(c==='ss'||c==='netstat')return'Netid  State   Local Address:Port     Process\n'+NET.ports.map(function(p){return 'tcp    LISTEN  0.0.0.0:'+p[0]+'              users:(("'+p[1]+'",pid='+(400+p[0]*7)+'))';}).join('\n');
+ return{t:'bash: '+c+': command not found',c:'t-err'};}
+var GIT={init:false,files:{'index.html':'<h1>App</h1>','style.css':'body{margin:0}'},staged:{},branch:'main',branches:{main:[]},remote:null};
+function exGit(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]!=='git')return{t:'bash: '+tk[0]+': command not found — здесь работаем с git',c:'t-err'};
+ var c=tk[1],a=tk.slice(2);
+ if(c==='init'){GIT.init=true;return{t:'Initialized empty Git repository in /home/dev/app/.git/',c:'t-ok'};}
+ if(!GIT.init)return{t:'fatal: not a git repository (or any of the parent directories): .git',c:'t-err'};
+ var commits=GIT.branches[GIT.branch];
+ if(c==='status'){var st=Object.keys(GIT.staged);
+  var un=Object.keys(GIT.files).filter(function(f){var inC=commits.some(function(cm){return cm.files[f];});return !inC&&!GIT.staged[f];});
+  return'On branch '+GIT.branch+'\n'+(st.length?'Changes to be committed:\n'+st.map(function(f){return '  new file:   '+f;}).join('\n'):'')+(un.length?(st.length?'\n':'')+'Untracked files:\n'+un.map(function(f){return '  '+f;}).join('\n'):'')+((!st.length&&!un.length)?'nothing to commit, working tree clean':'');}
+ if(c==='add'){if(a[0]==='.'){Object.keys(GIT.files).forEach(function(f){GIT.staged[f]=GIT.files[f];});}
+  else{if(!GIT.files[a[0]])return{t:"fatal: pathspec '"+a[0]+"' did not match any files",c:'t-err'};GIT.staged[a[0]]=GIT.files[a[0]];}return null;}
+ if(c==='commit'){var m=(raw.match(/-m\s+["']?(.+?)["']?$/)||[])[1]||'commit';
+  if(!Object.keys(GIT.staged).length)return{t:'nothing to commit, working tree clean',c:'t-dim'};
+  var hh='a1b2c3d'+R(3);commits.push({h:hh,m:m,files:{}});Object.keys(GIT.staged).forEach(function(k){commits[commits.length-1].files[k]=1;});GIT.staged={};
+  return{t:'['+GIT.branch+' '+hh.slice(0,7)+'] '+m,c:'t-ok'};}
+ if(c==='log'){if(!commits.length)return{t:"fatal: branch '"+GIT.branch+"' has no commits yet",c:'t-err'};
+  return commits.slice().reverse().map(function(cm){return a.indexOf('--oneline')>-1?cm.h.slice(0,7)+' '+cm.m:'commit '+cm.h+'\nAuthor: dev <dev@app.io>\n\n    '+cm.m;}).join('\n');}
+ if(c==='branch'){if(!a[0])return Object.keys(GIT.branches).map(function(b){return (b===GIT.branch?'* ':'  ')+b;}).join('\n');
+  if(GIT.branches[a[0]])return{t:"fatal: a branch named '"+a[0]+"' already exists",c:'t-err'};
+  GIT.branches[a[0]]=commits.slice();return{t:"Branch '"+a[0]+"' created from "+GIT.branch,c:'t-ok'};}
+ if(c==='checkout'||c==='switch'){var b=null,bi;for(bi=0;bi<a.length;bi++){if(a[bi]!=='-b'){b=a[bi];break;}}
+  if(!GIT.branches[b])return{t:"error: pathspec '"+b+"' did not match any branch",c:'t-err'};
+  GIT.branch=b;return{t:"Switched to branch '"+b+"'",c:'t-ok'};}
+ if(c==='merge'){var mb=a[0];if(!GIT.branches[mb])return{t:'merge: '+mb+' - not something we can merge',c:'t-err'};
+  var before=commits.length;GIT.branches[GIT.branch]=commits.concat(GIT.branches[mb].slice(before));
+  return{t:'Fast-forward\n '+GIT.branches[mb].slice(before).map(function(cm){return cm.m;}).join('\n '),c:'t-ok'};}
+ if(c==='remote'){if(a[0]==='add'){GIT.remote=a[2];return null;}
+  return GIT.remote?'origin\t'+GIT.remote+' (fetch)\norigin\t'+GIT.remote+' (push)':'(no remotes)';}
+ if(c==='push'){if(!GIT.remote)return{t:'fatal: No configured push destination.',c:'t-err'};
+  later(['Enumerating objects: 5, done.','Counting objects: 100% (5/5), done.','Writing objects: 100% (3/3), 320 bytes | 320.00 KiB/s, done.','To '+GIT.remote,"   a1b2c3d..e4f5a6b  "+GIT.branch+' -> '+GIT.branch,"branch '"+GIT.branch+"' set up to track 'origin/"+GIT.branch+"'."],220);return null;}
+ return{t:"git: '"+c+"' is not a git command.",c:'t-err'};}
+var DK={images:[],ct:[],df:'FROM nginx:alpine\nCOPY index.html /usr/share/nginx/html/\nEXPOSE 80'};
+function exDocker(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]!=='docker')return{t:'bash: '+tk[0]+': command not found',c:'t-err'};
+ var c=tk[1],a=tk.slice(2);
+ function img(n,t){var i;for(i=0;i<DK.images.length;i++){if(DK.images[i].n===n&&DK.images[i].t===(t||'latest'))return DK.images[i];}return null;}
+ if(c==='pull'){var sp=(a[0]||'nginx').split(':');
+  if(img(sp[0],sp[1]))return{t:'Status: image is up to date for '+a[0],c:'t-dim'};
+  later(['Pulling from library/'+sp[0],'Pulling fs layer 3d24ee258b9d','Downloading [=====>    ] 4.2MB/14.2MB','Pull complete','Digest: sha256:'+R(12),'Status: Downloaded newer image for '+sp[0]+':'+(sp[1]||'latest')],240);
+  DK.images.push({n:sp[0],t:sp[1]||'latest',size:Math.round(40+Math.random()*100)});return null;}
+ if(c==='images')return'REPOSITORY   TAG       IMAGE ID       SIZE\n'+(DK.images.map(function(i){return i.n.padEnd(13)+i.t.padEnd(10)+R(6).padEnd(15)+i.size+'MB';}).join('\n')||'(пусто — docker pull nginx)');
+ if(c==='run'){var ni=a.indexOf('--name');var name=ni>-1?a[ni+1]:'ct-'+R(3);
+  var pI=a.indexOf('-p');var port=pI>-1?a[pI+1]:null;
+  var im=a[a.length-1]||'';var isp=im.split(':');
+  if(!img(isp[0],isp[1]))return{t:"Unable to find image '"+im+"' locally\ndocker: Error response from daemon: pull access denied for "+isp[0]+'.',c:'t-err'};
+  var di;for(di=0;di<DK.ct.length;di++){if(DK.ct[di].name===name)return{t:'docker: Error: container name "/'+name+'" already in use.',c:'t-err'};}
+  DK.ct.push({name:name,image:im,st:'Up',ports:port});return{t:R(12)+'a1b2\n'+name+' started ('+im+')',c:'t-ok'};}
+ if(c==='ps'){var all=a.indexOf('-a')>-1;var list=DK.ct.filter(function(x){return all||x.st==='Up';});
+  return'CONTAINER ID   IMAGE          STATUS                 NAMES\n'+(list.map(function(x){return R(6).padEnd(15)+x.image.padEnd(15)+(x.st==='Up'?'Up 2 minutes':'Exited (0) 1 min ago').padEnd(23)+x.name;}).join('\n')||'(нет контейнеров)');}
+ if(c==='logs'){var li,lc=null;for(li=0;li<DK.ct.length;li++){if(DK.ct[li].name===a[0])lc=DK.ct[li];}
+  if(!lc)return{t:'Error: No such container: '+a[0],c:'t-err'};
+  return'/docker-entrypoint.sh: Configuration complete\n[notice] nginx/1.25.3\n172.17.0.1 - - "GET / HTTP/1.1" 200 615';}
+ if(c==='exec'){var en=null,ei2;for(ei2=0;ei2<a.length;ei2++){if(a[ei2].charAt(0)!=='-'){en=a[ei2];break;}}
+  var ec=null,ei3;for(ei3=0;ei3<DK.ct.length;ei3++){if(DK.ct[ei3].name===en)ec=DK.ct[ei3];}
+  if(!ec||ec.st!=='Up')return{t:'Error: container not running',c:'t-err'};
+  var ecmd=a.slice(a.indexOf('--')+1).join(' ');
+  return ecmd==='env'?'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\nHOSTNAME='+ec.name+'\nNGINX_VERSION=1.25.3\nHOME=/root':'bin  dev  etc  home  lib  proc  root  sys  usr  var';}
+ if(c==='stop'||c==='rm'){var xi,xf=-1;for(xi=0;xi<DK.ct.length;xi++){if(DK.ct[xi].name===a[0])xf=xi;}
+  if(xf<0)return{t:'Error: No such container: '+a[0],c:'t-err'};
+  if(c==='stop'){DK.ct[xf].st='Exited';}else{DK.ct.splice(xf,1);}return{t:a[0],c:'t-ok'};}
+ if(c==='build'){var tI=a.indexOf('-t');var tag=a[tI+1];
+  later(['[+] Building 2.4s (6/6) FINISHED',' => [internal] load build definition from Dockerfile',' => [1/2] FROM nginx:alpine',' => [2/2] COPY index.html /usr/share/nginx/html/',' => exporting to image',' => => naming to docker.io/library/'+tag,'Successfully tagged '+tag+':latest'],200);
+  DK.images.push({n:tag,t:'latest',size:43});return null;}
+ return{t:"docker: '"+c+"' is not a docker command.",c:'t-err'};}
+var AU={scripts:{},cron:[],inv:['web-1','web-2','db-1']};
+function exAuto(raw){var t=raw.trim();
+ if(t.indexOf('crontab')===0){
+  if(t.indexOf('-l')>-1)return AU.cron.length?AU.cron.map(function(c){return '# m h dom mon dow  command\n'+c;}).join('\n'):'no crontab for dev';
+  var cm=t.match(/crontab add ["'](.+)["']/);
+  if(cm){AU.cron.push(cm[1]);return{t:'crontab: installing new crontab',c:'t-ok'};}
+  return{t:'usage: crontab -l | crontab add "0 2 * * * /opt/script.sh"',c:'t-dim'};}
+ if(t.indexOf('ansible-playbook')===0||t.indexOf('ansible')===0&&t.indexOf(' -m ')>-1){return{t:'Для Ansible теперь есть отдельный курс — вкладка A ANSIBLE 🙂',c:'t-dim'};}
+ var r=runSeg(t,'');
+ if(r.err)return{t:r.out,c:'t-err'};
+ if(/^chmod \+x/.test(t)){var cf=t.split(/\s+/)[2];if(AU.scripts[cf]!==undefined)AU.scripts[cf]=1;}
+ if(t.indexOf('./')===0){var sf=t.slice(2).split(' ')[0];
+  if(AU.scripts[sf]===undefined)return{t:'bash: ./'+sf+': No such file or directory',c:'t-err'};
+  if(!AU.scripts[sf])return{t:'bash: ./'+sf+': Permission denied',c:'t-err'};
+  return{t:'[backup] '+new Date().toISOString()+' — архив /var/www создан: /backup/www-'+R(6)+'.tar.gz (14 MB)',c:'t-ok'};}
+ var em=t.match(/^echo .*>\s*(\S+\.sh)/);if(em&&AU.scripts[em[1]]===undefined)AU.scripts[em[1]]=0;
+ return r.out||null;}
+var CI={yml:'stages:\n  - build\n  - test\n  - deploy\n\nbuild:\n  stage: build\n  script:\n    - docker build -t app:$CI_COMMIT_SHA .\n\ntest:\n  stage: test\n  script:\n    - pytest tests/ -v\n\ndeploy:\n  stage: deploy\n  script:\n    - kubectl apply -f k8s/\n  when: manual',runs:[],fixed:false};
+function ciRun(retry){
+ var id=CI.runs.length+1;var run={id:id,st:'running',jobs:{build:'pending',test:'pending',deploy:'pending'}};CI.runs.push(run);
+ out('Created pipeline #'+id+' for branch main','t-ok');
+ setTimeout(function(){run.jobs.build='passed';out('build   ✔ passed   (12s)','t-ok');},700);
+ setTimeout(function(){
+  if(!CI.fixed&&!retry){run.jobs.test='failed';run.st='failed';
+   out('test    ✘ failed   (4s)\n  FAILED tests/test_api.py::test_health\n  AssertionError: expected 200, got 500','t-err');
+   out('Pipeline #'+id+' failed. Почините тесты: ci fix, затем ci retry','t-dim');}
+  else{run.jobs.test='passed';out('test    ✔ passed   (9s)','t-ok');
+   setTimeout(function(){run.jobs.deploy='passed';run.st='success';out('deploy  ✔ passed   (6s)\nPipeline #'+id+' passed 🎉','t-ok');},900);}
+ },1500);}
+function exCi(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]==='cat')return CI.yml;
+ if(tk[0]==='ci'){var sub=tk[1];
+  if(sub==='validate')return{t:'Validating .gitlab-ci.yml...\n✔ syntax OK\n✔ stages: build → test → deploy\n✔ 3 jobs defined',c:'t-ok'};
+  if(sub==='run'){ciRun(false);return null;}
+  if(sub==='retry'){if(!CI.runs.length)return{t:'no pipeline to retry',c:'t-dim'};ciRun(true);return null;}
+  if(sub==='status'){var ls=CI.runs[CI.runs.length-1];
+   if(!ls)return{t:'No pipelines yet. Запустите: ci run',c:'t-dim'};
+   return'Pipeline #'+ls.id+'  ['+ls.st.toUpperCase()+']\n  build   '+ls.jobs.build+'\n  test    '+ls.jobs.test+'\n  deploy  '+ls.jobs.deploy;}
+  if(sub==='logs'){var ll=CI.runs[CI.runs.length-1];var j=tk[2];
+   if(!ll||!ll.jobs[j])return{t:'job not found',c:'t-err'};
+   return j==='test'?'$ pytest tests/ -v\ncollected 3 items\ntests/test_api.py::test_users PASSED\ntests/test_api.py::test_login PASSED\ntests/test_api.py::test_health '+(ll.jobs.test==='passed'?'PASSED\n3 passed in 0.42s':'FAILED\n2 passed, 1 failed in 0.38s'):j==='build'?'$ docker build -t app:sha .\nStep 1/3 : FROM python:3.11-slim\nSuccessfully built 4f2a91c':'$ kubectl apply -f k8s/\ndeployment.apps/app configured\nservice/app unchanged';}
+  if(sub==='fix'){CI.fixed=true;return{t:'tests/test_api.py: моки обновлены, test_health теперь проходит ✔',c:'t-ok'};}
+  if(sub==='history')return CI.runs.length?CI.runs.map(function(r){return '#'+r.id+'  '+r.st.toUpperCase()+'  main  2 hours ago';}).join('\n'):'no pipelines';
+  return{t:'ci: unknown command '+sub,c:'t-err'};}
+ return{t:'bash: '+tk[0]+': command not found',c:'t-err'};}
+var OB={alerts:[{n:'HighLoad',sev:'warning',st:'firing',q:'node_load1 > 2'},{n:'DownTarget',sev:'critical',st:'resolved',q:'up == 0'}]};
+function exObs(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]==='prom'){var q=raw.slice(5).replace(/["']/g,'').trim();
+  if(/^up$/.test(q))return'# TYPE up gauge\nup{instance="web-1:9100",job="node"} 1\nup{instance="web-2:9100",job="node"} 1\nup{instance="db-1:9100",job="node"} 1';
+  if(/node_load1/.test(q))return'# TYPE node_load1 gauge\nnode_load1{instance="web-1"} 2.41\nnode_load1{instance="web-2"} 0.87\nnode_load1{instance="db-1"} 1.12';
+  if(/rate\(http_requests_total/.test(q))return'# rate http_requests_total[5m]\n{handler="/api/users",code="200"} 142.7 req/s\n{handler="/api/orders",code="200"} 88.1 req/s\n{handler="/api/users",code="500"} 3.9 req/s';
+  if(/container_memory/.test(q))return'# container_memory_usage_bytes\n{pod="app-7d4f-abc12"} 268435456 (256Mi)\n{pod="app-7d4f-def34"} 241172480 (230Mi)\n{pod="postgres-0"} 536870912 (512Mi)';
+  return{t:'# no data for query: '+q,c:'t-dim'};}
+ if(tk[0]==='alerts'){
+  if(tk[1]==='ack'){var ai;for(ai=0;ai<OB.alerts.length;ai++){if(OB.alerts[ai].st==='firing')OB.alerts[ai].st='acknowledged';}
+   return{t:'alert '+(tk[2]||'')+' acknowledged by dev',c:'t-ok'};}
+  return'ALERT          STATE          SEVERITY   QUERY\n'+OB.alerts.map(function(a){return a.n.padEnd(15)+a.st.padEnd(15)+a.sev.padEnd(10)+a.q;}).join('\n');}
+ if(tk[0]==='journalctl'){var u='nginx',ui4=tk.indexOf('-u');if(ui4>-1&&tk[ui4+1])u=tk[ui4+1];
+  return'-- Journal begins at Fri 2026-07-31 06:00:00 UTC --\nJul 31 10:00:01 web-1 '+u+'[412]: Started '+u+' service\nJul 31 10:02:11 web-1 '+u+'[412]: worker process 812 started\nJul 31 10:05:42 web-1 '+u+'[412]: GET /api/users 200 12ms\nJul 31 10:06:03 web-1 '+u+'[412]: upstream timed out (110)';}
+ if(tk[0]==='grep')return'app.log:1412 [ERROR] db pool exhausted, retry in 500ms\napp.log:1489 [ERROR] db pool exhausted, retry in 500ms\napp.log:1502 [ERROR] request timeout after 3000ms: GET /api/orders';
+ return{t:'bash: '+tk[0]+': command not found',c:'t-err'};}
+var OP={svcs:[{n:'nginx',a:false,e:false},{n:'postgres',a:true,e:true},{n:'sshd',a:true,e:true},{n:'cron',a:true,e:true}],users:['root','ubuntu']};
+function exOps(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]==='systemctl'){var act=tk[1],n=tk[2];
+  var s=null,si2;for(si2=0;si2<OP.svcs.length;si2++){if(OP.svcs[si2].n===n)s=OP.svcs[si2];}
+  if(act==='list-units')return'  UNIT              LOAD   ACTIVE   SUB      ENABLED\n'+OP.svcs.map(function(x){return '  '+x.n.padEnd(16)+'loaded '+(x.a?'active  ':'inactive')+(x.a?'running ':'dead    ')+(x.e?'enabled':'disabled');}).join('\n')+'\n4 loaded units listed.';
+  if(act==='is-enabled'){if(!s)return{t:'Unit '+n+'.service could not be found.',c:'t-err'};return s.e?'enabled':'disabled';}
+  if(act==='status'){if(!s)return{t:'Unit '+n+'.service could not be found.',c:'t-err'};
+   return'● '+n+'.service - '+n+' server\n   Loaded: loaded (/lib/systemd/system/'+n+'.service; '+(s.e?'enabled':'disabled')+')\n   Active: '+(s.a?'active (running) since Fri 2026-07-31 10:00:01':'inactive (dead)')+'\n   Main PID: '+(s.a?String(412+n.length):'—');}
+  if(act==='start'||act==='stop'||act==='restart'){if(!s)return{t:'Failed to start '+n+'.service: Unit not found.',c:'t-err'};
+   s.a=act!=='stop';return{t:(act==='stop'?'Stopped ':'Started ')+n+'.service.',c:'t-ok'};}
+  if(act==='enable'||act==='disable'){if(!s)return{t:'Unit '+n+'.service could not be found.',c:'t-err'};
+   s.e=act==='enable';return{t:'Created symlink /etc/systemd/system/multi-user.target.wants/'+n+'.service.',c:'t-ok'};}
+  return{t:'Unknown command verb '+act+'.',c:'t-err'};}
+ if(tk[0]==='journalctl')return'-- Journal begins at Fri 2026-07-31 06:00:00 UTC --\nJul 31 10:00:01 web-1 nginx[419]: nginx/1.25.3\nJul 31 10:00:01 web-1 nginx[419]: Configuration test passed\nJul 31 10:02:11 web-1 nginx[419]: worker process 812 started';
+ if(tk[0]==='useradd'){if(OP.users.indexOf(tk[1])>-1)return{t:"useradd: user '"+tk[1]+"' already exists",c:'t-err'};
+  OP.users.push(tk[1]);return{t:'useradd: new user: '+tk[1]+' (uid=100'+OP.users.length+', home=/home/'+tk[1]+')',c:'t-ok'};}
+ if(tk[0]==='id'){if(OP.users.indexOf(tk[1])<0)return{t:"id: '"+tk[1]+"': no such user",c:'t-err'};
+  return'uid=100'+OP.users.indexOf(tk[1])+'('+tk[1]+') gid=100'+OP.users.indexOf(tk[1])+'('+tk[1]+') groups=100'+OP.users.indexOf(tk[1])+'('+tk[1]+')';}
+ if(tk[0]==='ssh'){var sm=(tk[1]||'').match(/^(.+?)@(.+)$/);if(!sm)return{t:'usage: ssh user@host',c:'t-dim'};
+  later(["The authenticity of host '"+sm[2]+"' can't be established.",'ED25519 key fingerprint is SHA256:'+R(12)+'.','Welcome to Ubuntu 22.04.3 LTS ('+sm[2]+')','','Last login: Fri Jul 31 09:12:44 2026 from 10.0.0.5','('+sm[1]+'@'+sm[2]+') session opened — соединение установлено ✔'],300);return null;}
+ return{t:'bash: '+tk[0]+': command not found',c:'t-err'};}
+var DA={users:[{id:1,name:'alice',email:'alice@app.io'},{id:2,name:'bob',email:'bob@app.io'}],orders:[{id:1,sum:1200},{id:2,sum:3400},{id:3,sum:800}],redis:{}};
+function exData(raw){var t=raw.trim();
+ if(t.indexOf('psql')===0){var q=t.slice(4).trim();
+  if(q==='\\dt')return'          List of relations\n Schema |  Name   | Type  | Owner\n--------+---------+-------+-------\n public | users   | table | dev\n public | orders  | table | dev\n(2 rows)';
+  if(/^SELECT \* FROM users/i.test(q))return' id | name  | email\n----+-------+--------------\n'+DA.users.map(function(u){return ' '+u.id+' | '+u.name.padEnd(5)+' | '+u.email;}).join('\n')+'\n('+DA.users.length+' rows)';
+  var wm=q.match(/^SELECT name FROM users WHERE id\s*=\s*(\d+)/i);
+  if(wm){var wu=null,wi;for(wi=0;wi<DA.users.length;wi++){if(DA.users[wi].id===+wm[1])wu=DA.users[wi];}
+   return' name\n-------\n '+(wu?wu.name:'')+'\n('+(wu?1:0)+' rows)';}
+  if(/^INSERT INTO users/i.test(q)){var im=q.match(/VALUES\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/i);
+   if(im){DA.users.push({id:DA.users.length+1,name:im[1],email:im[2]});return{t:'INSERT 0 1',c:'t-ok'};}
+   return{t:'ERROR: syntax error',c:'t-err'};}
+  var um=q.match(/^UPDATE users SET email\s*=\s*'([^']+)'\s+WHERE id\s*=\s*(\d+)/i);
+  if(um){var uu=null,ui5;for(ui5=0;ui5<DA.users.length;ui5++){if(DA.users[ui5].id===+um[2])uu=DA.users[ui5];}
+   if(uu){uu.email=um[1];return{t:'UPDATE 1',c:'t-ok'};}return{t:'UPDATE 0',c:'t-dim'};}
+  if(/^SELECT count\(\*\) FROM users/i.test(q))return' count\n-------\n '+DA.users.length+'\n(1 row)';
+  if(/^SELECT sum\(sum\) FROM orders/i.test(q))return' sum\n------\n '+DA.orders.reduce(function(a,o){return a+o.sum;},0)+'\n(1 row)';
+  return{t:'ERROR: syntax error at or near "'+q.split(' ')[0]+'"',c:'t-err'};}
+ if(t.indexOf('pg_dump')===0)return'--\n-- PostgreSQL database dump\n--\nCREATE TABLE users (id int, name text, email text);\nCOPY users FROM stdin;\n'+DA.users.map(function(u){return u.id+'\t'+u.name+'\t'+u.email;}).join('\n')+'\n--\nDump saved ('+(14+DA.users.length*2)+' KB) ✔';
+ if(t.indexOf('redis-cli')===0){var ra=t.split(/\s+/).slice(1);
+  if(ra[0]==='set'){DA.redis[ra[1]]=ra[2];return{t:'OK',c:'t-ok'};}
+  if(ra[0]==='get')return DA.redis[ra[1]]!==undefined?'"'+DA.redis[ra[1]]+'"':'(nil)';
+  if(ra[0]==='keys'){var rk=Object.keys(DA.redis);return rk.length?rk.join('\n'):'(empty list or set)';}
+  if(ra[0]==='del'){delete DA.redis[ra[1]];return'(integer) 1';}
+  return{t:"(error) ERR unknown command '"+ra[0]+"'",c:'t-err'};}
+ return{t:'bash: '+t.split(' ')[0]+': command not found',c:'t-err'};}
+var CD={buckets:['static-assets'],objects:{'static-assets':['logo.png','app.js']},vms:[{id:'i-0a1b2c3',name:'web-1',st:'running',ip:'10.0.1.10'}],tf:false,state:[]};
+function exCloud(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]==='aws'){
+  if(tk[1]==='s3'){
+   if(tk[2]==='ls'&&!tk[3])return'2026-05-12 09:14:22 static-assets';
+   if(tk[2]==='ls'){var lb=(tk[3]||'').replace('s3://','').replace('/','');
+    if(CD.buckets.indexOf(lb)<0)return{t:'fatal error: An error occurred (NoSuchBucket)',c:'t-err'};
+    return(CD.objects[lb]||[]).map(function(o){return '2026-07-31 10:00:00  '+(o.length*1834)+'  '+o;}).join('\n')||'(bucket empty)';}
+   if(tk[2]==='mb'){var mb=(tk[3]||'').replace('s3://','');
+    if(CD.buckets.indexOf(mb)>-1)return{t:'make_bucket failed: s3://'+mb+' BucketAlreadyExists',c:'t-err'};
+    CD.buckets.push(mb);CD.objects[mb]=[];return{t:'make_bucket: '+mb,c:'t-ok'};}
+   if(tk[2]==='cp'){var cdst=(tk[4]||'').match(/s3:\/\/([^/]+)\/?(.*)/);
+    if(!cdst||CD.buckets.indexOf(cdst[1])<0)return{t:'fatal error: An error occurred (NoSuchBucket)',c:'t-err'};
+    if(!CD.objects[cdst[1]])CD.objects[cdst[1]]=[];CD.objects[cdst[1]].push(cdst[2]||tk[3]);
+    return{t:'upload: ./'+tk[3]+' to '+tk[4],c:'t-ok'};}
+   return{t:'usage: aws s3 [ls|mb|cp]',c:'t-dim'};}
+  if(tk[1]==='ec2'){
+   if(tk[2]==='describe-instances')return'INSTANCES  '+CD.vms.length+'\n'+CD.vms.map(function(v){return v.id.padEnd(12)+v.name.padEnd(9)+v.st.padEnd(10)+v.ip.padEnd(12)+'t3.micro';}).join('\n');
+   if(tk[2]==='run-instances'){var nnI=tk.indexOf('--name');var nn=nnI>-1?tk[nnI+1]:'web-'+(CD.vms.length+1);
+    CD.vms.push({id:'i-'+R(7),name:nn,st:'running',ip:'10.0.1.'+(20+CD.vms.length*7)});
+    later(['ReservationId: r-'+R(8),'Instances: 1 launching','  InstanceId: '+CD.vms[CD.vms.length-1].id,'  State: pending → running','  PrivateIp: '+CD.vms[CD.vms.length-1].ip],260);return null;}
+   return{t:'usage: aws ec2 [describe-instances|run-instances]',c:'t-dim'};}
+  return{t:'usage: aws [s3|ec2] ...',c:'t-dim'};}
+ if(tk[0]==='terraform'){var sub=tk[1];
+  if(sub==='init'){CD.tf=true;later(['Initializing the backend...','Initializing provider plugins...','- Installing hashicorp/aws v5.31.0...','Terraform has been successfully initialized!'],220);return null;}
+  if(!CD.tf)return{t:'Error: Backend initialization required, please run "terraform init"',c:'t-err'};
+  if(sub==='plan')return'Terraform will perform the following actions:\n\n  + resource "aws_instance" "web" {\n      + ami           = "ami-0c55b159cbfafe1f0"\n      + instance_type = "t3.micro"\n      + tags          = { Name = "web-2" }\n    }\n  + resource "aws_s3_bucket" "logs" { + bucket = "app-logs" }\n\nPlan: 2 to add, 0 to change, 0 to destroy.';
+  if(sub==='apply'){later(['aws_instance.web: Creating...','aws_instance.web: Creation complete after 14s [id=i-'+R(7)+']','aws_s3_bucket.logs: Creation complete after 2s','\nApply complete! Resources: 2 added, 0 changed, 0 destroyed.'],300);
+   CD.state=['aws_instance.web','aws_s3_bucket.logs'];return null;}
+  if(sub==='state')return CD.state.length?CD.state.map(function(s){return 'resource  '+s;}).join('\n'):'(state empty — запустите terraform apply)';
+  return{t:'Usage: terraform [init|plan|apply|state]',c:'t-dim'};}
+ return{t:'bash: '+tk[0]+': command not found',c:'t-err'};}
+
+/* ===== ANSIBLE ===== */
+var AN={nginx:false,svc:false,copied:false,app:false,runs:0};
+function anHosts(pat){if(pat==='all')return['web-1','web-2','db-1'];if(pat==='webservers')return['web-1','web-2'];if(pat==='dbservers')return['db-1'];return(pat==='web-1'||pat==='web-2'||pat==='db-1')?[pat]:null;}
+function exAnsible(raw){var tk=raw.trim().split(/\s+/);var c=tk[0];
+ if(c==='ansible'&&tk[1]==='--version')return'ansible [core 2.16.2]\n  config file = /home/dev/ansible.cfg\n  executable location = /usr/bin/ansible\n  python version = 3.11.6\n  jinja version = 3.1.2';
+ if(c==='cat'){
+  if(tk[1]==='inventory.ini')return'[webservers]\nweb-1  ansible_host=10.0.1.11\nweb-2  ansible_host=10.0.1.12\n\n[dbservers]\ndb-1   ansible_host=10.0.1.21\n\n[all:vars]\nansible_user=dev';
+  if(tk[1]==='install.yml')return'- name: install nginx\n  hosts: webservers\n  become: yes\n  tasks:\n    - name: nginx installed\n      apt:\n        name: nginx\n        state: present\n    - name: nginx started\n      service:\n        name: nginx\n        state: started\n        enabled: yes';
+  if(tk[1]==='deploy.yml')return'- name: deploy app\n  hosts: webservers\n  become: yes\n  tasks:\n    - name: copy app files\n      copy:\n        src: app/\n        dest: /var/www/html/\n    - name: render config\n      template:\n        src: nginx.conf.j2\n        dest: /etc/nginx/nginx.conf\n    - name: restart nginx\n      service:\n        name: nginx\n        state: restarted';
+  return{t:'cat: '+(tk[1]||'')+': No such file',c:'t-err'};}
+ if(c==='ansible'){
+  var pat=tk[1];var hosts=anHosts(pat);
+  if(!hosts)return{t:'[WARNING]: No hosts matched, nothing to do',c:'t-err'};
+  if(tk.indexOf('--list-hosts')>-1)return'  hosts ('+hosts.length+'):\n    '+hosts.join('\n    ');
+  var mi=tk.indexOf('-m'),ai=tk.indexOf('-a');
+  var mod=mi>-1?tk[mi+1]:'command';
+  var arg=ai>-1?tk.slice(ai+1).join(' ').replace(/["']/g,''):'';
+  if(mod==='ping')return{t:hosts.map(function(h){return h+' | SUCCESS => {\n    "changed": false,\n    "ping": "pong"\n}';}).join('\n'),c:'t-ok'};
+  if(mod==='setup'){if(hosts.length>1)return{t:'setup выводит факты одного хоста — укажите, например: ansible web-1 -m setup',c:'t-dim'};
+   return hosts[0]+' | SUCCESS => {\n  "ansible_facts": {\n    "ansible_os_family": "Debian",\n    "ansible_distribution": "Ubuntu 22.04",\n    "ansible_default_ipv4": { "address": "10.0.1.'+(hosts[0]==='web-1'?'11':hosts[0]==='web-2'?'12':'21')+'" },\n    "ansible_processor_vcpus": 4,\n    "ansible_memtotal_mb": 8192,\n    "ansible_hostname": "'+hosts[0]+'"\n  }\n}';}
+  if(mod==='command'||arg)return{t:hosts.map(function(h){return h+' | CHANGED | rc=0 >>\n 10:24:0'+(hosts.indexOf(h)%10)+' up 5 days,  3:42,  1 user,  load average: 0.'+(10+hosts.indexOf(h)*14)+', 0.3'+hosts.indexOf(h)+', 0.27';}).join('\n'),c:'t-tbl'};
+  if(mod==='apt'){AN.nginx=true;
+   return{t:hosts.map(function(h){return h+' | CHANGED => {\n    "changed": true,\n    "msg": "nginx installed (2 packages)"\n}';}).join('\n'),c:'t-ok'};}
+  if(mod==='service'){AN.svc=true;
+   return{t:hosts.map(function(h){return h+' | CHANGED => { "changed": true, "state": "started", "enabled": true }';}).join('\n'),c:'t-ok'};}
+  if(mod==='copy'){AN.copied=true;
+   return{t:hosts[0]+' | CHANGED => {\n    "changed": true,\n    "dest": "/var/www/index.html",\n    "checksum": "a1b2c3d4e5f6"\n}',c:'t-ok'};}
+  return{t:'ansible: unknown module "'+mod+'"',c:'t-err'};}
+ if(c==='ansible-playbook'){
+  var chk=tk.indexOf('--check')>-1,syn=tk.indexOf('--syntax-check')>-1;
+  var file=null,fi3;for(fi3=tk.length-1;fi3>=0;fi3--){if(tk[fi3].charAt(0)!=='-'){file=tk[fi3];break;}}
+  if(file!=='install.yml'&&file!=='deploy.yml')return{t:'ERROR! the playbook: '+(file||'')+' could not be found',c:'t-err'};
+  if(syn)return{t:'playbook: '+file+'\n✔ syntax check passed',c:'t-ok'};
+  if(file==='install.yml'){
+   if(chk)return'TASK [nginx installed] *****************\nchanged: [web-1] (dry run)\nchanged: [web-2] (dry run)\n\nPLAY RECAP (check mode — ничего не применено)\nweb-1 : ok=3 changed=2\nweb-2 : ok=3 changed=2';
+   AN.nginx=true;AN.svc=true;AN.runs++;
+   later(['PLAY [install nginx] **********************************************************','','TASK [Gathering Facts] ********************************************************','ok: [web-1]\nok: [web-2]','','TASK [nginx installed] ********************************************************','changed: [web-1]\nchanged: [web-2]','','TASK [nginx started] **********************************************************','changed: [web-1]\nchanged: [web-2]','','PLAY RECAP ********************************************************************','web-1  : ok=3  changed=2  unreachable=0  failed=0','web-2  : ok=3  changed=2  unreachable=0  failed=0'],260);
+   return null;}
+  if(chk)return'TASK [copy app files] ******************\nchanged: [web-1] (dry run)\nchanged: [web-2] (dry run)\n\nTASK [restart nginx] *******************\nchanged: [web-1] (dry run)\nchanged: [web-2] (dry run)\n\nPLAY RECAP (check mode — ничего не применено)\nweb-1 : ok=4 changed=3\nweb-2 : ok=4 changed=3';
+  AN.app=true;AN.runs++;
+  later(['PLAY [deploy app] *************************************************************','','TASK [Gathering Facts] ********************************************************','ok: [web-1]\nok: [web-2]','','TASK [copy app files] *********************************************************','changed: [web-1]\nchanged: [web-2]','','TASK [render config] **********************************************************','changed: [web-1]\nchanged: [web-2]','','TASK [restart nginx] **********************************************************','changed: [web-1]\nchanged: [web-2]','','PLAY RECAP ********************************************************************','web-1  : ok=5  changed=4  unreachable=0  failed=0','web-2  : ok=5  changed=4  unreachable=0  failed=0','','✔ Приложение развернуто — http://10.0.1.11 отвечает 200'],260);
+  return null;}
+ return{t:'bash: '+c+': command not found',c:'t-err'};}
+var AnM=[{id:1,n:'Знакомство',c:'var(--tr-red)'},{id:2,n:'Ad-hoc',c:'var(--tr-orange)'},{id:3,n:'Модули',c:'var(--tr-warn)'},{id:4,n:'Playbooks',c:'var(--tr-ok)'}];
+var AnL=[
+{id:1,m:1,t:'Версия Ansible',task:'Проверьте установленную версию Ansible.',re:/^ansible --version$/,xp:30,th:'ansible --version — версия ядра, python и путь к конфигурации.',h:['--version','ansible --version','ansible --version']},
+{id:2,m:1,t:'Инвентори',task:'Посмотрите inventory.ini — список хостов и групп.',re:/^cat inventory\.ini$/,xp:30,th:'Inventory — кто есть кто: группы webservers/dbservers и хосты в них.',h:['cat inventory.ini','cat inventory.ini','cat inventory.ini']},
+{id:3,m:1,t:'Список хостов',task:'Какие хосты попадают под паттерн all?',re:/^ansible all --list-hosts$/,xp:30,th:'--list-hosts раскрывает паттерн в список хостов, ничего не выполняя.',h:['ansible all --list-hosts','ansible all --list-hosts','ansible all --list-hosts']},
+{id:4,m:2,t:'Первый ping',task:'Пропингуйте все хосты модулем ping.',re:/^ansible all -m ping$/,xp:35,th:'ping — это не ICMP: проверка SSH и python. Ответ pong — всё работает.',h:['ansible all -m ping','ansible all -m ping','ansible all -m ping']},
+{id:5,m:2,t:'Факты о хосте',task:'Соберите факты с web-1 модулем setup.',re:/^ansible web-1 -m setup$/,xp:35,th:'setup собирает факты: ОС, IP, CPU, память. Их можно использовать в шаблонах.',h:['ansible web-1 -m setup','ansible web-1 -m setup','ansible web-1 -m setup']},
+{id:6,m:2,t:'Ad-hoc команда',task:'Выполните uptime на всех хостах: -a "uptime".',re:/^ansible all -a ["']?uptime["']?$/,xp:35,th:'-a выполняет произвольную команду — как ssh ко всем хостам сразу.',h:['ansible all -a "uptime"','ansible all -a "uptime"','ansible all -a "uptime"']},
+{id:7,m:3,t:'Ставим nginx',task:'Установите nginx на webservers модулем apt.',re:/^ansible webservers -m apt -a ["']?name=nginx state=present["']?$/,xp:45,th:'apt name=nginx state=present — идемпотентно: повторный запуск ничего не изменит.',h:['-m apt -a "name=nginx state=present"','ansible webservers -m apt -a "name=nginx state=present"','ansible webservers -m apt -a "name=nginx state=present"']},
+{id:8,m:3,t:'Запуск сервиса',task:'Запустите и включите nginx модулем service.',re:/^ansible webservers -m service -a ["']?name=nginx state=started enabled=yes["']?$/,xp:40,th:'service управляет systemd: started + enabled=yes — работает и стартует при загрузке.',h:['-m service -a "name=nginx state=started enabled=yes"','ansible webservers -m service -a "name=nginx state=started enabled=yes"','ansible webservers -m service -a "name=nginx state=started enabled=yes"']},
+{id:9,m:3,t:'Копирование файла',task:'Скопируйте index.html на web-1 модулем copy.',re:/^ansible web-1 -m copy -a ["']?src=index\.html dest=\/var\/www\/index\.html["']?$/,xp:40,th:'copy доставляет файл на хост и проверяет контрольную сумму.',h:['-m copy -a "src=index.html dest=/var/www/index.html"','ansible web-1 -m copy -a "src=index.html dest=/var/www/index.html"','ansible web-1 -m copy -a "src=index.html dest=/var/www/index.html"']},
+{id:10,m:4,t:'Наш playbook',task:'Прочитайте install.yml.',re:/^cat install\.yml$/,xp:30,th:'Playbook — декларация: hosts и задачи. Прочитайте, что он сделает.',h:['cat install.yml','cat install.yml','cat install.yml']},
+{id:11,m:4,t:'Синтаксис',task:'Проверьте синтаксис: ansible-playbook --syntax-check install.yml',re:/^ansible-playbook --syntax-check install\.yml$/,xp:30,th:'--syntax-check ловит ошибки YAML до запуска.',h:['ansible-playbook --syntax-check install.yml','ansible-playbook --syntax-check install.yml','ansible-playbook --syntax-check install.yml']},
+{id:12,m:4,t:'Запуск install.yml',task:'Установите nginx плейбуком.',re:/^ansible-playbook install\.yml$/,xp:50,th:'Каждая задача выполняется на всех хостах пьесы. Смотрите на RECAP.',h:['ansible-playbook install.yml','ansible-playbook install.yml','ansible-playbook install.yml']},
+{id:13,m:4,t:'Второй playbook',task:'Прочитайте deploy.yml — деплой приложения.',re:/^cat deploy\.yml$/,xp:30,th:'deploy.yml копирует приложение и перезапускает nginx.',h:['cat deploy.yml','cat deploy.yml','cat deploy.yml']},
+{id:14,m:4,t:'Сухой прогон',task:'Что изменит deploy.yml — без применения: --check.',re:/^ansible-playbook deploy\.yml --check$/,xp:40,th:'--check — сухой прогон: показывает будущие изменения, ничего не трогая.',h:['ansible-playbook deploy.yml --check','ansible-playbook deploy.yml --check','ansible-playbook deploy.yml --check']},
+{id:15,m:4,t:'Деплой!',task:'Накатите приложение: ansible-playbook deploy.yml',re:/^ansible-playbook deploy\.yml$/,xp:50,th:'failed=0 во всех строках RECAP — успех. Повторный запуск — уже 0 changed.',h:['ansible-playbook deploy.yml','ansible-playbook deploy.yml','ansible-playbook deploy.yml']}
+];
+
+/* ===== NEW COURSES: lessons ===== */
+var NetL=[
+{id:1,m:1,t:'Свои адреса',task:'Посмотрите IP-адреса интерфейсов.',re:/^ip (addr|a)$/,xp:30,th:'ip addr — адреса всех интерфейсов.',h:['ip + addr','ip addr','ip addr']},
+{id:2,m:1,t:'Шлюз',task:'Посмотрите таблицу маршрутизации.',re:/^ip route$/,xp:30,th:'default via — шлюз по умолчанию.',h:['ip route','ip route','ip route']},
+{id:3,m:2,t:'Доступность IP',task:'Пропингуйте 8.8.8.8.',re:/^ping 8\.8\.8\.8$/,xp:30,th:'ping — ICMP echo. 0% потерь — хост жив.',h:['ping <ip>','ping 8.8.8.8','ping 8.8.8.8']},
+{id:4,m:2,t:'DNS в бою',task:'Пропингуйте ya.ru по имени.',re:/^ping ya\.ru$/,xp:35,th:'Имя резолвится в IP через DNS.',h:['ping ya.ru','ping ya.ru','ping ya.ru']},
+{id:5,m:2,t:'Маршрут',task:'Постройте маршрут до 8.8.8.8.',re:/^traceroute 8\.8\.8\.8$/,xp:35,th:'traceroute — все промежуточные узлы до цели.',h:['traceroute <host>','traceroute 8.8.8.8','traceroute 8.8.8.8']},
+{id:6,m:3,t:'HTTP-запрос',task:'Скачайте главную https://ya.ru.',re:/^curl https:\/\/ya\.ru$/,xp:35,th:'curl — HTTP-клиент, по умолчанию GET.',h:['curl <url>','curl https://ya.ru','curl https://ya.ru']},
+{id:7,m:3,t:'Заголовки',task:'Только заголовки github.com (-I).',re:/^curl -I https:\/\/github\.com$/,xp:35,th:'-I — HEAD-запрос без тела ответа.',h:['curl -I <url>','curl -I https://github.com','curl -I https://github.com']},
+{id:8,m:3,t:'Внешний IP',task:'Узнайте внешний IP: curl https://ifconfig.me',re:/^curl https:\/\/ifconfig\.me$/,xp:30,th:'ifconfig.me возвращает публичный IP.',h:['curl https://ifconfig.me','curl https://ifconfig.me','curl https://ifconfig.me']},
+{id:9,m:4,t:'DNS-запись',task:'A-запись ya.ru через dig.',re:/^dig ya\.ru$/,xp:35,th:'dig — канонический DNS-инструмент.',h:['dig <домен>','dig ya.ru','dig ya.ru']},
+{id:10,m:5,t:'Слушающие порты',task:'Какие порты слушает хост?',re:/^(ss -tulpn|netstat -tulpn)$/,xp:40,th:'ss -tulpn — TCP/UDP и процессы.',h:['ss -tulpn','ss -tulpn','ss -tulpn']}
+];
+var GitL=[
+{id:1,m:1,t:'git init',task:'Инициализируйте репозиторий в ~/app.',re:/^git init$/,xp:30,th:'init создаёт .git — базу версий.',h:['git init','git init','git init']},
+{id:2,m:1,t:'Статус',task:'Что в рабочей директории?',re:/^git status$/,xp:25,th:'status — untracked/staged/изменённые.',h:['git status','git status','git status']},
+{id:3,m:1,t:'В индекс',task:'Добавьте все файлы в индекс.',re:/^git add \.$/,xp:30,th:'add . — всё в staging area.',h:['git add .','git add .','git add .']},
+{id:4,m:1,t:'Первый коммит',task:'Закоммитьте: "Initial commit".',re:/^git commit -m ["']?Initial commit["']?$/,xp:40,th:'commit — снимок проекта.',h:['git commit -m "..."','git commit -m "Initial commit"','git commit -m "Initial commit"']},
+{id:5,m:1,t:'История',task:'Лог в компактном виде.',re:/^git log --oneline$/,xp:25,th:'--oneline — хеш + сообщение.',h:['git log --oneline','git log --oneline','git log --oneline']},
+{id:6,m:2,t:'Новая ветка',task:'Создайте ветку feature.',re:/^git branch feature$/,xp:30,th:'branch — указатель на коммит.',h:['git branch <имя>','git branch feature','git branch feature']},
+{id:7,m:2,t:'Переход',task:'Переключитесь на feature.',re:/^git (checkout|switch) feature$/,xp:30,th:'checkout/switch меняет ветку.',h:['git checkout feature','git checkout feature','git checkout feature']},
+{id:8,m:2,t:'Индекс на feature',task:'Добавьте файлы в индекс.',re:/^git add \.$/,xp:25,th:'Коммиты в feature не трогают main.',h:['git add .','git add .','git add .']},
+{id:9,m:2,t:'Коммит в ветке',task:'Закоммитьте: "Add feature".',re:/^git commit -m ["']?Add feature["']?$/,xp:35,th:'Каждая ветка — своя история.',h:['git commit -m "Add feature"','git commit -m "Add feature"','git commit -m "Add feature"']},
+{id:10,m:2,t:'Назад в main',task:'Вернитесь в main.',re:/^git (checkout|switch) main$/,xp:25,th:'В main изменений из feature не видно.',h:['git checkout main','git checkout main','git checkout main']},
+{id:11,m:2,t:'Merge',task:'Влейте feature в main.',re:/^git merge feature$/,xp:45,th:'Fast-forward — main догоняет feature.',h:['git merge feature','git merge feature','git merge feature']},
+{id:12,m:3,t:'Remote + Push',task:'Привяжите origin и отправьте main.',re:/^git remote add origin https:\/\/github\.com\/devops\/app(\.git)?$/,xp:45,th:'remote add — адрес сервера. Затем git push -u origin main.',h:['git remote add origin <url>','git remote add origin https://github.com/devops/app.git','git remote add origin https://github.com/devops/app.git']}
+];
+var DkL=[
+{id:1,m:1,t:'Pull',task:'Скачайте образ nginx.',re:/^docker pull nginx(:\S+)?$/,xp:35,th:'pull качает образ из Docker Hub.',h:['docker pull <image>','docker pull nginx','docker pull nginx']},
+{id:2,m:1,t:'Образы',task:'Что лежит локально?',re:/^docker images$/,xp:25,th:'images — локальные образы.',h:['docker images','docker images','docker images']},
+{id:3,m:2,t:'Запуск',task:'Запустите контейнер web из nginx в фоне.',re:/^docker run -d --name web nginx(:\S+)?$/,xp:45,th:'-d — в фоне, --name — имя.',h:['run -d --name web nginx','docker run -d --name web nginx','docker run -d --name web nginx']},
+{id:4,m:2,t:'Живые контейнеры',task:'Список запущенных.',re:/^docker ps$/,xp:25,th:'ps — только Up. -a — все.',h:['docker ps','docker ps','docker ps']},
+{id:5,m:2,t:'Логи',task:'Логи контейнера web.',re:/^docker logs web$/,xp:30,th:'logs — stdout контейнера.',h:['docker logs web','docker logs web','docker logs web']},
+{id:6,m:2,t:'Внутрь',task:'Выполните env внутри web.',re:/^docker exec( -[a-z]+)* web -- env$/,xp:35,th:'exec — команда в контейнере.',h:['docker exec web -- env','docker exec web -- env','docker exec web -- env']},
+{id:7,m:2,t:'Стоп',task:'Остановите web.',re:/^docker stop web$/,xp:30,th:'stop — SIGTERM, через 10 с SIGKILL.',h:['docker stop web','docker stop web','docker stop web']},
+{id:8,m:2,t:'Удаление',task:'Удалите контейнер web.',re:/^docker rm web$/,xp:30,th:'rm удаляет остановленный контейнер.',h:['docker rm web','docker rm web','docker rm web']},
+{id:9,m:3,t:'Сборка',task:'Соберите образ myapp из Dockerfile.',re:/^docker build -t myapp \.$/,xp:50,th:'build выполняет Dockerfile, -t — тег.',h:['docker build -t myapp .','docker build -t myapp .','docker build -t myapp .']},
+{id:10,m:3,t:'Проброс порта',task:'Запустите myapp: 8080 → 80.',re:/^docker run -d -p 8080:80( --name \S+)? myapp$/,xp:45,th:'-p 8080:80 — хост:контейнер.',h:['run -d -p 8080:80 myapp','docker run -d -p 8080:80 myapp','docker run -d -p 8080:80 myapp']}
+];
+var AuL=[
+{id:1,m:1,t:'Скрипт бэкапа',task:'Создайте backup.sh с echo "backup done".',v:function(r){return /^echo /.test(r)&&/backup/.test(r)&&/>/.test(r)&&/backup\.sh/.test(r);},xp:35,th:'Скрипт — рутина в одном файле.',h:['echo "..." > backup.sh','echo "backup done" > backup.sh','echo "backup done" > backup.sh']},
+{id:2,m:1,t:'Исполняемый',task:'Дайте backup.sh право запуска.',re:/^chmod \+x backup\.sh$/,xp:30,th:'Без +x bash не запустит файл.',h:['chmod +x backup.sh','chmod +x backup.sh','chmod +x backup.sh']},
+{id:3,m:1,t:'Запуск',task:'Запустите ./backup.sh',re:/^\.\/backup\.sh$/,xp:35,th:'./ — запуск из текущей директории.',h:['./backup.sh','./backup.sh','./backup.sh']},
+{id:4,m:2,t:'Cron: добавить',task:'Бэкап на 02:00 ежедневно через crontab add.',re:/^crontab add ["']0 2 \* \* \* .*backup\.sh["']$/,xp:45,th:'0 2 * * * — каждый день в 02:00.',h:['crontab add "0 2 * * * /opt/backup.sh"','crontab add "0 2 * * * /opt/backup.sh"','crontab add "0 2 * * * /opt/backup.sh"']},
+{id:5,m:2,t:'Cron: проверить',task:'Покажите текущий crontab.',re:/^crontab -l$/,xp:25,th:'crontab -l — список заданий.',h:['crontab -l','crontab -l','crontab -l']},
+{id:6,m:3,t:'Знакомство с Ansible',task:'Пинг хостов теперь в отдельном курсе — переключитесь на вкладку A ANSIBLE и выполните там ansible all -m ping.',v:function(){return AN.runs>0||AN.nginx;},xp:45,th:'Ansible вырос в отдельный курс из 15 уроков: инвентори, ad-hoc, модули, плейбуки.',h:['Вкладка A ANSIBLE','Переключитесь на курс ANSIBLE и введите ansible all -m ping','Переключитесь на курс ANSIBLE и введите ansible all -m ping']},
+{id:7,m:3,t:'Playbook в Ansible',task:'В курсе ANSIBLE дойдите до ansible-playbook deploy.yml (или просто продолжайте там).',v:function(){return AN.app;},xp:50,th:'Плейбуки подробно разобраны в курсе ANSIBLE — 4-й модуль.',h:['Вкладка A ANSIBLE','Курс ANSIBLE, модуль Playbooks','В курсе ANSIBLE: ansible-playbook deploy.yml']}
+];
+var CiL=[
+{id:1,m:1,t:'Манифест',task:'Прочитайте .gitlab-ci.yml.',re:/^cat \.gitlab-ci\.yml$/,xp:30,th:'Стадии идут по порядку, задачи внутри стадии — параллельно.',h:['cat .gitlab-ci.yml','cat .gitlab-ci.yml','cat .gitlab-ci.yml']},
+{id:2,m:1,t:'Валидация',task:'Проверьте синтаксис конфига.',re:/^ci validate$/,xp:25,th:'Линтер ловит опечатки заранее.',h:['ci validate','ci validate','ci validate']},
+{id:3,m:2,t:'Пуск!',task:'Запустите пайплайн.',re:/^ci run$/,xp:40,th:'Каждый push в реальной системе делает то же самое.',h:['ci run','ci run','ci run']},
+{id:4,m:2,t:'Статус',task:'Что с пайплайном?',re:/^ci status$/,xp:25,th:'status — состояние каждой задачи.',h:['ci status','ci status','ci status']},
+{id:5,m:3,t:'Логи теста',task:'Почему упал test? Смотрите логи.',re:/^ci logs test$/,xp:35,th:'Логи задачи — путь к причине падения.',h:['ci logs test','ci logs test','ci logs test']},
+{id:6,m:3,t:'Фикс',task:'Почините тесты: ci fix',re:/^ci fix$/,xp:35,th:'В реальной системе — правка кода и коммит.',h:['ci fix','ci fix','ci fix']},
+{id:7,m:3,t:'Retry',task:'Перезапустите упавший пайплайн.',re:/^ci retry$/,xp:40,th:'retry перезапускает проваленные задачи.',h:['ci retry','ci retry','ci retry']}
+];
+var ObL=[
+{id:1,m:1,t:'Кто жив?',task:'Доступность целей мониторинга.',re:/^prom up$/,xp:35,th:'up=1 — цель отдаёт метрики.',h:['prom up','prom up','prom up']},
+{id:2,m:1,t:'Load average',task:'Загрузка узлов: node_load1.',re:/^prom node_load1$/,xp:35,th:'node_load1 — очередь CPU за минуту.',h:['prom node_load1','prom node_load1','prom node_load1']},
+{id:3,m:1,t:'RPS',task:'Скорость запросов: rate(http_requests_total[5m]).',re:/^prom ["']?rate\(http_requests_total\[5m\]\)["']?$/,xp:45,th:'rate() — производная счётчика.',h:['prom rate(http_requests_total[5m])','prom rate(http_requests_total[5m])','prom rate(http_requests_total[5m])']},
+{id:4,m:2,t:'Алерты',task:'Какие алерты горят?',re:/^alerts$/,xp:30,th:'firing — сейчас болит, resolved — уже нет.',h:['alerts','alerts','alerts']},
+{id:5,m:2,t:'Подтверждение',task:'Возьмите HighLoad: alerts ack HighLoad',re:/^alerts ack HighLoad$/,xp:35,th:'ack — инцидент взят в работу.',h:['alerts ack HighLoad','alerts ack HighLoad','alerts ack HighLoad']},
+{id:6,m:3,t:'Журнал',task:'Логи nginx через journalctl.',re:/^journalctl -u nginx$/,xp:35,th:'journalctl -u — лог юнита systemd.',h:['journalctl -u nginx','journalctl -u nginx','journalctl -u nginx']},
+{id:7,m:3,t:'Ошибки в логе',task:'Найдите ERROR в app.log.',re:/^grep ERROR \/var\/log\/app\.log$/,xp:35,th:'grep ERROR — первый шаг при инциденте.',h:['grep ERROR /var/log/app.log','grep ERROR /var/log/app.log','grep ERROR /var/log/app.log']}
+];
+var OpL=[
+{id:1,m:1,t:'Что со службой?',task:'Статус nginx — он сейчас не запущен.',re:/^systemctl status nginx$/,xp:30,th:'inactive (dead) — служба не запущена.',h:['systemctl status nginx','systemctl status nginx','systemctl status nginx']},
+{id:2,m:1,t:'Поднять',task:'Запустите nginx.',re:/^systemctl start nginx$/,xp:35,th:'start запускает юнит.',h:['systemctl start nginx','systemctl start nginx','systemctl start nginx']},
+{id:3,m:1,t:'Автозапуск',task:'Включите nginx в автозагрузку.',re:/^systemctl enable nginx$/,xp:35,th:'enable — симлинк в multi-user.target.wants.',h:['systemctl enable nginx','systemctl enable nginx','systemctl enable nginx']},
+{id:4,m:1,t:'Проверка',task:'nginx в автозапуске? is-enabled.',re:/^systemctl is-enabled nginx$/,xp:25,th:'is-enabled — быстрый ответ.',h:['systemctl is-enabled nginx','systemctl is-enabled nginx','systemctl is-enabled nginx']},
+{id:5,m:1,t:'Все юниты',task:'Список всех служб.',re:/^systemctl list-units( --type=service)?$/,xp:30,th:'list-units — общая картина по сервисам.',h:['systemctl list-units','systemctl list-units','systemctl list-units']},
+{id:6,m:2,t:'Новый юзер',task:'Создайте пользователя deploy.',re:/^useradd deploy$/,xp:35,th:'useradd — запись в /etc/passwd и домашний каталог.',h:['useradd deploy','useradd deploy','useradd deploy']},
+{id:7,m:2,t:'Кто это?',task:'Проверьте deploy: id deploy',re:/^id deploy$/,xp:25,th:'id — uid/gid/группы.',h:['id deploy','id deploy','id deploy']},
+{id:8,m:3,t:'SSH',task:'Зайдите: ssh deploy@web-1',re:/^ssh deploy@web-1$/,xp:40,th:'SSH — главный канал админа.',h:['ssh deploy@web-1','ssh deploy@web-1','ssh deploy@web-1']}
+];
+var DaL=[
+{id:1,m:1,t:'Таблицы',task:'Список таблиц БД app.',re:/^psql \\dt$/,xp:30,th:'\\dt — все таблицы.',h:['psql \\dt','psql \\dt','psql \\dt']},
+{id:2,m:1,t:'Все юзеры',task:'Все строки из users.',re:/^psql SELECT \* FROM users;?$/i,xp:35,th:'SELECT * — всё и сразу.',h:['psql SELECT * FROM users;','psql SELECT * FROM users;','psql SELECT * FROM users;']},
+{id:3,m:1,t:'Условие',task:'Имя пользователя с id = 1.',re:/^psql SELECT name FROM users WHERE id = 1;?$/i,xp:35,th:'WHERE фильтрует строки.',h:['psql SELECT name FROM users WHERE id = 1;','psql SELECT name FROM users WHERE id = 1;','psql SELECT name FROM users WHERE id = 1;']},
+{id:4,m:2,t:'Вставка',task:'Добавьте carol с email c@app.io.',re:/^psql INSERT INTO users \(name, email\) VALUES \('carol', 'c@app\.io'\);?$/i,xp:40,th:'INSERT добавляет строку.',h:["psql INSERT INTO users (name, email) VALUES ('carol', 'c@app.io');","psql INSERT INTO users (name, email) VALUES ('carol', 'c@app.io');","psql INSERT INTO users (name, email) VALUES ('carol', 'c@app.io');"]},
+{id:5,m:2,t:'Обновление',task:'Смените email alice на alice@new.io.',re:/^psql UPDATE users SET email = 'alice@new\.io' WHERE id = 1;?$/i,xp:40,th:'UPDATE без WHERE опасен!',h:["psql UPDATE users SET email = 'alice@new.io' WHERE id = 1;","psql UPDATE users SET email = 'alice@new.io' WHERE id = 1;","psql UPDATE users SET email = 'alice@new.io' WHERE id = 1;"]},
+{id:6,m:2,t:'Агрегат',task:'Сколько всего пользователей?',re:/^psql SELECT count\(\*\) FROM users;?$/i,xp:30,th:'count(*) — число строк.',h:['psql SELECT count(*) FROM users;','psql SELECT count(*) FROM users;','psql SELECT count(*) FROM users;']},
+{id:7,m:3,t:'Redis: set',task:'Сохраните session:42 = user:alice.',re:/^redis-cli set session:42 user:alice$/,xp:35,th:'Redis — ключ-значение в памяти.',h:['redis-cli set session:42 user:alice','redis-cli set session:42 user:alice','redis-cli set session:42 user:alice']},
+{id:8,m:3,t:'Redis: get',task:'Прочитайте session:42 обратно.',re:/^redis-cli get session:42$/,xp:30,th:'get — значение или (nil).',h:['redis-cli get session:42','redis-cli get session:42','redis-cli get session:42']}
+];
+var ClL=[
+{id:1,m:1,t:'Бакеты',task:'Список S3-бакетов.',re:/^aws s3 ls$/,xp:30,th:'s3 ls — все бакеты.',h:['aws s3 ls','aws s3 ls','aws s3 ls']},
+{id:2,m:1,t:'Новый бакет',task:'Создайте бакет backups.',re:/^aws s3 mb s3:\/\/backups$/,xp:35,th:'mb — make bucket.',h:['aws s3 mb s3://backups','aws s3 mb s3://backups','aws s3 mb s3://backups']},
+{id:3,m:1,t:'Загрузка',task:'Залейте app.tar.gz в backups.',re:/^aws s3 cp app\.tar\.gz s3:\/\/backups\/?$/,xp:35,th:'cp — в обе стороны.',h:['aws s3 cp app.tar.gz s3://backups/','aws s3 cp app.tar.gz s3://backups/','aws s3 cp app.tar.gz s3://backups/']},
+{id:4,m:2,t:'Инвентарь VM',task:'Список инстансов EC2.',re:/^aws ec2 describe-instances$/,xp:35,th:'describe-instances — все VM.',h:['aws ec2 describe-instances','aws ec2 describe-instances','aws ec2 describe-instances']},
+{id:5,m:3,t:'Инициализация',task:'terraform init — установка провайдеров.',re:/^terraform init$/,xp:35,th:'init качает провайдеры.',h:['terraform init','terraform init','terraform init']},
+{id:6,m:3,t:'План',task:'Что изменит apply?',re:/^terraform plan$/,xp:40,th:'plan — сухой прогон. Всегда читайте его!',h:['terraform plan','terraform plan','terraform plan']},
+{id:7,m:3,t:'Apply',task:'Создайте инфраструктуру.',re:/^terraform apply -auto-approve$/,xp:50,th:'apply применяет план.',h:['terraform apply -auto-approve','terraform apply -auto-approve','terraform apply -auto-approve']},
+{id:8,m:3,t:'State',task:'Что управляется terraform?',re:/^terraform state list$/,xp:30,th:'state — живые ресурсы.',h:['terraform state list','terraform state list','terraform state list']}
+];
+
+/* ===== REGISTRY ===== */
+var COURSES={
+ k8s:{i:'☸',n:'KUBERNETES',c:'var(--tr-ok)',pr:'root@cluster:~$',ti:'kubectl@cluster-master — bash',mods:KM,ls:KL,run:null,reset:function(){S.pods=[];S.deps=[];S.svcs=[];S.cms=[];S.secs=[];S.nss=['default','kube-system','kube-public'];S.nodes.forEach(function(n){n.pods=[];});EV=[];renderK8s();}},
+ linux:{i:'🐧',n:'LINUX',c:'var(--tr-orange)',pr:'root@linux:~#',ti:'root@linux-lab — bash',mods:LM,ls:LL,run:execLinux,reset:function(){initLinux();renderLinux();}},
+ net:{i:'🌐',n:'СЕТИ',c:'var(--tr-cyan)',pr:'dev@netlab:~$',ti:'dev@netlab — bash',mods:[{id:1,n:'Адреса',c:'var(--tr-cyan)'},{id:2,n:'Доступность',c:'var(--tr-ok)'},{id:3,n:'HTTP',c:'var(--tr-warn)'},{id:4,n:'DNS',c:'var(--tr-accent2)'},{id:5,n:'Порты',c:'var(--tr-err)'}],ls:NetL,run:exNet,reset:function(){}},
+ git:{i:'⎇',n:'GIT',c:'var(--tr-pink)',pr:'dev@app:~/app$',ti:'dev@app — git',mods:[{id:1,n:'Первый коммит',c:'var(--tr-pink)'},{id:2,n:'Ветки',c:'var(--tr-accent2)'},{id:3,n:'Remote',c:'var(--tr-accent)'}],ls:GitL,run:exGit,reset:function(){GIT.init=false;GIT.staged={};GIT.branch='main';GIT.branches={main:[]};GIT.remote=null;}},
+ docker:{i:'🐳',n:'КОНТЕЙНЕРЫ',c:'var(--tr-accent)',pr:'dev@docker:~$',ti:'dev@docker-host — bash',mods:[{id:1,n:'Образы',c:'var(--tr-accent)'},{id:2,n:'Контейнеры',c:'var(--tr-cyan)'},{id:3,n:'Сборка',c:'var(--tr-ok)'}],ls:DkL,run:exDocker,reset:function(){DK.images=[];DK.ct=[];}},
+ auto:{i:'⚙',n:'АВТОМАТИЗАЦИЯ',c:'var(--tr-warn)',pr:'dev@ansible:~$',ti:'dev@cron-host — bash',mods:[{id:1,n:'Скрипты',c:'var(--tr-warn)'},{id:2,n:'Планировщик',c:'var(--tr-orange)'},{id:3,n:'Мост к Ansible',c:'var(--tr-red)'}],ls:AuL,run:exAuto,reset:function(){AU.scripts={};AU.cron=[];}},
+ ansible:{i:'A',n:'ANSIBLE',c:'var(--tr-red)',pr:'dev@control:~/ansible$',ti:'dev@control-node — ansible',mods:AnM,ls:AnL,run:exAnsible,reset:function(){AN.nginx=false;AN.svc=false;AN.copied=false;AN.app=false;AN.runs=0;}},
+ cicd:{i:'♾',n:'CI/CD',c:'var(--tr-accent2)',pr:'dev@runner:~/app$',ti:'gitlab-runner — pipelines',mods:[{id:1,n:'Конфиг',c:'var(--tr-accent2)'},{id:2,n:'Пайплайн',c:'var(--tr-accent2-dim)'},{id:3,n:'Дебаг',c:'var(--tr-err)'}],ls:CiL,run:exCi,reset:function(){CI.runs=[];CI.fixed=false;}},
+ obs:{i:'📈',n:'НАБЛЮДАЕМОСТЬ',c:'var(--tr-accent2-dim)',pr:'dev@grafana:~$',ti:'dev@monitoring — prometheus',mods:[{id:1,n:'Метрики',c:'var(--tr-accent2-dim)'},{id:2,n:'Алерты',c:'var(--tr-err)'},{id:3,n:'Логи',c:'var(--tr-cyan)'}],ls:ObL,run:exObs,reset:function(){OB.alerts[0].st='firing';}},
+ ops:{i:'🛠',n:'OPS',c:'var(--tr-err)',pr:'admin@web-1:~#',ti:'admin@web-1 — systemd',mods:[{id:1,n:'Службы',c:'var(--tr-err)'},{id:2,n:'Пользователи',c:'var(--tr-warn)'},{id:3,n:'Доступ',c:'var(--tr-accent)'}],ls:OpL,run:exOps,reset:function(){OP.svcs.forEach(function(s){if(s.n==='nginx'){s.a=false;s.e=false;}});OP.users=['root','ubuntu'];}},
+ data:{i:'🗄',n:'ДАННЫЕ',c:'var(--tr-ok)',pr:'dev@db:~$',ti:'dev@db — psql/redis',mods:[{id:1,n:'SQL: чтение',c:'var(--tr-ok)'},{id:2,n:'SQL: запись',c:'var(--tr-cyan)'},{id:3,n:'Redis',c:'var(--tr-pink)'}],ls:DaL,run:exData,reset:function(){DA.users=[{id:1,name:'alice',email:'alice@app.io'},{id:2,name:'bob',email:'bob@app.io'}];DA.redis={};}},
+ cloud:{i:'☁',n:'CLOUD',c:'var(--tr-accent2)',pr:'dev@cloud:~$',ti:'dev@cloud — aws/terraform',mods:[{id:1,n:'S3',c:'var(--tr-accent2)'},{id:2,n:'VM',c:'var(--tr-accent)'},{id:3,n:'Terraform',c:'var(--tr-ok)'}],ls:ClL,run:exCloud,reset:function(){CD.buckets=['static-assets'];CD.objects={'static-assets':['logo.png','app.js']};CD.vms=[{id:'i-0a1b2c3',name:'web-1',st:'running',ip:'10.0.1.10'}];CD.tf=false;CD.state=[];}}
+};
+Object.keys(COURSES).forEach(function(k){P[k]={xp:0,cur:1,done:[]};});
+function CLS(){return COURSES[course].ls;}
+function CMOD(){return COURSES[course].mods;}
+
+/* ===== HELP ===== */
+function courseHelp(){
+ var LS=CLS(),C=COURSES[course];
+ var rows=LS.map(function(l){return '  '+l.h[2]+'   — '+l.t;});
+ return'─── '+C.i+' '+C.n+' · команды курса ───\n'+rows.join('\n')+'\n\n  help — эта справка · Ctrl+L — очистка · ↑/↓ — история';}
+function showHelp(){
+ var h='';Object.keys(COURSES).forEach(function(k){var C=COURSES[k];
+  h+='<div class="rounded-lg p-2.5" style="background:var(--tr-bg);border:1px solid var(--tr-line)"><div class="text-xs font-bold" style="color:'+C.c+'">'+C.i+' '+C.n+' · '+C.ls.length+' заданий · help в терминале</div><div class="text-xs mt-1" style="color:var(--tr-ok-mute)">'+C.ls.slice(0,4).map(function(l){return l.h[2];}).join('<br>')+' …</div></div>';});
+ $('helpG').innerHTML=h;$('helpM').classList.add('open');}
+
+/* ===== K8S COMMANDS ===== */
+function normRes(r){var M={no:'nodes',node:'nodes',po:'pods',pod:'pods',deploy:'deployments',deployment:'deployments',svc:'services',service:'services',cm:'configmaps',configmap:'configmaps',ns:'namespaces',namespace:'namespaces',ep:'endpoints',secret:'secrets'};return M[r]||r;}
+function byPre(arr,n){var i;for(i=0;i<arr.length;i++){if(arr[i].name===n)return arr[i];}for(i=0;i<arr.length;i++){if(arr[i].name.indexOf(n)===0)return arr[i];}return null;}
+function placePod(p){var w=S.nodes.slice(1).sort(function(a,b){return a.pods.length-b.pods.length;})[0];w.pods.push(p.name);p.node=w.name;}
+function mkPod(name,image,dep,status){status=status||'Running';var p={name:name,image:image,dep:dep,status:status,ns:'default',ready:status==='Running',rest:status==='CrashLoopBackOff'?2+Math.floor(Math.random()*3):0,born:Date.now(),ip:'10.244.'+(1+Math.floor(Math.random()*2))+'.'+(2+Math.floor(Math.random()*250)),labels:dep?{app:dep}:{run:name},ann:{}};placePod(p);S.pods.push(p);
+ if(dep)pushEv('▶ pod '+name+' → '+p.node,'var(--tr-ok)');
+ return p;}
+function exK8s(raw){var tk=raw.trim().split(/\s+/);
+ if(tk[0]!=='kubectl')return{t:'bash: '+tk[0]+': command not found',c:'t-err'};
+ var c=tk[1],a=tk.slice(2);
+ if(!c)return'kubectl controls the Kubernetes cluster manager.\n\nBasic: run, get, describe, create, delete, logs, exec\nScaling: scale, set image, rollout\nMeta: label, annotate, top, version, cluster-info\n\nПодробная справка: help';
+ if(c==='version')return'Client Version: v1.28.0   Kustomize Version: v5.0.4\nServer Version: v1.28.0';
+ if(c==='cluster-info')return'Kubernetes control plane is running at https://10.0.0.1:6443\nCoreDNS is running at https://10.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy';
+ if(c==='get'){
+  var wide=a.indexOf('-o')>-1&&a.indexOf('wide')>-1,labs=a.indexOf('--show-labels')>-1;
+  var iN=a.indexOf('-n'),ns=iN>-1?a[iN+1]:'default',all=a.indexOf('-A')>-1||a.indexOf('--all-namespaces')>-1;
+  var iL=a.indexOf('-l'),sel=iL>-1?a[iL+1]:null;
+  var res=normRes(a[0]||'');
+  function selF(p){if(!sel)return true;return sel.split(',').every(function(kv){var e=kv.split('=');return p.labels&&p.labels[e[0]]===e[1];});}
+  function lbl(p){return Object.keys(p.labels||{}).map(function(k){return k+'='+p.labels[k];}).join(',');}
+  if(res==='nodes')return'NAME       STATUS   ROLES           AGE   VERSION'+(wide?'   INTERNAL-IP':'')+'\n'+S.nodes.map(function(n){return n.name.padEnd(11)+'Ready    '+n.role.padEnd(16)+'5d   v1.28.0'+(wide?'   10.0.0.'+(S.nodes.indexOf(n)+1):'');}).join('\n');
+  if(res==='pods'){var src=all?S.pods.concat(SYS):S.pods.filter(function(p){return p.ns===ns;}).concat(ns==='kube-system'?SYS:[]);
+   src=src.filter(selF);
+   if(!src.length)return'No resources found in '+(all?'all namespaces':ns)+' namespace.';
+   return((all?'NAMESPACE     ':'')+'NAME                         READY   STATUS            RESTARTS   AGE'+(wide?'  IP             NODE':'')+(labs?'  LABELS':'')+'\n'+src.map(function(p){var nm=p.name.length>26?p.name.slice(0,25)+'…':p.name;
+    var s=(all?(p.ns||'default').padEnd(13):'')+nm.padEnd(28)+(p.ready?'1/1':'0/1')+'    '+p.status.padEnd(18)+String(p.rest||0).padEnd(11)+'2m';
+    if(wide)s+='  '+(p.ip||'<none>').padEnd(15)+(p.node||'—');if(labs)s+='  '+lbl(p);return s;}).join('\n'));}
+  if(res==='deployments'){if(!S.deps.length)return'No resources found in default namespace.';
+   return'NAME        READY   UP-TO-DATE   AVAILABLE   AGE\n'+S.deps.map(function(d){return d.name.padEnd(12)+d.replicas+'/'+d.replicas+'     '+String(d.replicas).padEnd(11)+String(d.replicas).padEnd(12)+'2m';}).join('\n');}
+  if(res==='services'){if(!S.svcs.length)return'No resources found in default namespace.';
+   return'NAME        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE\n'+S.svcs.map(function(s){return s.name.padEnd(12)+s.type.padEnd(12)+s.cip.padEnd(16)+(s.type==='NodePort'?'<nodes>':'<none>').padEnd(14)+s.ports.padEnd(15)+'2m';}).join('\n');}
+  if(res==='endpoints'){var es=byPre(S.svcs,a[1]);if(!es)return{t:'Error from server (NotFound): endpoints "'+a[1]+'" not found',c:'t-err'};
+   var eps=S.pods.filter(function(p){return p.dep===es.target&&p.ready;}).map(function(p){return p.ip+':'+es.port;});
+   return'NAME        ENDPOINTS                              AGE\n'+es.name.padEnd(12)+(eps.length?eps.join(','):'<none>').padEnd(37)+'2m';}
+  if(res==='configmaps'){if(!S.cms.length)return'No resources found in default namespace.';
+   return'NAME                 DATA   AGE\n'+S.cms.map(function(x){return x.name.padEnd(21)+Object.keys(x.data).length+'      2m';}).join('\n');}
+  if(res==='secrets'){if(!S.secs.length)return'No resources found in default namespace.';
+   return'NAME                 TYPE     DATA   AGE\n'+S.secs.map(function(x){return x.name.padEnd(21)+x.type.padEnd(9)+Object.keys(x.data).length+'      2m';}).join('\n');}
+  if(res==='namespaces')return'NAME                 STATUS   AGE\n'+S.nss.map(function(n){return n.padEnd(21)+'Active   5d';}).join('\n');
+  if(res==='all'){var o1='';S.pods.forEach(function(p){o1+=p.name.padEnd(28)+(p.ready?'1/1':'0/1')+'    '+p.status+'\n';});
+   return(o1||'No resources found.')+'\nNAME        READY   AGE\n'+S.deps.map(function(d){return d.name.padEnd(12)+d.replicas+'/'+d.replicas+'     2m';}).join('\n')+'\n'+S.svcs.map(function(s){return s.name.padEnd(12)+s.type.padEnd(12)+'2m';}).join('\n');}
+  return{t:'error: the server doesn\'t have a resource type "'+a[0]+'"',c:'t-err'};}
+ if(c==='describe'){
+  var dr=normRes(a[0]||''),dn=a.slice(1).filter(function(x){return x.charAt(0)!=='-';}).join(' ');
+  if(dr==='pods'){var p=byPre(S.pods,dn)||SYS.filter(function(x){return x.name===dn;})[0];
+   if(!p)return{t:'Error from server (NotFound): pods "'+dn+'" not found',c:'t-err'};
+   var ev=p.status==='ImagePullBackOff'?'Events:\n  Warning  Failed   90s  kubelet  Failed to pull image "'+p.image+'": manifest for '+p.image+' not found\n  Warning  Failed   90s  kubelet  Error: ErrImagePull\n  Normal   BackOff  60s  kubelet  Back-off pulling image "'+p.image+'"\n  Warning  Failed   60s  kubelet  Error: ImagePullBackOff'
+   :p.status==='CrashLoopBackOff'?'Events:\n  Normal   Pulled   2m   kubelet  Successfully pulled image "'+p.image+'"\n  Normal   Created  2m   kubelet  Created container\n  Warning  BackOff  30s  kubelet  Back-off restarting failed container (exit code 0)'
+   :'Events:\n  Normal  Scheduled  2m  sched    Successfully assigned default/'+p.name+' to '+(p.node||'worker-1')+'\n  Normal  Pulled     2m  kubelet  Image "'+p.image+'" present\n  Normal  Started    2m  kubelet  Started container';
+   return'Name:        '+p.name+'\nNamespace:   '+(p.ns||'default')+'\nNode:        '+(p.node||'—')+'\nLabels:      '+Object.keys(p.labels||{}).map(function(k){return k+'='+p.labels[k];}).join('\n             ')+'\nAnnotations: '+(Object.keys(p.ann||{}).length?Object.keys(p.ann).map(function(k){return k+'='+p.ann[k];}).join(', '):'<none>')+'\nStatus:      '+p.status+'\nIP:          '+(p.ip||'—')+'\nContainers:\n  Image:     '+p.image+'\n  State:     '+(p.ready?'Running':'Waiting ('+p.status+')')+(p.rest?'\n  Restarts:  '+p.rest:'')+'\n'+ev;}
+  if(dr==='deployments'){var d=byPre(S.deps,dn);if(!d)return{t:'Error from server (NotFound): deployments "'+dn+'" not found',c:'t-err'};
+   return'Name:        '+d.name+'\nNamespace:   default\nSelector:    app='+d.name+'\nReplicas:    '+d.replicas+' desired | '+d.replicas+' updated | '+d.replicas+' available\nStrategy:    RollingUpdate (maxSurge 25%, maxUnavailable 25%)\nImage:       '+d.image+'\nRevisions:   '+d.revs.map(function(r,i){return(i+1)+'→'+r;}).join('  ')+'\nEvents:\n  Normal  ScalingReplicaSet  2m  Scaled up replica set '+d.name+'-'+R(5)+' to '+d.replicas;}
+  if(dr==='nodes'){var nd=null,ni6;for(ni6=0;ni6<S.nodes.length;ni6++){if(S.nodes[ni6].name===dn)nd=S.nodes[ni6];}
+   if(!nd)return{t:'Error from server (NotFound): nodes "'+dn+'" not found',c:'t-err'};
+   var ld={c:Math.min(96,nd.bC+nd.pods.length*7),m:Math.min(94,nd.bM+nd.pods.length*5)};
+   return'Name:        '+nd.name+'\nRoles:       '+nd.role+'\nLabels:      kubernetes.io/hostname='+nd.name+'\nConditions:  Ready=True (KubeletReady)\nCapacity:\n  cpu: '+nd.capC+'\n  memory: '+(nd.capM*1024*1024)+'Ki\n  pods: 110\nAllocatable:\n  cpu: '+(nd.capC-0.5)+'\n  memory: '+((nd.capM-1)*1024*1024)+'Ki\n  pods: 110\nAllocated resources:\n  cpu     '+Math.round(ld.c)+'%   (limits '+Math.min(100,ld.c+20)+'%)\n  memory  '+Math.round(ld.m)+'%   (limits '+Math.min(100,ld.m+15)+'%)\nNon-terminated Pods: '+nd.pods.length;}
+  if(dr==='services'){var sv=byPre(S.svcs,dn);if(!sv)return{t:'Error from server (NotFound): services "'+dn+'" not found',c:'t-err'};
+   var seps=S.pods.filter(function(p){return p.dep===sv.target&&p.ready;});
+   return'Name:       '+sv.name+'\nNamespace:  default\nSelector:   app='+sv.target+'\nType:       '+sv.type+'\nIP:         '+sv.cip+'\nPort:       '+sv.port+'/TCP'+(sv.nodePort?'\nNodePort:   '+sv.nodePort+'/TCP':'')+'\nEndpoints:  '+(seps.length?seps.map(function(p){return p.ip+':'+sv.port;}).join(' '):'<none>')+'\nEvents:     <none>';}
+  if(dr==='configmaps'){var cmm=null,ci7;for(ci7=0;ci7<S.cms.length;ci7++){if(S.cms[ci7].name===dn)cmm=S.cms[ci7];}
+   if(!cmm)return{t:'Error from server (NotFound): configmaps "'+dn+'" not found',c:'t-err'};
+   return'Name:  '+cmm.name+'\n\nData\n====\n'+Object.keys(cmm.data).map(function(k){return k+':\n----\n'+cmm.data[k];}).join('\n');}
+  if(dr==='secrets'){var sec=null,si8;for(si8=0;si8<S.secs.length;si8++){if(S.secs[si8].name===dn)sec=S.secs[si8];}
+   if(!sec)return{t:'Error from server (NotFound): secrets "'+dn+'" not found',c:'t-err'};
+   return'Name:  '+sec.name+'\nType:  '+sec.type+'\n\nData\n====\n'+Object.keys(sec.data).map(function(k){return k+':  '+sec.data[k]+'  (base64)';}).join('\n');}
+  return{t:'error: unknown resource "'+a[0]+'"',c:'t-err'};}
+ if(c==='create'){
+  var cr=normRes(a[0]||'');
+  if(cr==='deployments'){var cname=a[1];if(!cname)return{t:'error: NAME is required',c:'t-err'};
+   if(byPre(S.deps,cname))return{t:'Error (AlreadyExists): deployments "'+cname+'" already exists',c:'t-err'};
+   var imA=null,riA=null,ai;for(ai=0;ai<a.length;ai++){if(a[ai].indexOf('--image=')===0)imA=a[ai];if(a[ai].indexOf('--replicas=')===0)riA=a[ai];}
+   var cimg=imA?imA.split('=')[1]:'nginx',crep=riA?parseInt(riA.split('=')[1]):1;
+   S.deps.push({name:cname,image:cimg,replicas:crep,revs:[cimg]});
+   pushEv('⬢ deployment '+cname+' · '+crep+' replicas','var(--tr-accent)');
+   for(var pi=0;pi<crep;pi++)mkPod(cname+'-'+R(5)+'-'+R(5),cimg,cname);
+   return{t:'deployment.apps/'+cname+' created',c:'t-ok'};}
+  if(cr==='configmaps'){var cmn=a[1],cmd2={};
+   a.filter(function(x){return x.indexOf('--from-literal=')===0;}).forEach(function(x){var e=x.slice(15).split('=');cmd2[e[0]]=e[1];});
+   if(!Object.keys(cmd2).length)return{t:'error: at least one --from-literal is required',c:'t-err'};
+   S.cms.push({name:cmn,data:cmd2});return{t:'configmap/'+cmn+' created',c:'t-ok'};}
+  if(cr==='secrets'){if(a[1]!=='generic')return{t:'error: secret type must be "generic"',c:'t-err'};
+   var sn=a[2],sd={};
+   a.filter(function(x){return x.indexOf('--from-literal=')===0;}).forEach(function(x){var e=x.slice(15).split('=');sd[e[0]]=b64(e[1]);});
+   S.secs.push({name:sn,type:'Opaque',data:sd});return{t:'secret/'+sn+' created',c:'t-ok'};}
+  if(cr==='namespaces'){var nsn=a[1];if(S.nss.indexOf(nsn)>-1)return{t:'Error (AlreadyExists): namespaces "'+nsn+'"',c:'t-err'};
+   S.nss.push(nsn);return{t:'namespace/'+nsn+' created',c:'t-ok'};}
+  return{t:'error: unknown create subcommand',c:'t-err'};}
+ if(c==='run'){var rn=a[0],rim='nginx',ri9;for(ri9=0;ri9<a.length;ri9++){if(a[ri9].indexOf('--image=')===0)rim=a[ri9].split('=')[1];}
+  var rst='Running';if(/invalid|nope|missing/.test(rim))rst='ImagePullBackOff';else if(/busybox/.test(rim))rst='CrashLoopBackOff';
+  mkPod(rn,rim,null,rst);
+  if(rst!=='Running')setTimeout(function(){out('⚠ pod/'+rn+' перешёл в статус '+rst+' — kubectl describe pod '+rn,'t-err');},1400);
+  return{t:'pod/'+rn+' created',c:'t-ok'};}
+ function depName(){return a[0].indexOf('/')>-1?a[0].split('/')[1]:a[1];}
+ if(c==='scale'){var scn=depName(),scd=byPre(S.deps,scn);if(!scd)return{t:'Error (NotFound): deployments "'+scn+'"',c:'t-err'};
+  var srep=1,sri;for(sri=0;sri<a.length;sri++){if(a[sri].indexOf('--replicas=')===0)srep=parseInt(a[sri].split('=')[1]);}
+  var sold=scd.replicas;scd.replicas=srep;
+  pushEv('⇕ '+scd.name+': '+sold+' → '+srep+' replicas','var(--tr-warn)');
+  if(srep>sold){for(var ski=sold;ski<srep;ski++)mkPod(scd.name+'-'+R(5)+'-'+R(5),scd.image,scd.name);}
+  else{var rmv=S.pods.filter(function(p){return p.dep===scd.name;}).slice(srep);
+   rmv.forEach(function(p){S.pods=S.pods.filter(function(x){return x!==p;});S.nodes.forEach(function(nd){nd.pods=nd.pods.filter(function(x){return x!==p.name;});});});}
+  return{t:'deployment.apps/'+scd.name+' scaled',c:'t-ok'};}
+ if(c==='expose'){var exn=depName(),exd=byPre(S.deps,exn);if(!exd)return{t:'Error (NotFound): deployments "'+exn+'"',c:'t-err'};
+  if(byPre(S.svcs,exd.name))return{t:'Error (AlreadyExists): services "'+exd.name+'"',c:'t-err'};
+  var eport='80',etype='ClusterIP',exi;for(exi=0;exi<a.length;exi++){if(a[exi].indexOf('--port=')===0)eport=a[exi].split('=')[1];if(a[exi].indexOf('--type=')===0)etype=a[exi].split('=')[1];}
+  var enp=etype==='NodePort'?30000+Math.floor(Math.random()*2767):null;
+  S.svcs.push({name:exd.name,type:etype,cip:'10.96.'+Math.floor(Math.random()*250)+'.'+Math.floor(Math.random()*250),port:eport,nodePort:enp,ports:etype==='NodePort'?eport+':'+enp+'/TCP':eport+'/TCP',target:exd.name});
+  pushEv('⇄ service '+exd.name+' ('+etype+')','var(--tr-accent-dim)');
+  return{t:'service/'+exd.name+' exposed',c:'t-ok'};}
+ if(c==='set'){if(a[0]!=='image')return{t:'error: unknown set subcommand',c:'t-err'};
+  var std=byPre(S.deps,a[1].split('/')[1]);if(!std)return{t:'Error (NotFound): deployment not found',c:'t-err'};
+  var sim=a[2].split('=')[1];std.image=sim;std.revs.push(sim);
+  S.pods.filter(function(p){return p.dep===std.name;}).forEach(function(p){p.image=sim;});
+  pushEv('↻ '+std.name+' image → '+sim,'var(--tr-accent2)');
+  return{t:'deployment.apps/'+std.name+' image updated',c:'t-ok'};}
+ if(c==='rollout'){var ro=a[0],rod=byPre(S.deps,a[1]?a[1].split('/')[1]:'');if(!rod)return{t:'Error (NotFound): deployment not found',c:'t-err'};
+  if(ro==='status')return{t:'deployment "'+rod.name+'" successfully rolled out',c:'t-ok'};
+  if(ro==='history')return'deployment.apps/'+rod.name+'\nREVISION  CHANGE-CAUSE\n'+rod.revs.map(function(r,i){return String(i+1).padEnd(10)+'kubectl set image → '+r;}).join('\n');
+  if(ro==='undo'){if(rod.revs.length<2)return{t:'skipped rollback (no previous revision)',c:'t-dim'};
+   var prev=rod.revs[rod.revs.length-2];rod.image=prev;rod.revs.push(prev);
+   S.pods.filter(function(p){return p.dep===rod.name;}).forEach(function(p){p.image=prev;});
+   pushEv('↩ '+rod.name+' rolled back → '+prev,'var(--tr-orange)');
+   return{t:'deployment.apps/'+rod.name+' rolled back',c:'t-ok'};}
+  return{t:'error: unknown rollout subcommand',c:'t-err'};}
+ if(c==='label'){var largs=a.filter(function(x){return x.charAt(0)!=='-';});
+  var lres=normRes(largs[0]),lkv=largs[2];if(!lkv)return{t:'error: label update required',c:'t-err'};
+  var le=lkv.split('='),lt=null;
+  if(lres==='pods')lt=byPre(S.pods,largs[1]);else if(lres==='nodes'){var li10;for(li10=0;li10<S.nodes.length;li10++){if(S.nodes[li10].name===largs[1])lt=S.nodes[li10];}}else if(lres==='deployments')lt=byPre(S.deps,largs[1]);
+  if(!lt)return{t:'Error (NotFound): '+lres+' "'+largs[1]+'"',c:'t-err'};
+  if(!lt.labels)lt.labels={};lt.labels[le[0]]=le[1];
+  return{t:largs[0]+'/'+lt.name+' labeled',c:'t-ok'};}
+ if(c==='annotate'){var aargs=a.filter(function(x){return x.charAt(0)!=='-';});var akv=aargs[2];
+  if(!akv)return{t:'error: annotation required',c:'t-err'};
+  var ap=byPre(S.pods,aargs[1]);if(!ap)return{t:'Error (NotFound): pods "'+aargs[1]+'"',c:'t-err'};
+  var ae=akv.split('=');if(!ap.ann)ap.ann={};ap.ann[ae[0]]=ae[1];
+  return{t:'pod/'+ap.name+' annotated',c:'t-ok'};}
+ if(c==='logs'){var lp=byPre(S.pods,a.filter(function(x){return x.charAt(0)!=='-';})[0]);
+  if(!lp)return{t:'Error (NotFound): pod not found',c:'t-err'};
+  if(lp.status==='ImagePullBackOff')return{t:'error (BadRequest): container is waiting to start: image can\'t be pulled',c:'t-err'};
+  if(lp.status==='CrashLoopBackOff')return{t:'sh: 0: can\'t open \'/start.sh\'\ncontainer exited with code 2 — restarting (attempt '+lp.rest+')',c:'t-err'};
+  return'/docker-entrypoint.sh: performing configuration\n[notice] nginx/1.25.3\n10.244.1.1 - - "GET / HTTP/1.1" 200 615 "-" "curl/8.0"\n10.244.2.1 - - "GET /healthz HTTP/1.1" 200 2 "-" "kube-probe/1.28"';}
+ if(c==='exec'){var xargs=a.filter(function(x){return x.charAt(0)!=='-';});
+  var xp2=byPre(S.pods,xargs[0])||SYS.filter(function(x){return x.name===xargs[0];})[0];
+  if(!xp2)return{t:'Error (NotFound): pods "'+xargs[0]+'"',c:'t-err'};
+  if(xp2.status!=='Running')return{t:'error: unable to upgrade connection: container not found',c:'t-err'};
+  var dI=a.indexOf('--');var xcmd=dI>-1?a.slice(dI+1).join(' '):'';
+  if(!xcmd)return'Defaulted container "'+(xp2.dep||xp2.name)+'"';
+  if(xcmd.indexOf('ls')===0)return'bin   dev  home  lib64  mnt  proc  run   srv  tmp  var\nboot  etc  lib   media  opt  root  sbin  sys  usr';
+  if(xcmd==='env')return'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\nHOSTNAME='+xp2.name+'\nKUBERNETES_SERVICE_HOST=10.96.0.1\nNGINX_VERSION=1.25.3';
+  if(xcmd==='whoami')return'root';if(xcmd==='pwd')return'/';if(xcmd==='hostname')return xp2.name;
+  return{t:'/bin/sh: 1: '+xcmd.split(' ')[0]+': not found',c:'t-err'};}
+ if(c==='top'){var tr2=normRes(a[0]||'');
+  if(tr2==='nodes')return'NAME       CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%\n'+S.nodes.map(function(n){var l={c:Math.min(96,n.bC+n.pods.length*7),m:Math.min(94,n.bM+n.pods.length*5)};
+   return n.name.padEnd(11)+(Math.round(n.capC*l.c/100*1000)+'m').padEnd(11)+(l.c+'%').padEnd(7)+(Math.round(n.capM*l.m/100*1024)+'Mi').padEnd(14)+l.m+'%';}).join('\n');
+  if(tr2==='pods'){if(!S.pods.length)return'No resources found in default namespace.';
+   return'NAME                         CPU(cores)   MEMORY(bytes)\n'+S.pods.map(function(p){var h2=hue(p.name);return p.name.padEnd(29)+((20+h2%140)+'m').padEnd(13)+((40+h2%160)+'Mi');}).join('\n');}
+  return{t:'error: unknown top subcommand',c:'t-err'};}
+ if(c==='delete'){var dall=a.indexOf('--all')>-1;var dcur=null,dnames=[],ddel=[],di11;
+  for(di11=0;di11<a.length;di11++){var dt=a[di11];if(dt.indexOf('--')===0)continue;var drn=normRes(dt);
+   if(['pods','deployments','services','configmaps','secrets','namespaces','all'].indexOf(drn)>-1)dcur=drn;else dnames.push(dt);}
+  if(dcur==='all'&&dall){S.pods=[];S.deps=[];S.svcs=[];S.nodes.forEach(function(n){n.pods=[];});
+   pushEv('🗑 delete all --all — кластер очищен','var(--tr-err)');
+   renderK8s();return{t:'deleted - pods\ndeleted - deployments.apps\ndeleted - services\ndeleted - replicasets.apps',c:'t-ok'};}
+  var coll={pods:'pods',deployments:'deps',services:'svcs',configmaps:'cms',secrets:'secs'}[dcur];
+  if(!coll)return{t:'error: resource type required',c:'t-err'};
+  dnames.forEach(function(n){var arr=S[coll];var t2=byPre(arr,n);
+   if(!t2){out('Error (NotFound): '+dcur+' "'+n+'" not found','t-err');return;}
+   if(coll==='deps'){S.pods=S.pods.filter(function(p){return p.dep!==t2.name;});
+    S.nodes.forEach(function(nd){nd.pods=nd.pods.filter(function(x){return x.indexOf(t2.name)!==0;});});
+    S.svcs=S.svcs.filter(function(s){return s.target!==t2.name;});}
+   if(coll==='pods'){S.nodes.forEach(function(nd){nd.pods=nd.pods.filter(function(x){return x!==t2.name;});});}
+   S[coll]=arr.filter(function(x){return x!==t2;});ddel.push(dcur.slice(0,-1)+' "'+t2.name+'" deleted');
+   pushEv('✕ '+dcur.slice(0,-1)+' '+t2.name+' deleted','var(--tr-err)');});
+  renderK8s();return ddel.length?{t:ddel.join('\n'),c:'t-ok'}:null;}
+ return{t:'error: unknown command "'+c+'"',c:'t-err'};}
+COURSES.k8s.run=exK8s;
+
+/* ===== ENGINE ===== */
+function exec(raw){
+ cmdsUsed.push(course+'|'+raw);
+ var t=raw.trim();
+ if(/^help$/i.test(t)||/^man$/.test(t)||/\s(help|--help)$/.test(t)){out(courseHelp(),'t-tbl');return;}
+ var r=COURSES[course].run(raw);
+ if(typeof r==='string')out(r,'t-tbl');
+ else if(r&&r.t)out(r.t,r.c||'t-tbl');
+ checkLesson(raw);}
+function keyIn(e){
+ if(e.key==='Enter'){var v=e.target.value.trim();if(v){histC.push(v);histI=histC.length;out(COURSES[course].pr+' '+v,'t-cmd');exec(v);}e.target.value='';syncCur();wakeCur();}
+ else if(e.key==='ArrowUp'){if(histI>0){histI--;e.target.value=histC[histI];}e.preventDefault();setTimeout(function(){syncCur();wakeCur();},0);}
+ else if(e.key==='ArrowDown'){if(histI<histC.length-1){histI++;e.target.value=histC[histI];}else{histI=histC.length;e.target.value='';}e.preventDefault();setTimeout(function(){syncCur();wakeCur();},0);}
+ else if(e.ctrlKey&&e.key.toLowerCase()==='l'){clearTerm();e.preventDefault();}
+ else if(e.ctrlKey&&e.key.toLowerCase()==='c'){var C0=COURSES[course];if(C0&&typeof C0.ctrlc==='function'){if(C0.ctrlc()){e.preventDefault();e.target.value='';syncCur();wakeCur();}}else{e.preventDefault();}}
+ else if(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='Home'||e.key==='End'){setTimeout(function(){syncCur();wakeCur();},0);}}
+function checkLesson(raw){
+ var LS=CLS(),p=P[course];
+ var l=null,i;for(i=0;i<LS.length;i++){if(LS[i].id===p.cur){l=LS[i];break;}}
+ if(!l||p.done.indexOf(l.id)>-1)return;
+ var tr=raw.trim();
+ var ok=l.v?l.v(raw):l.re?l.re.test(tr):tr===l.cmd;
+ if(!ok)return;
+ p.done.push(l.id);p.xp+=l.xp;
+ toast('✓ '+COURSES[course].i+' Задание '+l.id+'/'+LS.length+' · +'+l.xp+' XP','ok');
+ var next=null,j;for(j=0;j<LS.length;j++){if(p.done.indexOf(LS[j].id)<0){next=LS[j];break;}}
+ if(!next)setTimeout(finish,1200);else setTimeout(function(){loadLesson(next.id);},1100);
+ hud();renderMods();renderLBtns();renderEnv();}
+function loadLesson(id){
+ var LS=CLS(),p=P[course];
+ var l=null,i;for(i=0;i<LS.length;i++){if(LS[i].id===id){l=LS[i];break;}}
+ if(!l)return;
+ p.cur=id;p.hint=0;
+ var m=null,mi;for(mi=0;mi<CMOD().length;mi++){if(CMOD()[mi].id===l.m){m=CMOD()[mi];break;}}
+ var C=COURSES[course];
+ $('lTitle').textContent=l.id+'. '+l.t;
+ $('lTask').textContent=l.task;
+ $('lXp').textContent='+'+l.xp+' XP';
+ $('lModChip').textContent='МОДУЛЬ '+l.m+' · '+m.n;
+ $('lModChip').style.color=m.c;$('lModChip').style.background=m.c+'22';
+ $('thP').innerHTML='<b style="color:'+C.c+'">📚 '+l.t+'.</b> '+l.th;$('thP').classList.add('hidden');
+ $('hintP').classList.add('hidden');$('hintP').innerHTML='';
+ $('lbT').textContent='Задания · Модуль '+l.m+' — '+m.n;
+ hud();renderLBtns();}
+function hint(n){
+ var LS=CLS(),p=P[course];
+ var l=null,i;for(i=0;i<LS.length;i++){if(LS[i].id===p.cur){l=LS[i];break;}}
+ p.hint=Math.max(p.hint||0,n);
+ var meta=[['💡 Намёк','var(--tr-accent-dim)'],['📝 Подсказка','var(--tr-accent2-dim)'],['✅ Ответ','var(--tr-warn-dim)']];
+ var hp=$('hintP');hp.classList.remove('hidden');hp.innerHTML='';
+ for(var k=0;k<p.hint;k++){var d=document.createElement('div');d.className='text-xs rounded p-2';d.style.background='var(--tr-panel)';d.style.borderLeft='3px solid '+meta[k][1];
+  d.innerHTML='<b style="color:'+meta[k][1]+'">'+meta[k][0]+'</b> <span style="color:var(--tr-ok-dim)">'+(k===2?'<code class="t-ok">'+l.h[k]+'</code>':l.h[k])+'</span>';hp.appendChild(d);}
+ if(n===3)toast('Ответ показан — XP сохранится','info');}
+function renderLBtns(){
+ var LS=CLS(),p=P[course];
+ var l=null,i;for(i=0;i<LS.length;i++){if(LS[i].id===p.cur){l=LS[i];break;}}
+ var box=$('lBtns');box.innerHTML='';
+ LS.filter(function(x){return x.m===l.m;}).forEach(function(x){var b=document.createElement('div');
+  b.className='lb tip'+(p.done.indexOf(x.id)>-1?' dn':'')+(x.id===p.cur?' cu':'');
+  b.textContent=x.id;b.setAttribute('data-tip',x.id+'. '+x.t+(p.done.indexOf(x.id)>-1?'\n✓ выполнено':''));
+  b.onclick=function(){loadLesson(x.id);};box.appendChild(b);});}
+function renderMods(){
+ var MS=CMOD(),LS=CLS(),p=P[course],C=COURSES[course];
+ $('mT').textContent='▤ УЧЕБНЫЙ ПУТЬ · '+C.i+' '+C.n;
+ var box=$('mods');box.innerHTML='';var mc=0;
+ MS.forEach(function(m){var ls=LS.filter(function(x){return x.m===m.id;});
+  var d=ls.filter(function(x){return p.done.indexOf(x.id)>-1;}).length;if(d===ls.length)mc++;
+  var el=document.createElement('div');el.className='mdc pn p-2';el.style.borderLeftColor=m.c;
+  el.innerHTML='<div class="flex justify-between items-center"><span class="fd text-xs font-bold" style="color:'+m.c+'">M'+m.id+'</span><span class="text-xs" style="color:var(--tr-ok-mute)">'+d+'/'+ls.length+'</span></div><div class="text-xs mt-0.5 mb-1.5" style="color:var(--tr-ok-mute)">'+m.n+'</div><div class="bar"><i style="width:'+(d/ls.length*100)+'%;background:'+m.c+'"></i></div>';
+  el.onclick=function(){var first=null,fi;for(fi=0;fi<ls.length;fi++){if(p.done.indexOf(ls[fi].id)<0){first=ls[fi];break;}}if(!first)first=ls[0];loadLesson(first.id);window.scrollTo({top:0,behavior:'smooth'});};
+  box.appendChild(el);});
+ $('mD').textContent=mc+'/'+MS.length+' модулей';}
+function hud(){
+ var LS=CLS(),p=P[course];
+ var idx=0,i;for(i=0;i<LS.length;i++){if(LS[i].id===p.cur){idx=i;break;}}
+ var pct=Math.round(p.done.length/LS.length*100);
+ $('hXp').textContent=p.xp+' XP';$('hMod').textContent=LS[idx].m+'/'+CMOD().length;
+ $('hLes').textContent=(idx+1)+'/'+LS.length;
+ $('hPct').textContent=pct+'%';$('hBar').style.width=pct+'%';}
+function finish(){
+ var p=P[course],LS=CLS(),C=COURSES[course];
+ $('finT').textContent=C.n+' ПОКОРЁН';$('finT').style.color=C.c;
+ $('finS').textContent=LS.length+'/'+LS.length+' заданий · '+CMOD().length+' модулей · '+p.xp+' XP';
+ var uniq=[],pref=course+'|';
+ cmdsUsed.forEach(function(x){if(x.indexOf(pref)!==0)return;var c2=x.slice(pref.length).split(' ').slice(0,3).join(' ');if(uniq.indexOf(c2)<0)uniq.push(c2);});
+ $('finC').innerHTML=uniq.slice(-24).map(function(c3){return '<div>▸ '+c3+'</div>';}).join('');
+ $('finM').classList.add('open');}
+function restart(){
+ $('finM').classList.remove('open');
+ P[course]={xp:0,cur:1,done:[]};
+ COURSES[course].reset();renderEnv();
+ loadLesson(1);renderMods();
+ clearTerm();out('♻ Среда сброшена. Начинаем с чистого листа!','t-ok');
+ toast('Прогресс курса сброшен','info');}
+function startCourse(){
+ $('welM').classList.remove('open');
+ $('inp').focus();syncCur();wakeCur();
+ out('→ Задание 1: см. панель задания ниже','t-dim');}
+function resetEnv(msg){COURSES[course].reset();renderEnv();
+ if(msg){out('♻ Среда сброшена (прогресс сохранён).','t-dim');toast('Среда сброшена','info');}}
+function buildTabs(){
+ var bar=$('tabBar');bar.innerHTML='';
+ Object.keys(COURSES).forEach(function(k){var c=COURSES[k];
+  var b=document.createElement('button');b.className='ct'+(k===course?' on':'');b.id='tab-'+k;
+  b.innerHTML='<span'+(k==='ansible'?' class="fd" style="font-size:13px"':'')+'>'+c.i+'</span> '+c.n+' <span style="opacity:.55">'+c.ls.length+'</span>';
+  if(k===course){b.style.background=c.c;b.style.color='var(--tr-bg3)';}
+  b.onclick=function(){switchCourse(k);};bar.appendChild(b);});}
+function switchCourse(c){
+ if(course===c)return;course=c;var C=COURSES[c];
+ if(!P[c])P[c]={xp:0,cur:1,done:[]};
+ Object.keys(COURSES).forEach(function(k){var b=$('tab-'+k),on=k===c;
+  if(!b)return;b.className='ct'+(on?' on':'');b.style.background=on?COURSES[k].c:'';b.style.color=on?'var(--tr-bg3)':'';});
+ $('k8sP').classList.toggle('hidden',c!=='k8s');
+ $('linP').classList.toggle('hidden',c!=='linux');
+ $('genP').classList.toggle('hidden',c==='k8s'||c==='linux');
+ $('prompt').textContent=C.pr;$('prompt').style.color=C.c;
+ $('termTitle').textContent=C.ti;
+ out('─── Курс: '+C.i+' '+C.n+' · '+C.ls.length+' заданий · справка: help ───','t-dim');
+ loadLesson(P[c].cur);renderMods();renderEnv();hud();syncCur();$('inp').focus();wakeCur();}
+
+/* ===== RENDER ===== */
+function podColor(p){if(p.status==='ImagePullBackOff')return'var(--tr-orange)';if(p.status==='CrashLoopBackOff')return'var(--tr-pink)';if(!p.ready)return'var(--tr-warn)';return p.dep?'hsl('+hue(p.dep)+',70%,55%)':'var(--tr-ok)';}
+function renderK8s(){
+ var nb=$('nodes');nb.innerHTML='';
+ S.nodes.forEach(function(n){var l={c:Math.min(96,n.bC+n.pods.length*7),m:Math.min(94,n.bM+n.pods.length*5)};
+  var pods=S.pods.filter(function(p){return p.node===n.name;});
+  var now=Date.now();
+  var blocks=n.name==='master'
+   ?['api-server','etcd','scheduler'].map(function(c4){return '<div class="podb tip" style="background:var(--tr-line3);width:18px;height:18px" data-tip="'+c4+'\nStatic Pod · master"></div>';}).join('')
+   :pods.map(function(p){var fr=(p.born&&now-p.born<3500)?' fresh':'';
+     return '<div class="podb tip'+fr+(p.status!=='Running'?' serr':'')+'" style="background:'+podColor(p)+'" data-tip="'+p.name+'\nStatus:  '+p.status+'\nIP:      '+p.ip+'\nLabels:  '+Object.keys(p.labels).map(function(k){return k+'='+p.labels[k];}).join(', ')+'\nImage:   '+p.image+'"></div>';}).join('');
+  var d=document.createElement('div');d.className='rounded-lg p-2.5';d.style.background='var(--tr-bg)';d.style.border='1px solid var(--tr-line)';
+  d.innerHTML='<div class="flex items-center justify-between mb-2"><div class="flex items-center gap-2"><span class="dot"></span><span class="fd text-xs font-bold" style="color:var(--tr-ok-bright)">'+n.name+'</span><span class="chp" style="color:var(--tr-ok-mute)">'+n.role+'</span></div><span class="text-xs" style="color:var(--tr-ok-mute)">'+(n.name==='master'?'3 ctrl':pods.length+' pods')+'</span></div>'
+  +'<div class="flex items-center gap-2 mb-1"><span class="text-xs w-7" style="color:var(--tr-ok-mute)">CPU</span><div class="bar flex-1"><i style="width:'+l.c+'%;background:linear-gradient(90deg,var(--tr-ok),var(--tr-accent))"></i></div><span class="text-xs w-9 text-right" style="color:var(--tr-ok-dim)">'+l.c+'%</span></div>'
+  +'<div class="flex items-center gap-2 mb-2"><span class="text-xs w-7" style="color:var(--tr-ok-mute)">RAM</span><div class="bar flex-1"><i style="width:'+l.m+'%;background:linear-gradient(90deg,var(--tr-accent2),var(--tr-pink))"></i></div><span class="text-xs w-9 text-right" style="color:var(--tr-ok-dim)">'+l.m+'%</span></div>'
+  +'<div class="flex flex-wrap gap-1.5 min-h-6">'+(blocks||'<span class="text-xs" style="color:var(--tr-dim)">нет подов</span>')+'</div>';
+  nb.appendChild(d);});
+ var sb=$('svcs');sb.innerHTML='';
+ if(!S.svcs.length){sb.innerHTML='<div class="text-xs" style="color:var(--tr-dim)">сервисы не созданы — kubectl expose deployment ...</div>';}
+ else S.svcs.forEach(function(s){
+  var eps=S.pods.filter(function(p){return p.dep===s.target&&p.ready;});
+  var n=Math.min(eps.length,5),col='var(--tr-accent)';
+  function ys(i){return n===1?15:5+i*(20/Math.max(n-1,1));}
+  var lines='',i;for(i=0;i<n;i++){lines+='<path d="M16,15 C 48,15 62,'+ys(i)+' 100,'+ys(i)+'" class="flw" stroke="'+col+'" fill="none" stroke-width="1.3" opacity=".8"/><circle cx="103" cy="'+ys(i)+'" r="3" fill="hsl('+hue(eps[i].dep||'x')+',70%,55%)"/>';}
+  var svg='<svg viewBox="0 0 112 30" preserveAspectRatio="none" class="w-full" style="height:30px"><circle cx="11" cy="15" r="4.5" fill="'+col+'"/><circle cx="11" cy="15" r="7.5" fill="none" stroke="'+col+'" opacity=".35"/>'+lines+'</svg>';
+  var d=document.createElement('div');d.className='rounded-lg p-2';d.style.background='rgba(77,163,255,.07)';d.style.border='1px solid rgba(77,163,255,.3)';
+  d.innerHTML='<div class="flex justify-between items-center"><span class="fd text-xs font-bold" style="color:var(--tr-accent-dim)">⇄ '+s.name+'</span><span class="chp" style="color:var(--tr-accent);border-color:var(--tr-line-accent)">'+s.type+'</span></div><div class="text-xs mt-1" style="color:var(--tr-ok-mute)">'+s.cip+' · '+s.ports+' · ep: '+eps.length+'</div>'+svg;
+  sb.appendChild(d);});
+ var cb=$('cfgs');cb.innerHTML='';
+ if(!S.cms.length&&!S.secs.length){cb.innerHTML='<span class="text-xs" style="color:var(--tr-dim)">пусто — kubectl create configmap ...</span>';}
+ S.cms.forEach(function(c5){cb.innerHTML+='<span class="chp tip" style="color:var(--tr-ok-dim)" data-tip="'+c5.name+'\n'+Object.keys(c5.data).map(function(k){return k+'='+c5.data[k];}).join('\n')+'">📄 '+c5.name+' · '+Object.keys(c5.data).length+'</span>';});
+ S.secs.forEach(function(s2){cb.innerHTML+='<span class="chp tip" style="color:var(--tr-pink-dim)" data-tip="'+s2.name+' (Opaque)\n'+Object.keys(s2.data).map(function(k){return k+': '+s2.data[k];}).join('\n')+'">🔒 '+s2.name+' · '+Object.keys(s2.data).length+'</span>';});
+ $('nss').innerHTML=S.nss.map(function(n){return '<span class="chp" style="color:'+(n==='kube-system'?'var(--tr-warn)':'var(--tr-ok-dim)')+'">⬡ '+n+'</span>';}).join('');
+ $('evFeed').innerHTML=EV.length?EV.map(function(e){return '<div class="er"><span style="color:'+e.c+'">'+e.s+'</span><span style="color:var(--tr-dim)">'+e.t+'</span></div>';}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">пока тихо — создайте deployment</div>';
+ var bad=S.pods.filter(function(p){return p.status!=='Running';}).length,el=$('clStat');
+ if(bad){el.innerHTML='⚠ '+bad+' degraded';el.style.color='var(--tr-warn)';}else{el.innerHTML='<span class="dot"></span>healthy';el.style.color='var(--tr-ok)';}}
+function renderLinux(){
+ var n=nodeAt(cwd),box=$('fsL');
+ var html='<div class="text-xs mb-1.5 font-bold" style="color:var(--tr-orange)">'+pathStr(cwd)+'</div>';
+ if(cwd.length)html+='<div class="fsr" data-cd="..">📁 ../</div>';
+ Object.keys(n.kids).sort(function(a,b){return((n.kids[b].dir?1:0)-(n.kids[a].dir?1:0))||a.localeCompare(b);}).forEach(function(k){var v=n.kids[k];
+  html+='<div class="fsr" data-cd="'+k+'">'+(v.dir?'📁 '+k+'/':(v.x?'⚡ '+k:'📄 '+k))+'</div>';});
+ if(!Object.keys(n.kids).length)html+='<div class="text-xs pl-1" style="color:var(--tr-dim)">— пусто —</div>';
+ box.innerHTML=html;
+ var rows=box.querySelectorAll('.fsr');
+ rows.forEach(function(el){el.onclick=function(){var c6='cd '+el.dataset.cd;out('root@linux:~# '+c6,'t-cmd');exec(c6);};});
+ $('prcL').innerHTML=PROCS.map(function(p){return '<div class="flex justify-between gap-2 text-xs py-1 px-1" style="border-bottom:1px dashed var(--tr-line)"><span style="color:var(--tr-ok-mute)">'+String(p.pid).padEnd(6)+p.user.padEnd(9)+'</span><span class="t-tbl truncate">'+p.cmd+'</span></div>';}).join('')||'<div class="text-xs" style="color:var(--tr-dim)">нет процессов</div>';}
+function envBlock(title,rows){return '<div><div class="text-xs font-bold mb-1.5" style="color:var(--tr-ok-mute)">'+title+'</div><div class="rounded-lg p-2" style="background:var(--tr-bg);border:1px solid var(--tr-line)">'+rows+'</div></div>';}
+function erow(l,r,col){return '<div class="er"><span style="color:'+(col||'var(--tr-ok-dim)')+'">'+l+'</span><span style="color:var(--tr-ok-mute)">'+r+'</span></div>';}
+function renderEnv(){
+ if(course==='k8s'){renderK8s();return;}
+ if(course==='linux'){renderLinux();return;}
+ var C=COURSES[course];$('genT').textContent=C.i+' '+C.n+' · СРЕДА';
+ $('genC').style.color=C.c;$('genC').innerHTML='<span class="dot" style="background:'+C.c+';box-shadow:0 0 8px '+C.c+'"></span>online';
+ var h='';
+ if(course==='net')h=envBlock('ВАШ ХОСТ',erow('eth0','10.0.0.5')+erow('gateway','10.0.0.1')+erow('dns','10.0.0.1#53'))+envBlock('ИЗВЕСТНЫЕ ХОСТЫ',Object.keys(NET.dns).filter(function(k){return !/^\d/.test(k);}).map(function(k){return erow(k,NET.dns[k]);}).join(''))+envBlock('СЛУШАЮЩИЕ ПОРТЫ',NET.ports.map(function(p){return erow(':'+p[0],p[1]);}).join(''));
+ if(course==='git')h=envBlock('РЕПОЗИТОРИЙ ~/app',erow('branch',GIT.init?GIT.branch:'— (git init?)')+erow('commits ('+GIT.branch+')',String(GIT.branches[GIT.branch].length))+erow('staged',String(Object.keys(GIT.staged).length))+erow('remote',GIT.remote||'—'))+envBlock('ФАЙЛЫ',Object.keys(GIT.files).map(function(f){return erow('📄 '+f,GIT.files[f].length+' B');}).join(''));
+ if(course==='docker')h=envBlock('ОБРАЗЫ',DK.images.length?DK.images.map(function(i){return erow('🐳 '+i.n+':'+i.t,i.size+'MB');}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">docker pull nginx</div>')+envBlock('КОНТЕЙНЕРЫ',DK.ct.length?DK.ct.map(function(c7){return erow((c7.st==='Up'?'▶ ':'■ ')+c7.name,c7.image+' · '+(c7.ports||'no ports'),c7.st==='Up'?'var(--tr-ok)':'var(--tr-err)');}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">нет контейнеров</div>')+envBlock('DOCKERFILE','<div class="text-xs whitespace-pre" style="color:var(--tr-ok-dim)">'+DK.df+'</div>');
+ if(course==='auto')h=envBlock('СКРИПТЫ',Object.keys(AU.scripts).length?Object.keys(AU.scripts).map(function(s3){return erow('⚙ '+s3,AU.scripts[s3]?'rwx':'rw-');}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">создайте backup.sh</div>')+envBlock('CRONTAB',AU.cron.length?AU.cron.map(function(c8){return erow('⏰',c8);}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">no crontab for dev</div>')+envBlock('КУРС ANSIBLE',erow('статус','15 уроков во вкладке A','var(--tr-red)'));
+ if(course==='ansible')h=envBlock('ИНВЕНТОРИ',erow('webservers','web-1, web-2')+erow('dbservers','db-1')+erow('ansible_user','dev'))+envBlock('СОСТОЯНИЕ ХОСТОВ',erow('nginx package',AN.nginx?'installed ✓':'—',AN.nginx?'var(--tr-ok)':0)+erow('nginx service',AN.svc?'running ✓':'stopped',AN.svc?'var(--tr-ok)':'var(--tr-err)')+erow('index.html',AN.copied?'deployed ✓':'—',AN.copied?'var(--tr-ok)':0)+erow('app /var/www/html',AN.app?'v1.4 live ✓':'—',AN.app?'var(--tr-ok)':0))+envBlock('PLAYBOOK RUNS',erow('executions',String(AN.runs)));
+ if(course==='cicd'){var last=CI.runs[CI.runs.length-1];
+  h=envBlock('PIPELINES',CI.runs.length?CI.runs.slice().reverse().map(function(r){return erow('#'+r.id+' · main',r.st.toUpperCase(),r.st==='success'?'var(--tr-ok)':r.st==='failed'?'var(--tr-err)':'var(--tr-warn)');}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">ci run — запустить первый</div>')+(last?envBlock('ЗАДАЧИ #'+last.id,['build','test','deploy'].map(function(j){return erow(j,last.jobs[j],last.jobs[j]==='passed'?'var(--tr-ok)':last.jobs[j]==='failed'?'var(--tr-err)':'var(--tr-ok-mute)');}).join('')):'');}
+ if(course==='obs')h=envBlock('АЛЕРТЫ',OB.alerts.map(function(a){return erow((a.st==='firing'?'🔥 ':'✓ ')+a.n,a.st+' · '+a.sev,a.st==='firing'?'var(--tr-err)':'var(--tr-ok)');}).join(''))+envBlock('ЦЕЛИ',[['web-1:9100','up'],['web-2:9100','up'],['db-1:9100','up']].map(function(e){return erow('● '+e[0],e[1],'var(--tr-ok)');}).join(''));
+ if(course==='ops')h=envBlock('СЛУЖБЫ',OP.svcs.map(function(s4){return erow((s4.a?'● ':'○ ')+s4.n,(s4.a?'active':'dead')+' / '+(s4.e?'enabled':'disabled'),s4.a?'var(--tr-ok)':'var(--tr-err)');}).join(''))+envBlock('ПОЛЬЗОВАТЕЛИ',OP.users.map(function(u){return erow('👤 '+u,'bash');}).join(''));
+ if(course==='data')h=envBlock('POSTGRES · app',erow('users',DA.users.length+' rows')+erow('orders',DA.orders.length+' rows · Σ '+DA.orders.reduce(function(a,o){return a+o.sum;},0)))+envBlock('REDIS',Object.keys(DA.redis).length?Object.keys(DA.redis).map(function(k){return erow(k,DA.redis[k]);}).join(''):'<div class="text-xs" style="color:var(--tr-dim)">(empty)</div>');
+ if(course==='cloud')h=envBlock('S3',CD.buckets.map(function(b){return erow('🪣 '+b,(CD.objects[b]||[]).length+' objects');}).join(''))+envBlock('EC2',CD.vms.map(function(v){return erow('▸ '+v.name,v.id+' · '+v.ip,v.st==='running'?'var(--tr-ok)':'var(--tr-warn)');}).join(''))+envBlock('TERRAFORM',erow('initialized',CD.tf?'yes':'no')+erow('state',CD.state.length?CD.state.join(', '):'empty'));
+ $('genB').innerHTML=h;}
+
+/* ===== INIT ===== */
+initLinux();
+(function(){
+ var inp=$('inp');
+ ['input','keyup','click','focus','select'].forEach(function(ev){
+  inp.addEventListener(ev,function(){syncCur();wakeCur();});
+ });
+ inp.addEventListener('scroll',function(){syncCur();});
+})();
+document.addEventListener('keydown',function(e){
+ if($('welM').classList.contains('open')&&e.key==='Enter'){startCourse();}
+});
+out('DevOps Terminal Pro v7.0 — 20 курсов в одном терминале. Всё живо: кластер, ФС, пайплайны, БД, хосты Ansible, векторный поиск, промпты и инференс.','t-ok');
+out(Object.keys(COURSES).map(function(k){return COURSES[k].i+' '+COURSES[k].n;}).join(' · '),'t-dim');
+out('Начните с задания №1 — команда и теория показаны ниже · справка в любом курсе: help','t-dim');
+setInterval(function(){var ch=false;S.pods.forEach(function(p){if(p.status==='CrashLoopBackOff'){p.rest++;ch=true;}});if(ch&&course==='k8s')renderK8s();},5000);

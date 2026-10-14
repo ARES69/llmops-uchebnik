@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Эмбеддинги и векторные базы — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">G. Данные и RAG</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Эмбеддинги и векторные базы</h1>
+        <p class="lead">Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе</p>
+        <div class="meta"><span class="badge">85 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">эмбеддинги</span><span class="tag">векторный поиск</span><span class="tag">qdrant</span><span class="tag">pgvector</span><span class="tag">метрики</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#chto-takoe-embedding">Что такое эмбеддинг</a></li><li class="toc-l2"><a href="#razmernost-kachestvo-protiv-pamyati-i-skorosti">Размерность: качество против памяти и скорости</a></li><li class="toc-l2"><a href="#kak-vybirat-model-embeddingov">Как выбирать модель эмбеддингов</a></li><li class="toc-l2"><a href="#normalizaciya-i-kosinusnaya-shozhest">Нормализация и косинусная схожесть</a></li><li class="toc-l2"><a href="#metriki-kachestva-poiska">Метрики качества поиска</a></li><li class="toc-l2"><a href="#kak-ustroen-indeks-hnsw-i-ivf">Как устроен индекс: HNSW и IVF</a></li><li class="toc-l2"><a href="#sravnenie-vektornyh-baz">Сравнение векторных баз</a></li><li class="toc-l2"><a href="#rabochiy-primer-qdrant">Рабочий пример: Qdrant</a></li><li class="toc-l2"><a href="#rabochiy-primer-pgvector">Рабочий пример: pgvector</a></li><li class="toc-l2"><a href="#metadannye-pochemu-filtr-vazhnee-samoy-metriki">Метаданные: почему фильтр важнее самой метрики</a></li><li class="toc-l2"><a href="#kogda-indeks-stal-bolshim-kvantovanie">Когда индекс стал большим: квантование</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Очищенный текст из <a href="../../lectures/mlops/04-dannye-i-pipeliney.html">предыдущей лекции</a> — это просто строки. Чтобы система могла найти «сброс пароля в AD», когда пользователь спрашивает «как поменять пароль от домена», нужен способ сравнить смысл. Этот способ — эмбеддинг: превращение текста в фиксированный вектор чисел, в котором расстояние между векторами отражает смысловое расстояние между текстами. Здесь две инженерные задачи: выбрать модель эмбеддингов (это качество и бюджет) и выбрать векторную базу (это эксплуатация и эксплуатационная стоимость). Обе решаются таблицами сравнения, а не верой в бренд.</p>
+<h2 id="chto-takoe-embedding">Что такое эмбеддинг</h2>
+<p>Интуиция — географическая. Представь карту города. Кафе на углу имеет координаты (x, y). Если два кафе стоят рядом, у них почти одинаковые координаты. Если одно в центре, а другое на окраине — координаты далеко друг от друга. Карта превращает «близко» в пространство. Эмбеддинг делает ровно то же со смыслом: заголовок «Восстановление пароля в Active Directory» и заголовок «Сброс учётной записи домена» получают векторы, которые стоят рядом, хотя совпадающих слов в них почти нет.</p>
+<p>Ключевое свойство: <strong>направление вектора кодирует смысл, длина — нет</strong>. Поэтому перед поиском векторы нормализуют, а сравнивают по косинусу. Модель на самом деле выучила 384 или 1024 направления смысла («это про аутентификацию», «это про сети», «это про зарплаты»), а текст кодируется как точка на этой сфере.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/embed_probe.py — проверить эмбеддинги до того, как строить вокруг них систему</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">def</span> <span class="tok-fn">embed_e5</span>(model, texts: list[str]) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">5</span>    <span class="tok-cmt"># multilingual-e5 требует префикс "query: " для запросов и "passage: " для документов</span></span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-k">return</span> model.<span class="tok-fn">encode</span>([<span class="tok-str">"passage: "</span> + t <span class="tok-k">for</span> t <span class="tok-k">in</span> texts],</span>
+<span class="ln"><span class="ln-i">7</span>                        normalize_embeddings=True, batch_size=<span class="tok-n">32</span>)</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">def</span> <span class="tok-fn">embed_query</span>(model, q: str) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-k">return</span> model.<span class="tok-fn">encode</span>([<span class="tok-str">"query: "</span> + q], normalize_embeddings=True)[<span class="tok-n">0</span>]</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">def</span> <span class="tok-fn">cosine</span>(a: np.ndarray, b: np.ndarray) -&gt; float:</span>
+<span class="ln"><span class="ln-i">13</span>    <span class="tok-cmt"># После normalize_embeddings=True скалярное произведение == косинус</span></span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(np.<span class="tok-fn">dot</span>(a, b))</span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span>docs = [</span>
+<span class="ln"><span class="ln-i">17</span>    <span class="tok-str">"Восстановление пароля учётной записи в Active Directory выполняется администратором домена."</span>,</span>
+<span class="ln"><span class="ln-i">18</span>    <span class="tok-str">"Для сброса пароля используется оснастка «Пользователи и компьютеры» или команда net user."</span>,</span>
+<span class="ln"><span class="ln-i">19</span>    <span class="tok-str">"Рецепт приготовления пасты карбонара: отварить спагетти и смешать с соусом."</span>,</span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-str">"Настройка резервирования DNS в Active Directory через оснастку DNS Manager."</span>,</span>
+<span class="ln"><span class="ln-i">21</span>]</span>
+<span class="ln"><span class="ln-i">22</span>queries = [</span>
+<span class="ln"><span class="ln-i">23</span>    <span class="tok-str">"как поменять пароль в домене"</span>,</span>
+<span class="ln"><span class="ln-i">24</span>    <span class="tok-str">"что приготовить на ужин из спагетти"</span>,</span>
+<span class="ln"><span class="ln-i">25</span>]</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>V = <span class="tok-fn">embed_e5</span>(model, docs)</span>
+<span class="ln"><span class="ln-i">28</span><span class="tok-k">for</span> q <span class="tok-k">in</span> queries:</span>
+<span class="ln"><span class="ln-i">29</span>    qv = <span class="tok-fn">embed_query</span>(model, q)</span>
+<span class="ln"><span class="ln-i">30</span>    scores = [<span class="tok-fn">cosine</span>(qv, v) <span class="tok-k">for</span> v <span class="tok-k">in</span> V]</span>
+<span class="ln"><span class="ln-i">31</span>    order = np.<span class="tok-fn">argsort</span>(scores)[::-<span class="tok-n">1</span>]</span>
+<span class="ln"><span class="ln-i">32</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"\nЗапрос: {q}"</span>)</span>
+<span class="ln"><span class="ln-i">33</span>    <span class="tok-k">for</span> i <span class="tok-k">in</span> order:</span>
+<span class="ln"><span class="ln-i">34</span>        <span class="tok-fn">print</span>(f<span class="tok-str">"  {scores[i]:+.3f}  {docs[i][:70]}"</span>)</span>
+</code></pre></div>
+<p>Обрати внимание на <strong>асимметрию</strong>: <code>query:</code> и <code>passage:</code>. Это не косметика. Модели семейства E5 обучены на парах «запрос — документ» с разными префиксами; если забыть префикс, качество падает на несколько процентов recall, и это самая частая причина «мы поменяли модель, а стало хуже» — на самом деле дело в префиксе.</p>
+<h2 id="razmernost-kachestvo-protiv-pamyati-i-skorosti">Размерность: качество против памяти и скорости</h2>
+<p>Размерность — это не про «больше лучше», а про три вещи, которые надо балансировать.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:right">Размерность</th>
+<th style="text-align:center">Размер одного вектора (fp32)</th>
+<th style="text-align:center">Векторов на 100k чанков</th>
+<th style="text-align:left">Что даёт</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:right">384</td>
+<td style="text-align:center">1,5 КБ</td>
+<td style="text-align:center">150 МБ</td>
+<td style="text-align:left">быстро, дёшево по памяти, качество приемлемое для коротких текстов</td>
+</tr>
+<tr>
+<td style="text-align:right">768</td>
+<td style="text-align:center">3 КБ</td>
+<td style="text-align:center">300 МБ</td>
+<td style="text-align:left">рабочий сбалансированный вариант для большинства корпусов</td>
+</tr>
+<tr>
+<td style="text-align:right">1024</td>
+<td style="text-align:center">4 КБ</td>
+<td style="text-align:center">400 МБ</td>
+<td style="text-align:left">лучше на русском и на длинных формулировках</td>
+</tr>
+<tr>
+<td style="text-align:right">1536</td>
+<td style="text-align:center">6 КБ</td>
+<td style="text-align:center">600 МБ</td>
+<td style="text-align:left">качественнее, но ощутимо дороже и по памяти, и по трафику</td>
+</tr>
+</tbody></table></div>
+<p>Считать надо не только память, но и <strong>трафик при индексации</strong>. Каждый байт вектора — это запрос к внешнему API эмбеддингов или к собственной модели. Для 100k чанков разница между 768 и 1536 — это 300 МБ лишнего трафика за прогон и заметно большее время на CPU, если считаешь локально.</p>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Практический порядок: возьми одну модель среднего размера (768–1024) и проверь recall@5 на золотом наборе. Если он ниже 0,85 — сначала чини чанкинг и фильтры, а не покупай модель вдвое дороже. Разница в recall между моделями обычно 3–8 процентных пунктов, а разница из-за плохих чанков — 30 пунктов.</p></div></div>
+<h2 id="kak-vybirat-model-embeddingov">Как выбирать модель эмбеддингов</h2>
+<p>Критерии отбора для русскоязычного корпоративного корпуса, в порядке важности: <strong>мультиязычность</strong> (русский + английские названия технологий в тех же доках), <strong>размер</strong>, <strong>лицензия</strong> (Apache-2.0 без ограничений против «research only»), <strong>стоимость</strong>, и только потом — бенчмарки на публичных наборах, в которых русского обычно почти нет.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Модель</th>
+<th style="text-align:center">Размер</th>
+<th style="text-align:left">Языки</th>
+<th style="text-align:left">Лицензия</th>
+<th style="text-align:left">Стоимость</th>
+<th style="text-align:left">Комментарий</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>intfloat/multilingual-e5-base</code></td>
+<td style="text-align:center">768</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">MIT</td>
+<td style="text-align:left">бесплатно, локально</td>
+<td style="text-align:left">лучший старт для RU, требует префиксы <code>query:</code>/<code>passage:</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>intfloat/multilingual-e5-large</code></td>
+<td style="text-align:center">1024</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">MIT</td>
+<td style="text-align:left">локально, вчетверо дороже по GPU</td>
+<td style="text-align:left">заметно лучше на сложных формулировках</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>BAAI/bge-m3</code></td>
+<td style="text-align:center">1024</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">MIT</td>
+<td style="text-align:left">бесплатно</td>
+<td style="text-align:left">мультивектор + разреженный вывод, умеет сам себе быть hybrid-поиском</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nomic-ai/nomic-embed-text-v1.5</code></td>
+<td style="text-align:center">768</td>
+<td style="text-align:left">English, частично RU</td>
+<td style="text-align:left">Apache-2.0</td>
+<td style="text-align:left">бесплатно</td>
+<td style="text-align:left">требует префикс <code>search_document:</code>, хорош на длинных текстах</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>intfloat/multilingual-e5-small</code></td>
+<td style="text-align:center">384</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">MIT</td>
+<td style="text-align:left">дёшево</td>
+<td style="text-align:left">когда память под жёстким лимитом, качество заметно ниже</td>
+</tr>
+<tr>
+<td style="text-align:left">OpenAI <code>text-embedding-3-small</code></td>
+<td style="text-align:center">1536</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">платная по токенам</td>
+<td style="text-align:left">~$0,02 / 1M токенов</td>
+<td style="text-align:left">нулевая эксплуатация, но векторы уходят наружу</td>
+</tr>
+<tr>
+<td style="text-align:left">OpenAI <code>text-embedding-3-large</code></td>
+<td style="text-align:center">3072</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">платная</td>
+<td style="text-align:left">в 6 раз дороже</td>
+<td style="text-align:left">для английского корпуса</td>
+</tr>
+<tr>
+<td style="text-align:left">Voyage / Cohere Embed</td>
+<td style="text-align:center">1024–4096</td>
+<td style="text-align:left">100+</td>
+<td style="text-align:left">платная</td>
+<td style="text-align:left">от $0,02 / 1M токенов</td>
+<td style="text-align:left">сильны на англ. доменах, RU — средне</td>
+</tr>
+</tbody></table></div>
+<p>Два практических вывода, которые важнее таблицы:</p>
+<ol><li><strong>Локальная модель почти всегда выигрывает по TCO на объёме от ~500k токенов в месяц.</strong> OpenAI <code>text-embedding-3-small</code> стоит копейки, но это цена за отсутствие эксплуатации: GPU, обновление драйверов, квантизация, кто-то должен следить за тем, чтобы модель ездила с GPU. При этом векторы уходят за периметр — вопрос, который сначала решает безопасность, а потом экономика.</li><li><strong>Менять модель эмбеддингов — это полная переиндексация и пересборка golden set.</strong> Метрики, посчитанные на старой модели, нельзя сравнивать с метриками на новой напрямую: они измеряют разные системы. Это нужно проговаривать в каждом PR, где меняется версия модели.</li></ol>
+<h2 id="normalizaciya-i-kosinusnaya-shozhest">Нормализация и косинусная схожесть</h2>
+<p>После нормализации длина вектора равна 1, и косинусное сходство превращается в обычное скалярное произведение — это не «оптимизация», а упрощение кода и ускорение индексации в разы на некоторых реализациях.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">def</span> <span class="tok-fn">l2_normalize</span>(v: np.ndarray) -&gt; np.ndarray:</span>
+<span class="ln"><span class="ln-i">4</span>    n = np.linalg.<span class="tok-fn">norm</span>(v, axis=-<span class="tok-n">1</span>, keepdims=True)</span>
+<span class="ln"><span class="ln-i">5</span>    <span class="tok-k">return</span> v / np.<span class="tok-fn">maximum</span>(n, <span class="tok-n">1e-12</span>)          <span class="tok-cmt"># защита от деления на ноль на пустом тексте</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># Что делает нормализация: убирает влияние «длины» текста</span></span>
+<span class="ln"><span class="ln-i">8</span>a = <span class="tok-fn">l2_normalize</span>(np.<span class="tok-fn">array</span>([<span class="tok-n">3.0</span>, <span class="tok-n">4.0</span>]))</span>
+<span class="ln"><span class="ln-i">9</span>b = <span class="tok-fn">l2_normalize</span>(np.<span class="tok-fn">array</span>([<span class="tok-n">6.0</span>, <span class="tok-n">8.0</span>]))        <span class="tok-cmt"># в 2 раза длиннее, но то же направление</span></span>
+<span class="ln"><span class="ln-i">10</span>c = <span class="tok-fn">l2_normalize</span>(np.<span class="tok-fn">array</span>([<span class="tok-n">4.0</span>, <span class="tok-n">3.0</span>]))        <span class="tok-cmt"># другой смысл</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-fn">print</span>(<span class="tok-fn">float</span>(a @ b))          <span class="tok-cmt"># 1.000 — тот же смысл, разная «длина»</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-fn">print</span>(<span class="tok-fn">float</span>(a @ c))          <span class="tok-cmt"># 0.960 — почти тот же смысл (векторы стоят рядом)</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-fn">print</span>(<span class="tok-fn">float</span>((a @ b) * (b @ c)))  <span class="tok-cmt"># насколько «совпадает направление», если сначала привести b к единице</span></span>
+</code></pre></div>
+<p>Метрики расстояния в векторных базах:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метрика</th>
+<th style="text-align:left">Что считает</th>
+<th style="text-align:left">Когда применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>Cosine</code></td>
+<td style="text-align:left">угол между векторами, игнорируя длину</td>
+<td style="text-align:left"><strong>по умолчанию для текстовых эмбеддингов</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Dot</code> / <code>Inner product</code></td>
+<td style="text-align:left">угол × длину</td>
+<td style="text-align:left">если модель сама обучена с dot (BGE, E5 до нормализации)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Euclid</code> (L2)</td>
+<td style="text-align:left">евклидово расстояние</td>
+<td style="text-align:left">когда векторы нормализованы, L2 эквивалентен косинусу</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Manhattan</code> (L1)</td>
+<td style="text-align:left">манхэттенское расстояние</td>
+<td style="text-align:left">редко, в основном для диагностики</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Метрика — это часть контракта с моделью. Если модель обучена с косинусом, а база настроена на <code>Dot</code> с ненормализованными векторами, recall просядет, и никакая смена чанкинга это не вылечит. Всегда храни в метаданных имя модели и метрику: <code>embed_model</code>, <code>metric</code>, <code>dim</code>. При смене любого из трёх — полная переиндексация.</p></div></div>
+<h2 id="metriki-kachestva-poiska">Метрики качества поиска</h2>
+<p>Эти метрики понадобятся тебе и в RAG, и в оценке RAG. Разберём их на пальцах.</p>
+<p>Пусть на один вопрос есть 4 релевантных чанка. Система вернула 5.</p>
+<ul><li><strong>recall@k</strong> — сколько из 4 нужных попало в выдачу. Вернула 3 из 4 → 0,75. Метрика поиска: «мы вообще находим нужное».</li><li><strong>precision@k</strong> — сколько из вернутых действительно нужны. Из 5 вернулось 3 нужных → 0,6. Метрика шума: «сколько мусора мы впихнём в контекст».</li><li><strong>MRR</strong> (mean reciprocal rank) — среднее обратное место первого правильного документа. Если нужный документ первый, вклад 1.0; если третий — 1/3 ≈ 0,33. Метрика «насколько быстро мы попали», и именно она ближе всего к тому, что чувствует пользователь.</li><li><strong>hit rate@k</strong> — доля вопросов, где хотя бы один нужный документ попал в выдачу. Грубая, зато очень наглядная для руководства: «в 87% случаев мы точно находим нужное».</li></ul>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/eval_retrieval.py — считаем всё это на golden set одной строкой</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">def</span> <span class="tok-fn">recall_at_k</span>(retrieved_ids: list[list[str]], gold: dict[str, list[str]], k: int) -&gt; float:</span>
+<span class="ln"><span class="ln-i">5</span>    <span class="tok-str">"""retrieved_ids: список id документов по каждому вопросу"""</span></span>
+<span class="ln"><span class="ln-i">6</span>    vals = []</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-k">for</span> i, (qid, gold_ids) <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(gold.<span class="tok-fn">items</span>()):</span>
+<span class="ln"><span class="ln-i">8</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> gold_ids:</span>
+<span class="ln"><span class="ln-i">9</span>            <span class="tok-k">continue</span>                              <span class="tok-cmt"># вопросы без ответа не считаем</span></span>
+<span class="ln"><span class="ln-i">10</span>        top = <span class="tok-fn">set</span>(retrieved_ids[i][:k])</span>
+<span class="ln"><span class="ln-i">11</span>        vals.<span class="tok-fn">append</span>(<span class="tok-fn">len</span>(top &amp; <span class="tok-fn">set</span>(gold_ids)) / <span class="tok-fn">len</span>(gold_ids))</span>
+<span class="ln"><span class="ln-i">12</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(np.<span class="tok-fn">mean</span>(vals))</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">def</span> <span class="tok-fn">precision_at_k</span>(retrieved_ids, gold, k):</span>
+<span class="ln"><span class="ln-i">15</span>    vals = []</span>
+<span class="ln"><span class="ln-i">16</span>    <span class="tok-k">for</span> i, (qid, gold_ids) <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(gold.<span class="tok-fn">items</span>()):</span>
+<span class="ln"><span class="ln-i">17</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> gold_ids:</span>
+<span class="ln"><span class="ln-i">18</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">19</span>        top = retrieved_ids[i][:k]</span>
+<span class="ln"><span class="ln-i">20</span>        vals.<span class="tok-fn">append</span>(<span class="tok-fn">len</span>(<span class="tok-fn">set</span>(top) &amp; <span class="tok-fn">set</span>(gold_ids)) / k)</span>
+<span class="ln"><span class="ln-i">21</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(np.<span class="tok-fn">mean</span>(vals))</span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">def</span> <span class="tok-fn">mrr</span>(retrieved_ids, gold):</span>
+<span class="ln"><span class="ln-i">24</span>    vals = []</span>
+<span class="ln"><span class="ln-i">25</span>    <span class="tok-k">for</span> i, (qid, gold_ids) <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(gold.<span class="tok-fn">items</span>()):</span>
+<span class="ln"><span class="ln-i">26</span>        rank = <span class="tok-fn">next</span>((r <span class="tok-k">for</span> r, doc <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(retrieved_ids[i], <span class="tok-n">1</span>) <span class="tok-k">if</span> doc <span class="tok-k">in</span> <span class="tok-fn">set</span>(gold_ids)), None)</span>
+<span class="ln"><span class="ln-i">27</span>        <span class="tok-k">if</span> rank:</span>
+<span class="ln"><span class="ln-i">28</span>            vals.<span class="tok-fn">append</span>(<span class="tok-n">1.0</span> / rank)</span>
+<span class="ln"><span class="ln-i">29</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(np.<span class="tok-fn">mean</span>(vals))</span>
+<span class="ln"><span class="ln-i">30</span></span>
+<span class="ln"><span class="ln-i">31</span><span class="tok-k">def</span> <span class="tok-fn">hit_rate</span>(retrieved_ids, gold, k=<span class="tok-n">5</span>):</span>
+<span class="ln"><span class="ln-i">32</span>    vals = []</span>
+<span class="ln"><span class="ln-i">33</span>    <span class="tok-k">for</span> i, (qid, gold_ids) <span class="tok-k">in</span> <span class="tok-fn">enumerate</span>(gold.<span class="tok-fn">items</span>()):</span>
+<span class="ln"><span class="ln-i">34</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> gold_ids:</span>
+<span class="ln"><span class="ln-i">35</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">36</span>        vals.<span class="tok-fn">append</span>(<span class="tok-n">1.0</span> <span class="tok-k">if</span> <span class="tok-fn">set</span>(retrieved_ids[i][:k]) &amp; <span class="tok-fn">set</span>(gold_ids) <span class="tok-k">else</span> <span class="tok-n">0.0</span>)</span>
+<span class="ln"><span class="ln-i">37</span>    <span class="tok-k">return</span> <span class="tok-fn">float</span>(np.<span class="tok-fn">mean</span>(vals))</span>
+</code></pre></div>
+<p>Заметь, почему в коде пропускаются вопросы без золотых источников: усреднение по ним даёт деление на ноль или, хуже, искусственное занижение. Вопросы с <code>expected_refusal</code> считаются отдельно — по ним нужна нулевая доля найденного мусора.</p>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Считать recall нужно <strong>на фиксированном корпусе</strong>. Поменялся чанкинг, корпус пересобрался, golden set не синхронизирован — и цифры стали несравнимыми. Отсюда правило из <a href="../../lectures/mlops/04-dannye-i-pipeliney.html">предыдущей лекции</a>: <code>corpus_snapshot</code> в манифесте и в golden set обязаны совпадать.</p></div></div>
+<h2 id="kak-ustroen-indeks-hnsw-i-ivf">Как устроен индекс: HNSW и IVF</h2>
+<p>Полный перебор — это «сравнить вектор запроса с каждым вектором в базе». Точно, но линейно: при 1 млн чанков это миллиард операций, и запрос не уложится в разумную латентность. Поэтому векторные базы строят <strong>приблизительный</strong> индекс — он жертвует небольшим процентом точности ради на порядки меньшей latency.</p>
+<p><strong>HNSW — иерархический граф ближайших соседей.</strong> Интуиция: представь ночной город. В центре — крупный проспект, в пригородах — улицы. Найти «Бар „Дубль"» ты будешь не перебором всех домов, а от крупной магистрали к мелким. HNSW устроен так же: верхний уровень графа содержит мало узлов с большим расстоянием между ними, нижний — все точки и все связи между соседями. Поиск спускается по верхнему уровню к региону, потом по нижнему уже почти наугад, проверяя десятки узлов вместо миллионов.</p>
+<p>Параметры, которые настраивают:</p>
+<ul><li><code>M</code> (в Qdrant: <code>m</code>) — сколько соседей у каждого узла в графе. Больше <code>M</code> — точнее и больше памяти. Типично 16–48; для русского текста с морфологией 16 часто уже достаточно.</li><li><code>ef_construct</code> — размер множества кандидатов при <strong>построении</strong> индекса. Больше — выше качество графа и дольше индексация.</li><li><code>ef_search</code> — размер множества кандидатов при <strong>поиске</strong>. Это единственный параметр, который можно крутить в рантайме без переиндексации: поднял — точнее и медленнее.</li></ul>
+<p><strong>IVF — грубое разбиение на кластеры.</strong> Интуиция: «сначала грубо разбить на кластеры, потом искать внутри». База делится на <code>nlist</code> кластеров (с помощью k-means), при поиске сканируются только <code>nprobe</code> ближайших кластеров. Точность зависит от того, не попал ли нужный вектор в «соседний» кластер — отсюда главная проблема: качество скачет при добавлении данных, потому что центры кластеров устаревают, и индекс приходится переобучать.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Свойство</th>
+<th style="text-align:left">HNSW</th>
+<th style="text-align:left">IVF</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Идея</td>
+<td style="text-align:left">многоуровневый граф соседей</td>
+<td style="text-align:left">грубые кластеры + поиск внутри</td>
+</tr>
+<tr>
+<td style="text-align:left">Запрос</td>
+<td style="text-align:left"><code>ef_search</code> больше → точнее</td>
+<td style="text-align:left"><code>nprobe</code> больше → точнее</td>
+</tr>
+<tr>
+<td style="text-align:left">Добавление данных</td>
+<td style="text-align:left">онлайн, без переобучения</td>
+<td style="text-align:left">требует переобучения при росте</td>
+</tr>
+<tr>
+<td style="text-align:left">Память</td>
+<td style="text-align:left">выше (граф)</td>
+<td style="text-align:left">ниже (только центры + списки)</td>
+</tr>
+<tr>
+<td style="text-align:left">Когда выигрывает</td>
+<td style="text-align:left">универсальный случай RAG</td>
+<td style="text-align:left">огромные корпусы с known workload</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Начинай с HNSW. Он не требует переобучения, не требует знания распределения данных и на корпусах до нескольких миллионов векторов обычно обгоняет IVF точностью при сопоставимых задержках. IVF имеет смысл, когда векторов миллионы, а не десятки тысяч.</p></div></div>
+<h2 id="sravnenie-vektornyh-baz">Сравнение векторных баз</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Qdrant</th>
+<th style="text-align:left">pgvector</th>
+<th style="text-align:left">Milvus</th>
+<th style="text-align:left">Weaviate</th>
+<th style="text-align:left">Redis</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Язык</td>
+<td style="text-align:left">Rust</td>
+<td style="text-align:left">C в Postgres</td>
+<td style="text-align:left">C++/Go</td>
+<td style="text-align:left">Go</td>
+<td style="text-align:left">C</td>
+</tr>
+<tr>
+<td style="text-align:left">Фильтры по метаданным</td>
+<td style="text-align:left"><strong>сильные</strong>, payload-индексы, фасетный поиск</td>
+<td style="text-align:left">через B-tree/GIN-индексы, приемлемо</td>
+<td style="text-align:left">выразительные</td>
+<td style="text-align:left">очень богатые (GraphQL-фильтры)</td>
+<td style="text-align:left">простые</td>
+</tr>
+<tr>
+<td style="text-align:left">Индексация</td>
+<td style="text-align:left">HNSW, IVF, квантование</td>
+<td style="text-align:left">HNSW, IVF (в PG 16+), IVFFlat</td>
+<td style="text-align:left">IVF/HNSW/DiskANN/GPU</td>
+<td style="text-align:left">HNSW</td>
+<td style="text-align:left">HNSW, Redis Search</td>
+</tr>
+<tr>
+<td style="text-align:left">Деплой</td>
+<td style="text-align:left">один бинарник или docker-compose</td>
+<td style="text-align:left"><strong>уже в твоём Postgres</strong></td>
+<td style="text-align:left">etcd + минио + кластер — тяжёлый</td>
+<td style="text-align:left">один контейнер</td>
+<td style="text-align:left">уже в инфраструктуре</td>
+</tr>
+<tr>
+<td style="text-align:left">Эксплуатация</td>
+<td style="text-align:left">низкая</td>
+<td style="text-align:left"><strong>нулевая</strong></td>
+<td style="text-align:left">высокая</td>
+<td style="text-align:left">средняя</td>
+<td style="text-align:left">низкая</td>
+</tr>
+<tr>
+<td style="text-align:left">Аналогичный SQL</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">через REST/gRPC</td>
+<td style="text-align:left">GraphQL</td>
+<td style="text-align:left">RediSearch</td>
+</tr>
+<tr>
+<td style="text-align:left">Когда выбирать</td>
+<td style="text-align:left"><strong>основной вариант для RAG</strong></td>
+<td style="text-align:left">до ~1–2 млн векторов, когда БД уже есть</td>
+<td style="text-align:left">десятки миллионов+, распределённый режим</td>
+<td style="text-align:left">сложные семантические связи</td>
+<td style="text-align:left">простые фильтры + быстрый поиск</td>
+</tr>
+</tbody></table></div>
+<p>Моя рекомендация для корпоративного ассистента, которую я буду защищать перед архитектурным советом: <strong>Qdrant отдельным сервисом</strong>. Обоснование в трёх пунктах, а не в «у него круче recall»:</p>
+<ol><li><strong>Фильтрация — главная причина.</strong> В корпоративном корпусе почти каждый запрос имеет метафильтр: отдел, тип документа, дата, ACL-группы. Qdrant выполняет фильтр и векторный поиск <strong>одним проходом</strong> с учётом HNSW-графа (payload indexes). В pgvector фильтр применяется после отбора кандидатов, и на больших объёмах это заметно бьёт по latency.</li><li><strong>Бэкап и откат — независимые.</strong> Индекс данных — в Qdrant, транзакционные данные — в Postgres. Падение или пересборка индекса не трогает основную базу.</li><li><strong>Мультиарендность на уровне коллекций</strong> — это то, что корпоративному ассистенту нужно по умолчанию.</li></ol>
+<p>Исключение, когда pgvector всё равно правильный выбор: у тебя <strong>уже</strong> есть Postgres с бэкапами, мониторингом и репликацией, корпус меньше нескольких сотен тысяч чанков, и никто не собирается его масштабировать. Тогда pgvector — честный ответ: один компонент вместо двух, одна транзакция для «записать документ и его чанки», ноль нового в эксплуатации. Минус по бюджету: индексы HNSW в Postgres чувствительны к <code>maintenance_work_mem</code> и требуют <code>REINDEX</code> при росте — это регулярная операционная работа, о которой надо помнить.</p>
+<h2 id="rabochiy-primer-qdrant">Рабочий пример: Qdrant</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">docker</span> run -d --name qdrant --restart unless-stopped \</span>
+<span class="ln"><span class="ln-i">2</span>  -p <span class="tok-n">6333</span>:<span class="tok-n">6333</span> -p <span class="tok-n">6334</span>:<span class="tok-n">6334</span> \</span>
+<span class="ln"><span class="ln-i">3</span>  -v qdrant_storage:/qdrant/storage \</span>
+<span class="ln"><span class="ln-i">4</span>  qdrant/qdrant:v1.<span class="tok-n">12.4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># 6333 — REST API, 6334 — gRPC (используй его в проде: он в 2–3 раза быстрее)</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">curl</span> -s http://localhost:<span class="tok-n">6333</span>/collections | python -m json.tool</span>
+</code></pre></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/index_qdrant.py</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">from</span> qdrant_client <span class="tok-k">import</span> QdrantClient, models</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>client = <span class="tok-fn">QdrantClient</span>(url=<span class="tok-str">"http://qdrant:6333"</span>)</span>
+<span class="ln"><span class="ln-i">5</span>COLLECTION = <span class="tok-str">"prod_index_20261012_0315"</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">if</span> <span class="tok-k">not</span> client.<span class="tok-fn">collection_exists</span>(COLLECTION):</span>
+<span class="ln"><span class="ln-i">8</span>    client.<span class="tok-fn">create_collection</span>(</span>
+<span class="ln"><span class="ln-i">9</span>        collection_name=COLLECTION,</span>
+<span class="ln"><span class="ln-i">10</span>        vectors_config=models.<span class="tok-fn">VectorParams</span>(size=<span class="tok-n">1024</span>, distance=models.Distance.COSINE),</span>
+<span class="ln"><span class="ln-i">11</span>        hnsw_config=models.<span class="tok-fn">HnswConfigDiff</span>(m=<span class="tok-n">16</span>, ef_construct=<span class="tok-n">128</span>),</span>
+<span class="ln"><span class="ln-i">12</span>        <span class="tok-cmt"># Payload-индексы под фильтры: без них каждый запрос фильтрации = full scan payload</span></span>
+<span class="ln"><span class="ln-i">13</span>        optimizers_config=models.<span class="tok-fn">OptimizersConfigDiff</span>(default_segment_number=<span class="tok-n">4</span>),</span>
+<span class="ln"><span class="ln-i">14</span>    )</span>
+<span class="ln"><span class="ln-i">15</span>    <span class="tok-k">for</span> field, schema <span class="tok-k">in</span> [</span>
+<span class="ln"><span class="ln-i">16</span>        (<span class="tok-str">"doc_id"</span>, models.PayloadSchemaType.KEYWORD),</span>
+<span class="ln"><span class="ln-i">17</span>        (<span class="tok-str">"source_system"</span>, models.PayloadSchemaType.KEYWORD),</span>
+<span class="ln"><span class="ln-i">18</span>        (<span class="tok-str">"acl_groups"</span>, models.PayloadSchemaType.KEYWORD),</span>
+<span class="ln"><span class="ln-i">19</span>        (<span class="tok-str">"updated_at"</span>, models.PayloadSchemaType.DATETIME),</span>
+<span class="ln"><span class="ln-i">20</span>    ]:</span>
+<span class="ln"><span class="ln-i">21</span>        client.<span class="tok-fn">create_payload_index</span>(COLLECTION, field_name=field, field_schema=schema)</span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span></span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-k">def</span> <span class="tok-fn">index_chunks</span>(chunks: list[dict], vectors: np.ndarray, batch: int = <span class="tok-n">256</span>) -&gt; None:</span>
+<span class="ln"><span class="ln-i">25</span>    <span class="tok-k">for</span> start <span class="tok-k">in</span> <span class="tok-fn">range</span>(<span class="tok-n">0</span>, <span class="tok-fn">len</span>(chunks), batch):</span>
+<span class="ln"><span class="ln-i">26</span>        part = chunks[start:start + batch]</span>
+<span class="ln"><span class="ln-i">27</span>        client.<span class="tok-fn">upsert</span>(</span>
+<span class="ln"><span class="ln-i">28</span>            collection_name=COLLECTION,</span>
+<span class="ln"><span class="ln-i">29</span>            points=[</span>
+<span class="ln"><span class="ln-i">30</span>                models.<span class="tok-fn">PointStruct</span>(</span>
+<span class="ln"><span class="ln-i">31</span>                    id=c[<span class="tok-str">"chunk_id"</span>],                      <span class="tok-cmt"># детерминированный id = идемпотентность</span></span>
+<span class="ln"><span class="ln-i">32</span>                    vector=vectors[start:start + <span class="tok-fn">len</span>(part)].<span class="tok-fn">tolist</span>(),</span>
+<span class="ln"><span class="ln-i">33</span>                    payload=c[<span class="tok-str">"metadata"</span>],</span>
+<span class="ln"><span class="ln-i">34</span>                )</span>
+<span class="ln"><span class="ln-i">35</span>                <span class="tok-k">for</span> c <span class="tok-k">in</span> part</span>
+<span class="ln"><span class="ln-i">36</span>            ],</span>
+<span class="ln"><span class="ln-i">37</span>            wait=False,                                   <span class="tok-cmt"># не ждём fsync на каждом батче</span></span>
+<span class="ln"><span class="ln-i">38</span>        )</span>
+</code></pre></div>
+<p><code>chunk_id</code> здесь намеренно детерминированный — хеш от <code>doc_id + номер чанка</code>. Один и тот же документ, переиндексированный дважды, перезапишет свою точку, а не создаст дубликат. Для Qdrant это важно ещё и потому, что автоинкрементные id не дают тебе удалять по <code>doc_id</code> без отдельного скролла.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /opt/rag-pipeline/search_qdrant.py</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">def</span> <span class="tok-fn">search</span>(question: str, user_groups: list[str], k: int = <span class="tok-n">20</span>, ef: int = <span class="tok-n">128</span>) -&gt; list[dict]:</span>
+<span class="ln"><span class="ln-i">3</span>    qv = <span class="tok-fn">embed_query</span>(question)                              <span class="tok-cmt"># np.array размера 1024</span></span>
+<span class="ln"><span class="ln-i">4</span>    <span class="tok-cmt"># MUST-фильтр по ACL: пользователь не должен получить чанк, к которому нет доступа.</span></span>
+<span class="ln"><span class="ln-i">5</span>    <span class="tok-cmt"># Порядок именно такой: сначала принудительный фильтр, потом top_k.</span></span>
+<span class="ln"><span class="ln-i">6</span>    res = client.<span class="tok-fn">query_points</span>(</span>
+<span class="ln"><span class="ln-i">7</span>        collection_name=COLLECTION,</span>
+<span class="ln"><span class="ln-i">8</span>        query=qv.<span class="tok-fn">tolist</span>(),</span>
+<span class="ln"><span class="ln-i">9</span>        limit=k,</span>
+<span class="ln"><span class="ln-i">10</span>        search_params=models.<span class="tok-fn">SearchParams</span>(hnsw_ef=ef, exact=False),</span>
+<span class="ln"><span class="ln-i">11</span>        query_filter=models.<span class="tok-fn">Filter</span>(</span>
+<span class="ln"><span class="ln-i">12</span>            must=[</span>
+<span class="ln"><span class="ln-i">13</span>                models.<span class="tok-fn">FieldCondition</span>(key=<span class="tok-str">"acl_groups"</span>, <span class="tok-k">match</span>=models.<span class="tok-fn">MatchAny</span>(any=user_groups)),</span>
+<span class="ln"><span class="ln-i">14</span>                models.<span class="tok-fn">FieldCondition</span>(key=<span class="tok-str">"source_system"</span>, <span class="tok-k">match</span>=models.<span class="tok-fn">MatchValue</span>(value=<span class="tok-str">"confluence"</span>)),</span>
+<span class="ln"><span class="ln-i">15</span>            ]</span>
+<span class="ln"><span class="ln-i">16</span>        ),</span>
+<span class="ln"><span class="ln-i">17</span>        with_payload=True,</span>
+<span class="ln"><span class="ln-i">18</span>    )</span>
+<span class="ln"><span class="ln-i">19</span>    <span class="tok-k">return</span> [p.payload <span class="tok-k">for</span> p <span class="tok-k">in</span> res.points]</span>
+</code></pre></div>
+<p><code>search_params</code> с <code>hnsw_ef</code> — то самое, что можно крутить без переиндексации. Правило эксплуатации: держи ef_search=64 для чернового прогона и поднимай до 256 для финального eval; разница в MRR обычно 2–4 пункта при заметном росте latency.</p>
+<h2 id="rabochiy-primer-pgvector">Рабочий пример: pgvector</h2>
+<div class="codeblock" data-lang="sql"><div class="codehead"><span class="code-lang">sql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">-- Установка расширения и таблицы. vector(1024) — фиксированная размерность:</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">-- смена модели = ALTER TABLE ... TYPE vector(N), и это полная переиндексация.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">CREATE</span> EXTENSION IF <span class="tok-k">NOT</span> <span class="tok-k">EXISTS</span> vector;</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">CREATE</span> <span class="tok-k">TABLE</span> <span class="tok-fn">doc_chunks</span> (</span>
+<span class="ln"><span class="ln-i">6</span>    id            bigserial <span class="tok-k">PRIMARY</span> <span class="tok-k">KEY</span>,</span>
+<span class="ln"><span class="ln-i">7</span>    chunk_id      text <span class="tok-k">NOT</span> <span class="tok-k">NULL</span> <span class="tok-k">UNIQUE</span>,</span>
+<span class="ln"><span class="ln-i">8</span>    doc_id        text <span class="tok-k">NOT</span> <span class="tok-k">NULL</span>,</span>
+<span class="ln"><span class="ln-i">9</span>    source_system text <span class="tok-k">NOT</span> <span class="tok-k">NULL</span>,</span>
+<span class="ln"><span class="ln-i">10</span>    acl_groups    text[] <span class="tok-k">NOT</span> <span class="tok-k">NULL</span> <span class="tok-k">DEFAULT</span> <span class="tok-str">'{}'</span>,</span>
+<span class="ln"><span class="ln-i">11</span>    section       text,</span>
+<span class="ln"><span class="ln-i">12</span>    updated_at    timestamptz,</span>
+<span class="ln"><span class="ln-i">13</span>    content       text <span class="tok-k">NOT</span> <span class="tok-k">NULL</span>,</span>
+<span class="ln"><span class="ln-i">14</span>    embedding     <span class="tok-fn">vector</span>(<span class="tok-n">1024</span>) <span class="tok-k">NOT</span> <span class="tok-k">NULL</span>,</span>
+<span class="ln"><span class="ln-i">15</span>    tsvector      tsvector GENERATED ALWAYS <span class="tok-k">AS</span> (</span>
+<span class="ln"><span class="ln-i">16</span>        <span class="tok-fn">to_tsvector</span>(<span class="tok-str">'russian'</span>, content || <span class="tok-str">' '</span> || <span class="tok-fn">coalesce</span>(section, <span class="tok-str">''</span>))</span>
+<span class="ln"><span class="ln-i">17</span>    ) STORED</span>
+<span class="ln"><span class="ln-i">18</span>);</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-cmt">-- Индексы: HNSW под вектор и GIN под полнотекстовый поиск (для hybrid-поиска, см. лекцию 06)</span></span>
+<span class="ln"><span class="ln-i">21</span><span class="tok-k">CREATE</span> <span class="tok-k">INDEX</span> <span class="tok-k">ON</span> doc_chunks USING <span class="tok-fn">hnsw</span> (embedding vector_cosine_ops)</span>
+<span class="ln"><span class="ln-i">22</span>  <span class="tok-k">WITH</span> (m = <span class="tok-n">16</span>, ef_construction = <span class="tok-n">128</span>);</span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">CREATE</span> <span class="tok-k">INDEX</span> <span class="tok-k">ON</span> doc_chunks USING <span class="tok-fn">gin</span> (tsvector);</span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-k">CREATE</span> <span class="tok-k">INDEX</span> <span class="tok-k">ON</span> doc_chunks USING <span class="tok-fn">gin</span> (acl_groups);</span>
+</code></pre></div>
+<div class="codeblock" data-lang="sql"><div class="codehead"><span class="code-lang">sql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">-- Запрос с фильтрацией: после WHERE Postgres сначала берёт кандидатов по индексу,</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">-- потом сортирует по косинусу. Именно поэтому на больших объёмах он медленнее Qdrant.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">WITH</span> filtered <span class="tok-k">AS</span> (</span>
+<span class="ln"><span class="ln-i">4</span>    <span class="tok-k">SELECT</span> id, doc_id, section, content,</span>
+<span class="ln"><span class="ln-i">5</span>           embedding &lt;=&gt; <span class="tok-var">$1</span>::vector <span class="tok-k">AS</span> dist          <span class="tok-cmt"># оператор &lt;=&gt; это косинусное расстояние</span></span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-k">FROM</span> doc_chunks</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-k">WHERE</span> acl_groups &amp;&amp; <span class="tok-var">$2</span>::text[]                 <span class="tok-cmt"># пересечение массивов, использует GIN</span></span>
+<span class="ln"><span class="ln-i">8</span>      <span class="tok-k">AND</span> source_system = <span class="tok-var">$3</span></span>
+<span class="ln"><span class="ln-i">9</span>      <span class="tok-k">AND</span> updated_at &gt;= <span class="tok-fn">now</span>() - interval <span class="tok-str">'1 year'</span></span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-k">ORDER</span> <span class="tok-k">BY</span> embedding &lt;=&gt; <span class="tok-var">$1</span>::vector</span>
+<span class="ln"><span class="ln-i">11</span>    <span class="tok-k">LIMIT</span> <span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">12</span>)</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">SELECT</span> *, <span class="tok-n">1</span> - (<span class="tok-n">1</span> - (embedding &lt;=&gt; <span class="tok-var">$1</span>::vector)) <span class="tok-k">AS</span> similarity</span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">FROM</span> filtered;</span>
+</code></pre></div>
+<p>Обрати внимание на <code>tsvector</code> как сгенерированную колонку: полнотекстовый индекс живёт в той же таблице и обновляется автоматически. Это и есть главный аргумент «против» отдельной векторной БД — для hybrid-поиска всё в одном месте.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Секреты к PGVector из Python</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">export</span> PGVECTOR_URL=<span class="tok-str">"postgresql://rag:***@pg-rag:5432/ragdb"</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">export</span> PGVECTOR_COLLECTION=<span class="tok-str">"doc_chunks"</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>python - &lt;&lt;<span class="tok-str">'PY'</span></span>
+<span class="ln"><span class="ln-i">6</span>from pgvector.psycopg import register_vector</span>
+<span class="ln"><span class="ln-i">7</span>import psycopg</span>
+<span class="ln"><span class="ln-i">8</span>with psycopg.<span class="tok-fn">connect</span>(<span class="tok-str">"postgresql://rag:***@pg-rag:5432/ragdb"</span>) as conn:</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-fn">register_vector</span>(conn)</span>
+<span class="ln"><span class="ln-i">10</span>    with conn.<span class="tok-fn">cursor</span>() as cur:</span>
+<span class="ln"><span class="ln-i">11</span>        cur.<span class="tok-fn">execute</span>(<span class="tok-str">"SELECT count(*), avg(vector_dims(embedding)) FROM doc_chunks;"</span>)</span>
+<span class="ln"><span class="ln-i">12</span>        <span class="tok-fn">print</span>(cur.<span class="tok-fn">fetchone</span>())</span>
+<span class="ln"><span class="ln-i">13</span>PY</span>
+</code></pre></div>
+<h2 id="metadannye-pochemu-filtr-vazhnee-samoy-metriki">Метаданные: почему фильтр важнее самой метрики</h2>
+<p>Отдельно подчеркну то, что в датасетах упускают: <strong>в корпоративном RAG фильтрация по метаданным часто даёт больше, чем смена модели эмбеддингов</strong>.</p>
+<p>Пример из практики. Вопрос: «как настроить резервирование контроллера домена». В корпусе 200 документов, из них 6 — про резервное копирование AD, остальные — про то же самое в других системах (Exchange, SQL, файловый сервер), плюс 40 документов про авторизацию и пароли, которые тоже звучат похоже. Векторный поиск без фильтра возвращает смесь из трёх подходящих и семнадцати почти подходящих документов; правильный ответ на 7-й позиции. Добавь фильтр <code>source_system = 'confluence' AND acl_groups &amp;&amp; '{domain-admins}'</code> — и поиск возвращает нужный документ первым.</p>
+<p>Состав полей метаданных, которые нужны <strong>всегда</strong>:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Поле</th>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Зачем</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>doc_id</code></td>
+<td style="text-align:left">keyword</td>
+<td style="text-align:left">удаление всех чанков документа, трекинг происхождения</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>chunk_id</code></td>
+<td style="text-align:left">keyword</td>
+<td style="text-align:left">дедупликация, идемпотентная индексация, ссылки в цитатах</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>source_system</code></td>
+<td style="text-align:left">keyword</td>
+<td style="text-align:left">фильтр по происхождению, раздельные права</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>acl_groups</code></td>
+<td style="text-align:left">keyword[]</td>
+<td style="text-align:left"><strong>безопасность</strong>: пользователь не должен получать чанк без доступа</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>title</code>, <code>section</code></td>
+<td style="text-align:left">text</td>
+<td style="text-align:left">инъекция в текст чанка для качества ответа</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>url</code></td>
+<td style="text-align:left">text</td>
+<td style="text-align:left">ссылка, которую ассистент показывает пользователю</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left">datetime</td>
+<td style="text-align:left">freshness, фильтр «только актуальное»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lang</code></td>
+<td style="text-align:left">keyword</td>
+<td style="text-align:left">русский/английский, разные промпты</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>retention_class</code></td>
+<td style="text-align:left">keyword</td>
+<td style="text-align:left">ПДн, срок хранения</td>
+</tr>
+</tbody></table></div>
+<p>Правило: <strong>payload должен быть плоским</strong>. Вложенные структуры Qdrant индексирует хуже, а <code>tsvector</code> в Postgres вообще не построится по вложенному JSON.</p>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p>Помни из <a href="../../lectures/mlops/04-dannye-i-pipeliney.html">лекции о данных</a>: ACL в индексе — это <strong>не фильтр удобства, а требование безопасности</strong>. Документ из закрытой папки, попавший в ответ, — это инцидент с последствиями, а не баг. Если фильтр по <code>acl_groups</code> не входит в каждый поисковый запрос — в системе есть уязвимость, независимо от того, насколько хорошо работает recall.</p></div></div>
+<h2 id="kogda-indeks-stal-bolshim-kvantovanie">Когда индекс стал большим: квантование</h2>
+<p>При 10 млн векторов по 1024 измерения в fp32 это 40 ГБ только векторов, и держать это в оперативной памяти нельзя. Дальше включают либо сжатие, либо точные методы, либо переходят на дисковый индекс.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метод</th>
+<th style="text-align:center">Сжатие</th>
+<th style="text-align:center">Потеря recall</th>
+<th style="text-align:left">Требования</th>
+<th style="text-align:left">Когда применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">fp32 (базовый)</td>
+<td style="text-align:center">1x</td>
+<td style="text-align:center">—</td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">до ~1 млн векторов</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Scalar</code> (int8)</td>
+<td style="text-align:center">4x</td>
+<td style="text-align:center">1–3%</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left"><strong>первое, что стоит включить</strong> на больших корпусах</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Product</code> (int16)</td>
+<td style="text-align:center">8x</td>
+<td style="text-align:center">3–6%</td>
+<td style="text-align:left">обучение кодов</td>
+<td style="text-align:left">стабильный корпус, есть время переобучить</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Binary</code> (1 бит)</td>
+<td style="text-align:center">32x</td>
+<td style="text-align:center">10–20%</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">огромные корпусы, готовы платить точностью</td>
+</tr>
+<tr>
+<td style="text-align:left">DiskANN / IVF на диске</td>
+<td style="text-align:center">10–30x</td>
+<td style="text-align:center">2–5%</td>
+<td style="text-align:left">SSD, больше latency</td>
+<td style="text-align:left">десятки миллионов векторов</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Включить скалярное квантование — одна строка при создании коллекции.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Это первое, что нужно попробовать, когда память кончилась: теряется 1–3% recall,</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># а памяти становится вчетверо меньше.</span></span>
+<span class="ln"><span class="ln-i">4</span>client.<span class="tok-fn">create_collection</span>(</span>
+<span class="ln"><span class="ln-i">5</span>    collection_name=COLLECTION,</span>
+<span class="ln"><span class="ln-i">6</span>    vectors_config={</span>
+<span class="ln"><span class="ln-i">7</span>        <span class="tok-str">"default"</span>: models.<span class="tok-fn">VectorParams</span>(</span>
+<span class="ln"><span class="ln-i">8</span>            size=<span class="tok-n">1024</span>,</span>
+<span class="ln"><span class="ln-i">9</span>            distance=models.Distance.COSINE,</span>
+<span class="ln"><span class="ln-i">10</span>            quantization=models.<span class="tok-fn">ScalarQuantization</span>(</span>
+<span class="ln"><span class="ln-i">11</span>                scalar=models.<span class="tok-fn">ScalarQuantizationConfig</span>(</span>
+<span class="ln"><span class="ln-i">12</span>                    quantile=<span class="tok-n">0.99</span>,        <span class="tok-cmt"># 99-й перцентиль отсекает выбросы</span></span>
+<span class="ln"><span class="ln-i">13</span>                    always_ram=True,      <span class="tok-cmt"># векторы остаются в RAM, индекс — на диске</span></span>
+<span class="ln"><span class="ln-i">14</span>                )</span>
+<span class="ln"><span class="ln-i">15</span>            ),</span>
+<span class="ln"><span class="ln-i">16</span>        )</span>
+<span class="ln"><span class="ln-i">17</span>    },</span>
+<span class="ln"><span class="ln-i">18</span>    hnsw_config=models.<span class="tok-fn">HnswConfigDiff</span>(m=<span class="tok-n">32</span>, ef_construct=<span class="tok-n">200</span>, on_disk=True),</span>
+<span class="ln"><span class="ln-i">19</span>)</span>
+</code></pre></div>
+<p>Квантование — это компромисс, и он всегда проверяется на golden set. Замер: recall@5 = 0.87 без квантования, 0.85 с <code>Scalar</code> — на таком размере корпуса память важнее двух пунктов recall. На тех же данных <code>Binary</code> даст 0.79, и это уже другая система.</p>
+<p>И последнее, что спасает раньше всего: <strong>фильтры</strong>. Индекс на 10 млн векторов с условием <code>acl_groups &amp;&amp; '{отдел-A}'</code> и <code>updated_at &gt;now()-90d</code> может обрабатываться быстрее, чем индекс на 1 млн без фильтров, потому что HNSW-обход ветвится по payload-индексам. Перед тем как покупать память, посмотри, какая доля запросов реально может быть отфильтрована до 10%.</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ol><li><strong>Забыли префиксы <code>query:</code> / <code>passage:</code>.</strong> Самая частая причина «новая модель хуже старой». На E5 и BGE это несколько пунктов recall, на Nomic — критично.</li><li><strong>Метрика расстояния не соответствует модели.</strong> <code>Dot</code> вместо <code>Cosine</code> на ненормализованных векторах — recall падает, и диагностировать это по коду почти невозможно.</li><li><strong>Разные корпуса эмбеддингов в одной коллекции.</strong> Смена модели без полной переиндексации: векторы в разных системах координат, поиск возвращает шум.</li><li><strong>Фильтр по ACL не в каждом запросе.</strong> Одна новая точка входа в приложении — и документы из закрытых папок уже попадают в ответ. Нужен тест в CI, который проверяет попадание явного запрещённого <code>doc_id</code>.</li><li><strong>Никаких payload-индексов.</strong> Фильтрация по неиндексированному полю превращается в full scan payload, и латентность растёт в разы на больших коллекциях.</li><li><strong>Раздутый <code>ef_search</code>.</strong> Кто-то поставил <code>hnsw_ef=2048</code> «чтобы точнее было» — latency выросла в 8 раз, и объяснить, кто это сделал, никто не может.</li><li><strong>Mетрики без сбора.</strong> После переезда на Qdrant никто не меряет recall@5 — и через месяц никто не может сказать, стало ли лучше.</li><li><strong>Автоинкрементные id вместо детерминированных.</strong> Повторная индексация документа создаёт дубликаты, в выдаче появляются три одинаковых цитаты, а удалить документ без скролла невозможно.</li><li><strong>Поменяли размерность вектора, а коллекцию не пересоздали.</strong> В Qdrant это ошибка конфигурации; в pgvector — <code>ALTER TABLE</code>, который на большой таблице держит блокировку часами.</li></ol>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я объясню аналогией, что такое эмбеддинг, и скажу, почему сравнивают по направлению, а не по длине вектора</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, почему размерность — это в первую очередь вопрос бюджета: память, трафик индексации, скорость поиска</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу выбрать модель эмбеддингов под русскоязычный корпус и назову критерии: мультиязычность, размер, лицензия, стоимость</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею посчитать recall@k, precision@k, MRR и hit rate на golden set и знаю, почему вопросы без источников исключаются</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я различаю HNSW и IVF интуицией и знаю, какой параметр можно крутить в рантайме без переиндексации</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, когда выбирать Qdrant, а когда pgvector, и защитить любой из этих выборов перед архитектурным советом</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, почему фильтрация по метаданным часто даёт больший прирост, чем смена модели эмбеддингов</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие метаданные обязательны в каждом чанке и почему <code>acl_groups</code> — требование безопасности, а не удобства</span></label></li></ul>
+<p>Дальше — <a href="../../lectures/mlops/06-rag-pipeline.html">RAG-пайплайн</a>: как из векторного поиска получается работающий ассистент.</p></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Подними Qdrant в Docker, проиндексируй 5000 чанков из своего корпуса и тем же эмбеддингом найди top-10 для 20 вопросов из золотого набора. Посчитай recall@5, потом повтори то же самое с фильтром по отделу — и сравни, что дала фильтрация против смены модели эмбеддингов.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=rag"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «RAG · PG» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/05-embedding-i-vektory">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/04-dannye-i-pipeliney.html"><span>← Предыдущая</span><b>Данные и пайплайны</b></a>
+        <a class="nav-next" href="../../lectures/mlops/06-rag-pipeline.html"><span>Следующая →</span><b>RAG-пайплайн</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/05-embedding-i-vektory";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

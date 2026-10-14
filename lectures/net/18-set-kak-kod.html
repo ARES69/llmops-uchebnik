@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сеть как код: конфигурации в Git и дрейф — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">Сетевое оборудование</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">E. Мониторинг и автоматизация</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Сеть как код: конфигурации в Git и дрейф</h1>
+        <p class="lead">Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»</p>
+        <div class="meta"><span class="badge">80 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">git</span><span class="tag">автоматизация</span><span class="tag">шаблоны</span><span class="tag">дрейф</span><span class="tag">ansible</span><span class="tag">netmiko</span><span class="tag">ntc-templates</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#chto-daet-konfiguraciya-v-git">Что даёт конфигурация в Git</a></li><li class="toc-l2"><a href="#dva-podhoda-i-pochemu-dlya-brigady-chestnee-vtoroy">Два подхода, и почему для бригады честнее второй</a></li><li class="toc-l3"><a href="#struktura-repozitoriya">Структура репозитория</a></li><li class="toc-l2"><a href="#shablony-jinja2-na-primere-access-kommutatora">Шаблоны: Jinja2 на примере access-коммутатора</a></li><li class="toc-l2"><a href="#ansible-pochemu-imenno-on">Ansible: почему именно он</a></li><li class="toc-l3"><a href="#ustanovka-i-kollekcii">Установка и коллекции</a></li><li class="toc-l3"><a href="#inventar-i-peremennye">Инвентарь и переменные</a></li><li class="toc-l3"><a href="#playbook-tri-sposoba-primenit-odno-i-to-zhe">Playbook: три способа применить одно и то же</a></li><li class="toc-l3"><a href="#netmiko-kogda-nuzhen-pryamoy-dostup">Netmiko: когда нужен прямой доступ</a></li><li class="toc-l2"><a href="#napalm-i-ntc-templates-to-chem-set-otlichaetsya-ot-serverov">NAPALM и NTC-templates: то, чем сеть отличается от серверов</a></li><li class="toc-l3"><a href="#ntc-templates-gotovye-parsery-pod-sotni-platform">NTC-templates: готовые парсеры под сотни платформ</a></li><li class="toc-l3"><a href="#napalm-strukturirovannyy-dostup-kogda-on-est">NAPALM: структурированный доступ, когда он есть</a></li><li class="toc-l2"><a href="#sekrety-enable-paroli-i-community-stroki-ne-v-git">Секреты: enable-пароли и community-строки — не в Git</a></li><li class="toc-l2"><a href="#poryadok-vnedreniya-snachala-chitat-potom-sravnivat-i-tolko-potom-primenyat">Порядок внедрения: сначала читать, потом сравнивать, и только потом применять</a></li><li class="toc-l3"><a href="#shag-1-inventarizaciya">Шаг 1. Инвентаризация</a></li><li class="toc-l3"><a href="#shag-2-sbor-konfiguraciy-v-git">Шаг 2. Сбор конфигураций в Git</a></li><li class="toc-l3"><a href="#shag-3-shablony-ili-polnye-konfigi">Шаг 3. Шаблоны или полные конфиги</a></li><li class="toc-l3"><a href="#shag-4-check-i-diff-i-pochemu-bez-nih-primenyat-nelzya">Шаг 4. --check и --diff, и почему без них применять нельзя</a></li><li class="toc-l3"><a href="#shag-5-pilot-na-odnom-ustroystve">Шаг 5. Пилот на одном устройстве</a></li><li class="toc-l3"><a href="#shag-6-poetapno">Шаг 6. Поэтапно</a></li><li class="toc-l2"><a href="#dreyf-kto-prav-git-ili-ustroystvo">Дрейф: кто прав — Git или устройство</a></li><li class="toc-l3"><a href="#obnaruzhenie">Обнаружение</a></li><li class="toc-l3"><a href="#chto-delat-s-naydennym-dreyfom">Что делать с найденным дрейфом</a></li><li class="toc-l2"><a href="#otvetstvennost-i-processy">Ответственность и процессы</a></li><li class="toc-l3"><a href="#kto-merzhit">Кто мержит</a></li><li class="toc-l3"><a href="#kak-soglasuetsya-izmenenie">Как согласуется изменение</a></li><li class="toc-l3"><a href="#chto-delat-pri-avarii">Что делать при аварии</a></li><li class="toc-l2"><a href="#kak-eto-stykuetsya-s-ostalnym-trekom">Как это стыкуется с остальным треком</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Это кульминация трека. Первые лекции дали тебе словарь платформ: маршрутизация, VLAN, туннели, диагностика по CLI. <a href="../../lectures/net/16-monitoring-seti.html">Мониторинг</a> превратил сеть из чёрного ящика в систему цифр, <a href="../../lectures/net/17-netconf-telemetry.html">NETCONF и syslog</a> добавили события и историю. Осталось превратить конфигурацию из результата ручной сессии с консоли в <strong>артефакт, у которого есть автор, версия и ревью</strong>.</p>
+<p>Почему это важнее, чем кажется. Настройка сервера руками — это обычно неудачный деплой, который выкатывается на тестовый контур и откатывается. Настройка сети руками — это обычно устройство, <strong>которое после этого недоступно</strong>, потому что опечатка в ACL или в описании интерфейса уносит доступ к нему. Отладка занимает не минуты, а поездку к оборудованию. Дальше — про то, как это меняется.</p>
+<h2 id="chto-daet-konfiguraciya-v-git">Что даёт конфигурация в Git</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Ситуация</th>
+<th style="text-align:left">Конфигурация на устройстве</th>
+<th style="text-align:left">Конфигурация в Git</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">«Кто это поменял и когда?»</td>
+<td style="text-align:left">неизвестно, журнал устройства перезатёрся</td>
+<td style="text-align:left"><code>git log -p devices/hq-sw-01/</code> — автор, дата, строки</td>
+</tr>
+<tr>
+<td style="text-align:left">«Что было месяц назад?»</td>
+<td style="text-align:left">никак, <code>show running-config</code> показывает только сейчас</td>
+<td style="text-align:left"><code>git show HEAD~30:devices/hq-sw-01/running.cfg</code></td>
+</tr>
+<tr>
+<td style="text-align:left">«Откатить»</td>
+<td style="text-align:left">вручную вспоминать, что было; в лучшем случае есть бэкап без истории</td>
+<td style="text-align:left"><code>git revert</code> конкретного коммита</td>
+</tr>
+<tr>
+<td style="text-align:left">«Посмотри, что я сейчас натворил»</td>
+<td style="text-align:left">невозможно</td>
+<td style="text-align:left">PR с diff, ревью до попадания в устройство</td>
+</tr>
+<tr>
+<td style="text-align:left">«Разверни новый коммутатор с тем же, что у соседей»</td>
+<td style="text-align:left">час копирования вручную, с опечатками</td>
+<td style="text-align:left"><code>ansible-playbook -i inventory/</code></td>
+</tr>
+<tr>
+<td style="text-align:left">«Отличается ли площадка А от площадки Б?»</td>
+<td style="text-align:left">глазами по двум <code>show running-config</code></td>
+<td style="text-align:left"><code>diff</code> двух файлов в репозитории</td>
+</tr>
+<tr>
+<td style="text-align:left">«Проверка перед изменением»</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left"><code>ansible --check --diff</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Кто отвечает за конфигурацию</td>
+<td style="text-align:left">тот, кто помнит</td>
+<td style="text-align:left">тот, кто мержит в репозиторий</td>
+</tr>
+</tbody></table></div>
+<p>Последняя строка — не про деньги, а про риск. Смысл Git в сети не в удобстве, а в <strong>сокращении окна невоспроизводимого состояния</strong>: между «применил руками» и «применил через код» может пройти минута, а может месяц.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Git не знает, что конфигурация правильная. Он знает, что она <strong>одна</strong>, что у неё есть история и что её можно откатить. Правильность обеспечивается ревью и проверками. Поэтому «мы перевели сеть в Git» — это не проект на месяц, а процесс: история изменений сама по себе уже даёт больше, чем автоматизация.</p></div></div>
+<h2 id="dva-podhoda-i-pochemu-dlya-brigady-chestnee-vtoroy">Два подхода, и почему для бригады честнее второй</h2>
+<p>Первое, что предлагают, — шаблоны: «давай заведём Jinja2 и будем рендерить конфигурацию под каждый тип устройства». Для сотни устройств это правильный путь. Для 3–10 устройств в одном офисе — часто оверинжиниринг, который приводит к тому, что шаблон никто не понимает, а правка делается мимо него.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Шаблоны (общий + переменные)</th>
+<th style="text-align:left">Один репозиторий — одно устройство</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Как устроено</td>
+<td style="text-align:left"><code>templates/base.j2</code> + <code>templates/edge.j2</code>, подстановка по роли</td>
+<td style="text-align:left"><code>devices/&lt;hostname&gt;/running.cfg</code> — полный конфиг как есть</td>
+</tr>
+<tr>
+<td style="text-align:left">Масштаб</td>
+<td style="text-align:left">от десятков устройств</td>
+<td style="text-align:left">от одного до пятнадцати</td>
+</tr>
+<tr>
+<td style="text-align:left">Новое устройство</td>
+<td style="text-align:left">описать переменные, отрендерить</td>
+<td style="text-align:left">скопировать конфиг соседа, поправить адреса</td>
+</tr>
+<tr>
+<td style="text-align:left">Изменение «на всех сразу»</td>
+<td style="text-align:left">правишь шаблон — меняется парк</td>
+<td style="text-align:left">правишь в каждом файле, руками</td>
+</tr>
+<tr>
+<td style="text-align:left">Порог входа</td>
+<td style="text-align:left">надо понимать шаблонизацию и структуру</td>
+<td style="text-align:left">надо уметь читать конфиг устройства</td>
+</tr>
+<tr>
+<td style="text-align:left">Единая база для проверки</td>
+<td style="text-align:left">да, один источник</td>
+<td style="text-align:left">нет, источник — сам конфиг</td>
+</tr>
+<tr>
+<td style="text-align:left">Честность</td>
+<td style="text-align:left">«шаблон» с 40 исключениями внутри — это копия устройства со словом «шаблон»</td>
+<td style="text-align:left"><strong>ровно то, что на устройстве</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Что выбрать при 5 устройствах</td>
+<td style="text-align:left">обычно нет</td>
+<td style="text-align:left"><strong>да</strong></td>
+</tr>
+</tbody></table></div>
+<p>Мой совет для твоей ситуации: <strong>начинай со второго</strong>. У тебя один офис, пять-десять устройств, нет команды сетевой автоматизации. Второй подход даёт 80% пользы (история, откат, ревью, поиск «кто менял») при нулевых затратах на инфраструктуру. Переход на шаблоны становится осмысленным, когда появится <strong>вторая одинаковая площадка</strong> — тогда ты уже знаешь, что именно повторяется, и не будешь гадать.</p>
+<p>При этом рубеж, за которым второй подход ломается, надо знать заранее: <strong>десять файлов, которые почти идентичны, и есть шаблон, который ты не написал</strong>. Один CRLF или одно переставленное правило — и <code>diff</code> показывает изменения на 200 устройствах.</p>
+<h3 id="struktura-repozitoriya">Структура репозитория</h3>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>net-git/</span>
+<span class="ln"><span class="ln-i">2</span>  devices/</span>
+<span class="ln"><span class="ln-i">3</span>    hq-sw-01/</span>
+<span class="ln"><span class="ln-i">4</span>      running.cfg        # снимается автоматически, нормализуется — см. предыдущую лекцию</span>
+<span class="ln"><span class="ln-i">5</span>      meta.yml           # платформа, версия, модель, серийник, management IP</span>
+<span class="ln"><span class="ln-i">6</span>    hq-sw-02/</span>
+<span class="ln"><span class="ln-i">7</span>    branch-sw-11/</span>
+<span class="ln"><span class="ln-i">8</span>  inventory/</span>
+<span class="ln"><span class="ln-i">9</span>    prod/</span>
+<span class="ln"><span class="ln-i">10</span>      hosts.yml</span>
+<span class="ln"><span class="ln-i">11</span>      group_vars/</span>
+<span class="ln"><span class="ln-i">12</span>        all.yml</span>
+<span class="ln"><span class="ln-i">13</span>        access_switches.yml</span>
+<span class="ln"><span class="ln-i">14</span>    lab/</span>
+<span class="ln"><span class="ln-i">15</span>  templates/</span>
+<span class="ln"><span class="ln-i">16</span>    ios/</span>
+<span class="ln"><span class="ln-i">17</span>      base.j2</span>
+<span class="ln"><span class="ln-i">18</span>      access-switch.j2</span>
+<span class="ln"><span class="ln-i">19</span>    routeros/</span>
+<span class="ln"><span class="ln-i">20</span>      access-point.j2</span>
+<span class="ln"><span class="ln-i">21</span>  scripts/</span>
+<span class="ln"><span class="ln-i">22</span>    collect-config.sh</span>
+<span class="ln"><span class="ln-i">23</span>    render.py</span>
+<span class="ln"><span class="ln-i">24</span>  requirements.yml</span>
+<span class="ln"><span class="ln-i">25</span>  ansible.cfg</span>
+<span class="ln"><span class="ln-i">26</span>  .gitignore</span>
+<span class="ln"><span class="ln-i">27</span>  .ansible-lint</span>
+<span class="ln"><span class="ln-i">28</span>  README.md</span>
+</code></pre></div>
+<div class="codeblock" data-lang="gitignore"><div class="codehead"><span class="code-lang">gitignore</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># .gitignore — то, что не должно никогда попасть в историю</span></span>
+<span class="ln"><span class="ln-i">2</span>rendered/</span>
+<span class="ln"><span class="ln-i">3</span>*.retry</span>
+<span class="ln"><span class="ln-i">4</span>__pycache__/</span>
+<span class="ln"><span class="ln-i">5</span>.netvault_pass</span>
+<span class="ln"><span class="ln-i">6</span>vault_pass.sh</span>
+<span class="ln"><span class="ln-i">7</span>inventory/*/host_vars/*.local.yml</span>
+</code></pre></div>
+<p>Секреты лежат в <code>group_vars/*/vault.yml</code> и в <code>.gitignore</code> попадают только явно исключённые рабочие файлы. Ниже разберём, как именно.</p>
+<h2 id="shablony-jinja2-na-primere-access-kommutatora">Шаблоны: Jinja2 на примере access-коммутатора</h2>
+<p>Шаблон — это обычный текст с Jinja2-подстановками. Всё, что не помечено <code>{{ }}</code> или <code>{% %}</code>, копируется в результат как есть, поэтому шаблон читается почти как обычная конфигурация.</p>
+<div class="codeblock" data-lang="jinja"><div class="codehead"><span class="code-lang">jinja</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>{<span class="tok-cmt">#- templates/ios/base.j2 — общий кусок для всех устройств площадки -#}</span></span>
+<span class="ln"><span class="ln-i">2</span>!</span>
+<span class="ln"><span class="ln-i">3</span>version <span class="tok-n">15.2</span></span>
+<span class="ln"><span class="ln-i">4</span>!</span>
+<span class="ln"><span class="ln-i">5</span>hostname {{ inventory_hostname }}</span>
+<span class="ln"><span class="ln-i">6</span>!</span>
+<span class="ln"><span class="ln-i">7</span>no ip domain lookup</span>
+<span class="ln"><span class="ln-i">8</span>ip domain name {{ domain_name }}</span>
+<span class="ln"><span class="ln-i">9</span>!</span>
+<span class="ln"><span class="ln-i">10</span>{% for server in ntp_servers %}</span>
+<span class="ln"><span class="ln-i">11</span>ntp server {{ server }}</span>
+<span class="ln"><span class="ln-i">12</span>{% endfor %}</span>
+<span class="ln"><span class="ln-i">13</span>ntp source Loopback0</span>
+<span class="ln"><span class="ln-i">14</span>!</span>
+<span class="ln"><span class="ln-i">15</span>{% for host in syslog_servers %}</span>
+<span class="ln"><span class="ln-i">16</span>logging host {{ host }}</span>
+<span class="ln"><span class="ln-i">17</span>{% endfor %}</span>
+<span class="ln"><span class="ln-i">18</span>logging trap informational</span>
+<span class="ln"><span class="ln-i">19</span>logging source-interface Loopback0</span>
+<span class="ln"><span class="ln-i">20</span>logging buffered <span class="tok-n">32768</span> informational</span>
+<span class="ln"><span class="ln-i">21</span>!</span>
+<span class="ln"><span class="ln-i">22</span>snmp-server community {{ snmp_ro_community }} RO {{ mgmt_acl }}</span>
+<span class="ln"><span class="ln-i">23</span>snmp-server location {{ site }}</span>
+<span class="ln"><span class="ln-i">24</span>snmp-server contact {{ contact }}</span>
+<span class="ln"><span class="ln-i">25</span>!</span>
+<span class="ln"><span class="ln-i">26</span>line con <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">27</span> logging synchronous</span>
+<span class="ln"><span class="ln-i">28</span>line vty <span class="tok-n">0</span> <span class="tok-n">15</span></span>
+<span class="ln"><span class="ln-i">29</span> access-class {{ mgmt_acl }} in</span>
+<span class="ln"><span class="ln-i">30</span> transport input ssh</span>
+<span class="ln"><span class="ln-i">31</span>!</span>
+<span class="ln"><span class="ln-i">32</span>end</span>
+</code></pre></div>
+<div class="codeblock" data-lang="jinja"><div class="codehead"><span class="code-lang">jinja</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>{<span class="tok-cmt">#- templates/ios/access-switch.j2 — поверх base: VLAN, порты, описание -#}</span></span>
+<span class="ln"><span class="ln-i">2</span>!</span>
+<span class="ln"><span class="ln-i">3</span>vlan {{ management_vlan.id }}</span>
+<span class="ln"><span class="ln-i">4</span> name {{ management_vlan.name }}</span>
+<span class="ln"><span class="ln-i">5</span>!</span>
+<span class="ln"><span class="ln-i">6</span>{% for v in vlans %}</span>
+<span class="ln"><span class="ln-i">7</span>vlan {{ v.id }}</span>
+<span class="ln"><span class="ln-i">8</span> name {{ v.name }}</span>
+<span class="ln"><span class="ln-i">9</span>{% endfor %}</span>
+<span class="ln"><span class="ln-i">10</span>!</span>
+<span class="ln"><span class="ln-i">11</span>{% for p in access_ports %}</span>
+<span class="ln"><span class="ln-i">12</span>interface {{ p.name }}</span>
+<span class="ln"><span class="ln-i">13</span> description {{ p.description }}</span>
+<span class="ln"><span class="ln-i">14</span> switchport mode access</span>
+<span class="ln"><span class="ln-i">15</span> switchport access vlan {{ p.vlan }}</span>
+<span class="ln"><span class="ln-i">16</span>{% if p.shutdown | <span class="tok-fn">default</span>(false) %}</span>
+<span class="ln"><span class="ln-i">17</span> shutdown</span>
+<span class="ln"><span class="ln-i">18</span>{% endif %}</span>
+<span class="ln"><span class="ln-i">19</span>{% if p.voiced_vlan %}</span>
+<span class="ln"><span class="ln-i">20</span> switchport voice vlan {{ p.voiced_vlan }}</span>
+<span class="ln"><span class="ln-i">21</span>{% endif %}</span>
+<span class="ln"><span class="ln-i">22</span>!</span>
+<span class="ln"><span class="ln-i">23</span>{% endfor %}</span>
+<span class="ln"><span class="ln-i">24</span>!</span>
+<span class="ln"><span class="ln-i">25</span>{% for p in uplinks %}</span>
+<span class="ln"><span class="ln-i">26</span>interface {{ p.name }}</span>
+<span class="ln"><span class="ln-i">27</span> description {{ p.description }}</span>
+<span class="ln"><span class="ln-i">28</span> switchport trunk encapsulation dot1q</span>
+<span class="ln"><span class="ln-i">29</span> switchport mode trunk</span>
+<span class="ln"><span class="ln-i">30</span> switchport trunk allowed vlan {{ p.allowed_vlans }}</span>
+<span class="ln"><span class="ln-i">31</span>!</span>
+<span class="ln"><span class="ln-i">32</span>{% endfor %}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># inventory/prod/group_vars/access_switches.yml — без секретов</span></span>
+<span class="ln"><span class="ln-i">2</span>mgmt_acl: MGMT-PEERS</span>
+<span class="ln"><span class="ln-i">3</span>domain_name: company.local</span>
+<span class="ln"><span class="ln-i">4</span>syslog_servers:</span>
+<span class="ln"><span class="ln-i">5</span>  - <span class="tok-n">10.10</span>.<span class="tok-n">10.50</span></span>
+<span class="ln"><span class="ln-i">6</span>ntp_servers:</span>
+<span class="ln"><span class="ln-i">7</span>  - <span class="tok-n">10.10</span>.<span class="tok-n">10.1</span></span>
+<span class="ln"><span class="ln-i">8</span>management_vlan:</span>
+<span class="ln"><span class="ln-i">9</span>  id: <span class="tok-n">99</span></span>
+<span class="ln"><span class="ln-i">10</span>  name: MGMT</span>
+<span class="ln"><span class="ln-i">11</span>vlans:</span>
+<span class="ln"><span class="ln-i">12</span>  - { id: <span class="tok-n">10</span>, name: USERS }</span>
+<span class="ln"><span class="ln-i">13</span>  - { id: <span class="tok-n">20</span>, name: SERVERS }</span>
+<span class="ln"><span class="ln-i">14</span>  - { id: <span class="tok-n">30</span>, name: VOICE }</span>
+<span class="ln"><span class="ln-i">15</span>access_ports:</span>
+<span class="ln"><span class="ln-i">16</span>  - { name: GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">1</span>, description: <span class="tok-str">"SRV-DB-01"</span>, vlan: <span class="tok-n">20</span> }</span>
+<span class="ln"><span class="ln-i">17</span>  - { name: GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">2</span>, description: <span class="tok-str">"AP-3F-EAST"</span>, vlan: <span class="tok-n">99</span>, voiced_vlan: <span class="tok-n">30</span> }</span>
+<span class="ln"><span class="ln-i">18</span>  - { name: GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">3</span>, description: <span class="tok-str">"FREE"</span>, vlan: <span class="tok-n">99</span>, shutdown: <span class="tok-k">true</span> }</span>
+<span class="ln"><span class="ln-i">19</span>uplinks:</span>
+<span class="ln"><span class="ln-i">20</span>  - { name: GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">24</span>, description: <span class="tok-str">"UPLINK-TO-CORE"</span>, allowed_vlans: <span class="tok-str">"10,20,30,99"</span> }</span>
+</code></pre></div>
+<p>Ключевое в шаблоне — <code>{% if p.shutdown %} shutdown {% endif %}</code>. Порты, которые <strong>должны</strong> быть выключены (свободные, гостевые), описаны явно, и это принципиально: свободный порт без явного <code>shutdown</code> через полгода будет воткнут кем-то в разъём и станет портом без контроля. Это дешёвая привычка, которая потом дорого стоит.</p>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Шаблон рендерится <strong>отдельно и до применения</strong>. Всегда смотри результат глазами: <code>python scripts/render.py</code> или <code>ansible-playbook ... -C</code>. Правило простое — шаблон, который ты не видел в распечатанном виде, ты не понимаешь.</p></div></div>
+<h2 id="ansible-pochemu-imenno-on">Ansible: почему именно он</h2>
+<p>Ansible для сети отличается от Ansible для серверов двумя вещами, и обе ломают привычные подходы.</p>
+<ol><li><strong>Модули не «говорят», а «пишут».</strong> Сетевой модуль не выполняет команду и не читает файл: он подключается к устройству, переводит его в нужный режим, вставляет блок команд и <strong>сравнивает результат с тем, что уже настроено</strong>. Идемпотентность достигается не логикой модуля, а возможностью устройства ответить на вопрос «а у тебя уже так?».</li><li><strong>Состояние надо вытащить текстом.</strong> На сервере состояние читается через API. На Cisco ответ приходит только в виде текста <code>show ...</code>, и его надо распарсить. Отсюда целый класс модулей и библиотек.</li></ol>
+<h3 id="ustanovka-i-kollekcii">Установка и коллекции</h3>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># requirements.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>collections:</span>
+<span class="ln"><span class="ln-i">3</span>  - name: cisco.ios</span>
+<span class="ln"><span class="ln-i">4</span>    version: <span class="tok-str">"&gt;=9.0.0"</span></span>
+<span class="ln"><span class="ln-i">5</span>  - name: ansible.netcommon</span>
+<span class="ln"><span class="ln-i">6</span>    version: <span class="tok-str">"&gt;=6.0.0"</span></span>
+<span class="ln"><span class="ln-i">7</span>  - name: ansible.utils</span>
+<span class="ln"><span class="ln-i">8</span>  - name: community.routeros     <span class="tok-cmt"># для MikroTik, см. net/05-avtomatizaciya-routeros.md</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>ansible-galaxy collection install -r requirements.yml</span>
+<span class="ln"><span class="ln-i">2</span>ansible-galaxy collection list</span>
+<span class="ln"><span class="ln-i">3</span>ansible --version</span>
+</code></pre></div>
+<div class="codeblock" data-lang="ini"><div class="codehead"><span class="code-lang">ini</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># ansible.cfg — рядом с playbook'ом</span></span>
+<span class="ln"><span class="ln-i">2</span>[defaults]</span>
+<span class="ln"><span class="ln-i">3</span>inventory            = inventory/prod</span>
+<span class="ln"><span class="ln-i">4</span>roles_path           = roles</span>
+<span class="ln"><span class="ln-i">5</span>collections_path    = ./collections</span>
+<span class="ln"><span class="ln-i">6</span>host_key_checking    = True          <span class="tok-cmt"># для сети НЕ выключай</span></span>
+<span class="ln"><span class="ln-i">7</span>retry_files_enabled  = False</span>
+<span class="ln"><span class="ln-i">8</span>stdout_callback      = yaml</span>
+<span class="ln"><span class="ln-i">9</span>callbacks_enabled    = ansible.posix.profile_tasks</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span>[ssh_connection]</span>
+<span class="ln"><span class="ln-i">12</span>pipelining = True</span>
+<span class="ln"><span class="ln-i">13</span>scp_if_ssh = smart</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>host_key_checking = False</code> в сетях — это неудобство, а не настройка. Оборудование доступно по IP, ключи хоста нет, и любой, кто встанет посередине или подменит ARP, получит твой <code>enable</code>-пароль и конфигурацию всего парка. Если ключи с хостов не совпадают, разбирайся с этим, а не отключай проверку глобально.</p></div></div>
+<h3 id="inventar-i-peremennye">Инвентарь и переменные</h3>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># inventory/prod/hosts.yml — YAML-инвентарь, а не INI</span></span>
+<span class="ln"><span class="ln-i">2</span>all:</span>
+<span class="ln"><span class="ln-i">3</span>  vars:</span>
+<span class="ln"><span class="ln-i">4</span>    ansible_connection: ansible.netcommon.network_cli</span>
+<span class="ln"><span class="ln-i">5</span>    ansible_network_os: cisco.ios.ios</span>
+<span class="ln"><span class="ln-i">6</span>    ansible_user: netops</span>
+<span class="ln"><span class="ln-i">7</span>    ansible_python_interpreter: <span class="tok-str">"{{ ansible_playbook_python }}"</span></span>
+<span class="ln"><span class="ln-i">8</span>    mgmt_network: <span class="tok-n">10.10</span>.<span class="tok-n">10.0</span>/<span class="tok-n">24</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>  children:</span>
+<span class="ln"><span class="ln-i">11</span>    core_switches:</span>
+<span class="ln"><span class="ln-i">12</span>      hosts:</span>
+<span class="ln"><span class="ln-i">13</span>        hq-sw-<span class="tok-n">01</span>:</span>
+<span class="ln"><span class="ln-i">14</span>          ansible_host: <span class="tok-n">10.10</span>.<span class="tok-n">10.1</span></span>
+<span class="ln"><span class="ln-i">15</span>        hq-sw-<span class="tok-n">02</span>:</span>
+<span class="ln"><span class="ln-i">16</span>          ansible_host: <span class="tok-n">10.10</span>.<span class="tok-n">10.2</span></span>
+<span class="ln"><span class="ln-i">17</span>      vars:</span>
+<span class="ln"><span class="ln-i">18</span>        device_role: core</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>    access_switches:</span>
+<span class="ln"><span class="ln-i">21</span>      hosts:</span>
+<span class="ln"><span class="ln-i">22</span>        hq-sw-<span class="tok-n">03</span>:</span>
+<span class="ln"><span class="ln-i">23</span>          ansible_host: <span class="tok-n">10.10</span>.<span class="tok-n">10.3</span></span>
+<span class="ln"><span class="ln-i">24</span>          mgmt_ip: <span class="tok-n">10.10</span>.<span class="tok-n">10.103</span>/<span class="tok-n">24</span></span>
+<span class="ln"><span class="ln-i">25</span>        branch-sw-<span class="tok-n">11</span>:</span>
+<span class="ln"><span class="ln-i">26</span>          ansible_host: <span class="tok-n">10.10</span>.<span class="tok-n">10.11</span></span>
+<span class="ln"><span class="ln-i">27</span>          mgmt_ip: <span class="tok-n">10.10</span>.<span class="tok-n">30.11</span>/<span class="tok-n">24</span></span>
+<span class="ln"><span class="ln-i">28</span>      vars:</span>
+<span class="ln"><span class="ln-i">29</span>        device_role: access</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># inventory/prod/group_vars/all/vault.yml — зашифровано, см. раздел про секреты</span></span>
+<span class="ln"><span class="ln-i">2</span>ansible_password: !vault |</span>
+<span class="ln"><span class="ln-i">3</span>          <span class="tok-var">$ANSIBLE_VAULT</span>;<span class="tok-n">1.2</span>;AES256;<span class="tok-n">3138393639</span>...</span>
+<span class="ln"><span class="ln-i">4</span>enable_password: !vault |</span>
+<span class="ln"><span class="ln-i">5</span>          <span class="tok-var">$ANSIBLE_VAULT</span>;<span class="tok-n">1.2</span>;AES256;<span class="tok-n">3831303937</span>...</span>
+<span class="ln"><span class="ln-i">6</span>snmp_ro_community: !vault |</span>
+<span class="ln"><span class="ln-i">7</span>          <span class="tok-var">$ANSIBLE_VAULT</span>;<span class="tok-n">1.2</span>;AES256;<span class="tok-n">3431373839</span>...</span>
+<span class="ln"><span class="ln-i">8</span>snmpv3_auth_pass: !vault |</span>
+<span class="ln"><span class="ln-i">9</span>          <span class="tok-var">$ANSIBLE_VAULT</span>;<span class="tok-n">1.2</span>;AES256;<span class="tok-n">3635383437</span>...</span>
+</code></pre></div>
+<h3 id="playbook-tri-sposoba-primenit-odno-i-to-zhe">Playbook: три способа применить одно и то же</h3>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># playbooks/access-switch.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>- name: Свести access-коммутатор к коду</span>
+<span class="ln"><span class="ln-i">3</span>  hosts: access_switches</span>
+<span class="ln"><span class="ln-i">4</span>  gather_facts: <span class="tok-k">false</span></span>
+<span class="ln"><span class="ln-i">5</span>  serial: <span class="tok-n">1</span>                      <span class="tok-cmt"># по одному устройству за раз</span></span>
+<span class="ln"><span class="ln-i">6</span>  any_errors_fatal: <span class="tok-k">true</span>         <span class="tok-cmt"># остановиться, а не катить ошибку на весь парк</span></span>
+<span class="ln"><span class="ln-i">7</span>  max_fail_percentage: <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>  pre_tasks:</span>
+<span class="ln"><span class="ln-i">10</span>    - name: Узнать, что мы вообще talking на правильном устройстве</span>
+<span class="ln"><span class="ln-i">11</span>      cisco.ios.ios_facts:</span>
+<span class="ln"><span class="ln-i">12</span>      register: ios_facts</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>    - name: Остановиться, если платформа не та</span>
+<span class="ln"><span class="ln-i">15</span>      ansible.builtin.assert:</span>
+<span class="ln"><span class="ln-i">16</span>        that:</span>
+<span class="ln"><span class="ln-i">17</span>          - ios_facts.ansible_net_gather_network_facts.network_os | <span class="tok-fn">default</span>(<span class="tok-str">''</span>) is <span class="tok-fn">search</span>(<span class="tok-str">'ios'</span>)</span>
+<span class="ln"><span class="ln-i">18</span>        fail_msg: <span class="tok-str">"Это не IOS. Остановись и посмотри, что за устройство в инвентаре."</span></span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>  tasks:</span>
+<span class="ln"><span class="ln-i">21</span>    <span class="tok-cmt"># Способ 1: декларативные модули под конкретную платформу.</span></span>
+<span class="ln"><span class="ln-i">22</span>    <span class="tok-cmt"># Ansible сам считывает текущее состояние и меняет только расхождения.</span></span>
+<span class="ln"><span class="ln-i">23</span>    - name: Обновить описания портов</span>
+<span class="ln"><span class="ln-i">24</span>      cisco.ios.ios_interfaces:</span>
+<span class="ln"><span class="ln-i">25</span>        config:</span>
+<span class="ln"><span class="ln-i">26</span>          - name: <span class="tok-str">"{{ p.name }}"</span></span>
+<span class="ln"><span class="ln-i">27</span>            description: <span class="tok-str">"{{ p.description }}"</span></span>
+<span class="ln"><span class="ln-i">28</span>            enabled: <span class="tok-str">"{{ not p.shutdown | default(false) }}"</span></span>
+<span class="ln"><span class="ln-i">29</span>      loop: <span class="tok-str">"{{ access_ports + uplinks }}"</span></span>
+<span class="ln"><span class="ln-i">30</span>      loop_control:</span>
+<span class="ln"><span class="ln-i">31</span>        label: <span class="tok-str">"{{ p.name }}"</span></span>
+<span class="ln"><span class="ln-i">32</span></span>
+<span class="ln"><span class="ln-i">33</span>    - name: Создать VLAN</span>
+<span class="ln"><span class="ln-i">34</span>      cisco.ios.ios_vlans:</span>
+<span class="ln"><span class="ln-i">35</span>        config:</span>
+<span class="ln"><span class="ln-i">36</span>          - name: <span class="tok-str">"{{ item.id }}"</span></span>
+<span class="ln"><span class="ln-i">37</span>            state: active</span>
+<span class="ln"><span class="ln-i">38</span>            name: <span class="tok-str">"{{ item.name }}"</span></span>
+<span class="ln"><span class="ln-i">39</span>      loop: <span class="tok-str">"{{ vlans }}"</span></span>
+<span class="ln"><span class="ln-i">40</span></span>
+<span class="ln"><span class="ln-i">41</span>    - name: Назначить порты в access-VLAN</span>
+<span class="ln"><span class="ln-i">42</span>      cisco.ios.ios_l2_interfaces:</span>
+<span class="ln"><span class="ln-i">43</span>        config:</span>
+<span class="ln"><span class="ln-i">44</span>          - name: <span class="tok-str">"{{ item.name }}"</span></span>
+<span class="ln"><span class="ln-i">45</span>            mode: access</span>
+<span class="ln"><span class="ln-i">46</span>            access:</span>
+<span class="ln"><span class="ln-i">47</span>              vlan: <span class="tok-str">"{{ item.vlan }}"</span></span>
+<span class="ln"><span class="ln-i">48</span>      loop: <span class="tok-str">"{{ access_ports }}"</span></span>
+<span class="ln"><span class="ln-i">49</span></span>
+<span class="ln"><span class="ln-i">50</span>    <span class="tok-cmt"># Способ 2: шаблон целиком, но транзакционно — через NETCONF.</span></span>
+<span class="ln"><span class="ln-i">51</span>    <span class="tok-cmt"># Плюс: candidate/validate/commit и откат. Минус: доступен не на всех платформах.</span></span>
+<span class="ln"><span class="ln-i">52</span>    - name: Применить отрендеренный шаблон через NETCONF с подтверждённым коммитом</span>
+<span class="ln"><span class="ln-i">53</span>      ansible.netcommon.net_config:</span>
+<span class="ln"><span class="ln-i">54</span>        src: <span class="tok-str">"rendered/{{ inventory_hostname }}.cfg"</span></span>
+<span class="ln"><span class="ln-i">55</span>        backup: <span class="tok-k">yes</span></span>
+<span class="ln"><span class="ln-i">56</span>        commit: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">57</span>        confirm_timeout: <span class="tok-n">60</span></span>
+<span class="ln"><span class="ln-i">58</span>      when: ansible_netconf_enabled | <span class="tok-fn">default</span>(<span class="tok-k">false</span>) | bool</span>
+<span class="ln"><span class="ln-i">59</span></span>
+<span class="ln"><span class="ln-i">60</span>    <span class="tok-cmt"># Способ 3: тот же шаблон, но обычной сессией CLI, без транзакций.</span></span>
+<span class="ln"><span class="ln-i">61</span>      ansible.netcommon.net_config:</span>
+<span class="ln"><span class="ln-i">62</span>        src: <span class="tok-str">"rendered/{{ inventory_hostname }}.cfg"</span></span>
+<span class="ln"><span class="ln-i">63</span>        save_when: always</span>
+<span class="ln"><span class="ln-i">64</span>      when: <span class="tok-fn">not</span> (ansible_netconf_enabled | <span class="tok-fn">default</span>(<span class="tok-k">false</span>) | bool)</span>
+<span class="ln"><span class="ln-i">65</span></span>
+<span class="ln"><span class="ln-i">66</span>  post_tasks:</span>
+<span class="ln"><span class="ln-i">67</span>    - name: Убедиться, что управляющий интерфейс на месте</span>
+<span class="ln"><span class="ln-i">68</span>      ansible.builtin.assert:</span>
+<span class="ln"><span class="ln-i">69</span>        that:</span>
+<span class="ln"><span class="ln-i">70</span>          - mgmt_ip is defined</span>
+<span class="ln"><span class="ln-i">71</span>        fail_msg: <span class="tok-str">"Не задан mgmt_ip — применение остановлено, чтобы не потерять доступ."</span></span>
+<span class="ln"><span class="ln-i">72</span></span>
+<span class="ln"><span class="ln-i">73</span>    - name: Проверить, что устройство живо и SNMP отвечает</span>
+<span class="ln"><span class="ln-i">74</span>      ansible.netcommon.net_l3_interface:</span>
+<span class="ln"><span class="ln-i">75</span>        name: <span class="tok-str">"{{ mgmt_interface | default('Vlan99') }}"</span></span>
+<span class="ln"><span class="ln-i">76</span>        state: present</span>
+<span class="ln"><span class="ln-i">77</span>      register: mgmt_check</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Набор параметров <code>net_config</code> зависит от версии <code>ansible.netcommon</code>: параметры <code>commit</code>, <code>confirm_commit</code>, <code>confirm_timeout</code>, <code>backup</code>, <code>rollback</code> добавлялись постепенно. <strong>Проверяй <code>ansible-doc ansible.netcommon.net_config</code> в своей версии</strong> и не переноси пример из интернета вслепую. То же с <code>cisco.ios.ios_interfaces</code>: в свежих версиях параметр называется <code>enabled</code>, в ранних — <code>state: up/down</code>. Это ровно тот класс ошибок, который даёт «модуль отработал, а ничего не изменилось».</p>
+<p>И ещё две вещи, которые ломают чаще всего: <code>serial: 1</code> без <code>any_errors_fatal</code> — это тиражирование ошибки по всему парку; и отсутствие <code>post_tasks</code>-проверки, которая убеждается, что после применения устройство <strong>всё ещё доступно</strong>.</p></div></div>
+<h3 id="netmiko-kogda-nuzhen-pryamoy-dostup">Netmiko: когда нужен прямой доступ</h3>
+<p>Ansible под капотом использует <code>network_cli</code> поверх Paramiko/Netmiko. Иногда это всё равно проще сделать напрямую: снять данные, на которые нет модуля, или выполнить разовую команду.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">from</span> netmiko <span class="tok-k">import</span> ConnectHandler</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">from</span> ntc_templates.parse <span class="tok-k">import</span> parse_output</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> os</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>DEV = {</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-str">"device_type"</span>: <span class="tok-str">"cisco_ios"</span>,</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-str">"host"</span>: <span class="tok-str">"10.10.10.1"</span>,</span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-str">"username"</span>: <span class="tok-str">"netops"</span>,</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-str">"password"</span>: os.environ[<span class="tok-str">"NETOPS_PASS"</span>],</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-str">"secret"</span>: os.environ[<span class="tok-str">"NETOPS_ENABLE"</span>],</span>
+<span class="ln"><span class="ln-i">11</span>}</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">with</span> <span class="tok-fn">ConnectHandler</span>(**DEV) <span class="tok-k">as</span> conn:</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-cmt"># Разовая команда — и сразу разбор в структуру, а не текст</span></span>
+<span class="ln"><span class="ln-i">15</span>    out = conn.<span class="tok-fn">send_command</span>(<span class="tok-str">"show interfaces"</span>)</span>
+<span class="ln"><span class="ln-i">16</span>    parsed = <span class="tok-fn">parse_output</span>(platform=<span class="tok-str">"cisco_ios"</span>, command=<span class="tok-str">"show interfaces"</span>, data=out)</span>
+<span class="ln"><span class="ln-i">17</span>    <span class="tok-k">for</span> iface <span class="tok-k">in</span> parsed:</span>
+<span class="ln"><span class="ln-i">18</span>        <span class="tok-fn">print</span>(iface[<span class="tok-str">"interface"</span>], iface[<span class="tok-str">"link_status"</span>], iface.<span class="tok-fn">get</span>(<span class="tok-str">"input_errors"</span>, <span class="tok-str">""</span>))</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-cmt"># Конфигурация через конфигурационный режим с проверкой результата</span></span>
+<span class="ln"><span class="ln-i">21</span>    conn.<span class="tok-fn">config_mode</span>()</span>
+<span class="ln"><span class="ln-i">22</span>    conn.<span class="tok-fn">send_command</span>(<span class="tok-str">"interface GigabitEthernet1/0/24"</span>, expect_string=r<span class="tok-str">"#"</span>)</span>
+<span class="ln"><span class="ln-i">23</span>    conn.<span class="tok-fn">send_command</span>(<span class="tok-str">"description UPLINK-TO-CORE"</span>, expect_string=r<span class="tok-str">"#"</span>)</span>
+<span class="ln"><span class="ln-i">24</span>    conn.<span class="tok-fn">commit</span>()</span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p><code>Netmiko</code> — это библиотека «отправь команду, получи текст». Она ничего не знает про идемпотентность и проверку состояния. Для разовых работ и сбора данных — отличный инструмент; для регулярного применения конфигураций — нет, там нужен Ansible.</p></div></div>
+<h2 id="napalm-i-ntc-templates-to-chem-set-otlichaetsya-ot-serverov">NAPALM и NTC-templates: то, чем сеть отличается от серверов</h2>
+<p>Это ключевой кусок, который часто проглатывают. На сервере ты читаешь состояние через API: вернул JSON — и всё понятно. На сетевом оборудовании <strong>иногда</strong> есть NETCONF с JSON (см. <a href="../../lectures/net/17-netconf-telemetry.html">предыдущую лекцию</a>), но чаще всего единственный источник состояния — текстовый вывод CLI. Значит, чтобы «узнать, применилось или нет», этот текст надо распарсить.</p>
+<h3 id="ntc-templates-gotovye-parsery-pod-sotni-platform">NTC-templates: готовые парсеры под сотни платформ</h3>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">from</span> ntc_templates.parse <span class="tok-k">import</span> parse_output</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span>raw = <span class="tok-str">""</span>"Interface      IP-Address      OK? Method Status                Protocol</span>
+<span class="ln"><span class="ln-i">4</span>GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">1</span> <span class="tok-n">10.10</span>.<span class="tok-n">30.1</span>     YES NVRAM  up                    up</span>
+<span class="ln"><span class="ln-i">5</span>GigabitEthernet1/<span class="tok-n">0</span>/<span class="tok-n">2</span> unassigned     YES NVRAM administratively down down</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>data = <span class="tok-fn">parse_output</span>(platform=<span class="tok-str">"cisco_ios"</span>, command=<span class="tok-str">"show ip interface brief"</span>, data=raw)</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-cmt"># [{'interface': 'GigabitEthernet1/0/1', 'ip_address': '10.10.30.1',</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt">#   'ok': 'YES', 'method': 'NVRAM', 'status': 'up', 'protocol': 'up'}, ...]</span></span>
+</code></pre></div>
+<p>Но в сети почти всегда найдётся вывод, для которого готового шаблона нет: твой вендор, твоя прошивка, твоя экзотическая команда. Тогда пишешь свой шаблон <strong>TextFSM</strong> — маленький декларативный язык, где шаблон это «правила, как из строки вытащить поля».</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># templates/mikrotik_interfaces.textfsm</span>
+<span class="ln"><span class="ln-i">2</span>Value Required IFACE (\S+)</span>
+<span class="ln"><span class="ln-i">3</span>Value TYPE (\S+)</span>
+<span class="ln"><span class="ln-i">4</span>Value MTU (\S+)</span>
+<span class="ln"><span class="ln-i">5</span>Value MAC ([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})</span>
+<span class="ln"><span class="ln-i">6</span>Value LINK_DOWNS (\d+)</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>Start</span>
+<span class="ln"><span class="ln-i">9</span>  ^Flags:.* -&gt; Ifaces</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span># Полная строка — так выглядит /interface print на RouterOS 7</span>
+<span class="ln"><span class="ln-i">12</span>  ^\s*\d+\s+[A-Z!]*\s+\S+\s+name="${IFACE}"\s+default-name="\S+"\s+type="${TYPE}"\s+mtu=${MTU}\s+actual-mtu=\S+\s+l2mtu=\S+\s+max-l2mtu=\S+\s+mac-address=${MAC}\s+last-link-up-time=\S+\s+\S+\s+link-downs=${LINK_DOWNS}\s*$$ -&gt; Record</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span># Запасной вариант: без MAC (например, у интерфейса без адреса)</span>
+<span class="ln"><span class="ln-i">15</span>  ^\s*\d+\s+[A-Z!]*\s+\S+\s+name="${IFACE}"\s+default-name="\S+"\s+type="${TYPE}"\s+mtu=${MTU}\s.*$$ -&gt; Record</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Отладка шаблона: подать ему вывод и посмотреть, что получилось</span></span>
+<span class="ln"><span class="ln-i">2</span>ssh netops@<span class="tok-n">10.10</span>.<span class="tok-n">10.11</span> <span class="tok-str">'/interface print'</span> &gt; /tmp/ifaces.txt</span>
+<span class="ln"><span class="ln-i">3</span>python3 -c "</span>
+<span class="ln"><span class="ln-i">4</span>import io, textfsm</span>
+<span class="ln"><span class="ln-i">5</span>with <span class="tok-fn">open</span>(<span class="tok-str">'templates/mikrotik_interfaces.textfsm'</span>) as f:</span>
+<span class="ln"><span class="ln-i">6</span>    p = textfsm.<span class="tok-fn">TextFSM</span>(f)</span>
+<span class="ln"><span class="ln-i">7</span>    rows = p.<span class="tok-fn">ParseText</span>(<span class="tok-fn">open</span>(<span class="tok-str">'/tmp/ifaces.txt'</span>).<span class="tok-fn">read</span>())</span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-fn">print</span>(p.header)</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-k">for</span> r in rows[:<span class="tok-n">5</span>]:</span>
+<span class="ln"><span class="ln-i">10</span>        <span class="tok-fn">print</span>(<span class="tok-fn">dict</span>(<span class="tok-fn">zip</span>(p.header, r)))</span>
+<span class="ln"><span class="ln-i">11</span>"</span>
+</code></pre></div>
+<p>Три правила, которые делают парсер рабочим:</p>
+<ol><li><strong>Значение (<code>Value</code>) — это то, что ты хочешь получить.</strong> Имя <code>Value</code> становится ключом словаря, регулярка в скобках — что именно считать значением. <code>Required</code> означает «без этого поля строка не считается записью».</li><li><strong>В шаблоне важны <code>$$</code> вместо <code>$</code></strong> — TextFSM использует <code>$</code> как маркер подстановки, поэтому конец строки пишется как <code>$$</code>.</li><li><strong>Парсер, который не проверен на реальном выводе, не работает.</strong> Гоняй его на выводе с живого устройства после <strong>каждого</strong> обновления прошивки: форматирование меняется между версиями, и шаблон молча начнёт возвращать ноль строк.</li></ol>
+<p>Почему без этого нельзя нормально проверить «применилось или нет»: <code>net_config</code> скажет тебе, что отправил конфигурацию, но если платформа приняла её с ошибкой в середине и оставила половину, единственный способ узнать об этом — распарсировать <code>show</code> после применения. <strong>Применение без проверки результата — это надежда, а не процесс.</strong></p>
+<h3 id="napalm-strukturirovannyy-dostup-kogda-on-est">NAPALM: структурированный доступ, когда он есть</h3>
+<p>NAPALM — библиотека с единым API поверх разных платформ: <code>get_facts</code>, <code>get_interfaces</code>, <code>get_neighbors</code>, <code>load_merge_candidate</code>. Главная ценность — <strong>нормализованные структуры</strong>: на любой поддерживаемой платформе список интерфейсов выглядит одинаково.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>- name: Собрать соседей через NAPALM</span>
+<span class="ln"><span class="ln-i">2</span>  napalm_get:</span>
+<span class="ln"><span class="ln-i">3</span>    filter: [<span class="tok-str">"get_neighbors"</span>, <span class="tok-str">"get_interfaces_ip"</span>]</span>
+<span class="ln"><span class="ln-i">4</span>    provider:</span>
+<span class="ln"><span class="ln-i">5</span>      host: <span class="tok-str">"{{ ansible_host }}"</span></span>
+<span class="ln"><span class="ln-i">6</span>      username: netops</span>
+<span class="ln"><span class="ln-i">7</span>      password: <span class="tok-str">"{{ napalm_password }}"</span></span>
+<span class="ln"><span class="ln-i">8</span>      platform: ios</span>
+<span class="ln"><span class="ln-i">9</span>    data: <span class="tok-str">"{{ napalm_result }}"</span></span>
+<span class="ln"><span class="ln-i">10</span>  register: neigh</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>- name: Найти порты без соседей там, где сосед ожидаем</span>
+<span class="ln"><span class="ln-i">13</span>  ansible.builtin.debug:</span>
+<span class="ln"><span class="ln-i">14</span>    msg: <span class="tok-str">"{{ item }} не видит соседа"</span></span>
+<span class="ln"><span class="ln-i">15</span>  loop: <span class="tok-str">"{{ napalm_result.get_neighbors.lldp | dict2items | map(attribute='key') | list }}"</span></span>
+<span class="ln"><span class="ln-i">16</span>  when: item not <span class="tok-fn">in</span> (napalm_result.get_neighbors.lldp | dict2items</span>
+<span class="ln"><span class="ln-i">17</span>                     | <span class="tok-fn">selectattr</span>(<span class="tok-str">'value'</span>, <span class="tok-str">'defined'</span>) | <span class="tok-fn">map</span>(attribute=<span class="tok-str">'key'</span>) | list)</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><strong>NAPALM поддерживает не всё, и это надо понимать до выбора.</strong> Драйверы есть для <code>eos</code>, <code>junos</code>, <code>nxos</code>, <code>iosxr</code>; драйвер <code>ios</code> появился в свежих версиях и покрывает <strong>IOS-XE, а не весь IOS</strong> — на старом IOS он не заработает. MikroTik, UniFi, Omada, бюджетные SNR — нет. Не выстраивай процесс вокруг NAPALM, если у тебя нет платформы из списка: Ansible с <code>network_cli</code> и NTC-templates работает со <strong>всем</strong>, у чего есть SSH.</p></div></div>
+<h2 id="sekrety-enable-paroli-i-community-stroki-ne-v-git">Секреты: enable-пароли и community-строки — не в Git</h2>
+<p>Правило без исключений: <strong><code>enable</code>-пароль, пароль пользователя, community-строка, PSK, приватные ключи — никогда не в Git в открытом виде</strong>. Пароль из истории репозитория не удаляется: он остаётся во всех клонах, во всех форках, в резервных копиях. Для сети это не «немного неаккуратно» — это компрометация всего парка, потому что переиспользовать пароль ты не можешь.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ</th>
+<th style="text-align:left">Что лежит в Git</th>
+<th style="text-align:left">Плюсы</th>
+<th style="text-align:left">Минусы</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>ansible-vault</code> на файле</td>
+<td style="text-align:left">шифротекст</td>
+<td style="text-align:left">просто, встроено, работает везде</td>
+<td style="text-align:left">ключ должен где-то лежать; в CI нужен доступ к секрету</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ansible-vault encrypt_string</code></td>
+<td style="text-align:left">шифротекст значения</td>
+<td style="text-align:left">удобно для <strong>одного</strong> пароля в <code>group_vars</code></td>
+<td style="text-align:left">то же самое</td>
+</tr>
+<tr>
+<td style="text-align:left">Переменные окружения</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">секрет не хранится в репозитории вообще</td>
+<td style="text-align:left">неудобно в плейбуках, нужен менеджер</td>
+</tr>
+<tr>
+<td style="text-align:left">Отдельный репозиторий с секретами</td>
+<td style="text-align:left">только шифротекст</td>
+<td style="text-align:left">удобно, когда доступ разграничен</td>
+<td style="text-align:left">две репозитории, две дисциплины</td>
+</tr>
+<tr>
+<td style="text-align:left">Внешний менеджер (Vault, SOPS+git)</td>
+<td style="text-align:left">ссылка или шифротекст</td>
+<td style="text-align:left">один источник правды, ротация, аудит</td>
+<td style="text-align:left">ещё один сервис в контуре</td>
+</tr>
+</tbody></table></div>
+<p>Для 3–10 устройств достаточно <code>ansible-vault</code>. Начинаем так:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">cd</span> /srv/net-<span class="tok-k">git</span></span>
+<span class="ln"><span class="ln-i">2</span>ansible-vault create inventory/prod/group_vars/all/vault.yml</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># вписываем структуру с пустыми значениями</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># inventory/prod/group_vars/all/vault.yml — содержимое ДО шифрования</span></span>
+<span class="ln"><span class="ln-i">2</span>ansible_password: <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">3</span>enable_password: <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">4</span>snmp_ro_community: <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">5</span>snmpv3_auth_pass: <span class="tok-str">""</span></span>
+<span class="ln"><span class="ln-i">6</span>snmpv3_priv_pass: <span class="tok-str">""</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Зашифровать одно значение, не трогая весь файл.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Печатает YAML-словарь с одним ключом — его и вставляешь в vault.yml.</span></span>
+<span class="ln"><span class="ln-i">3</span>ansible-vault encrypt_string <span class="tok-str">'community-которую-я-придумал'</span> \</span>
+<span class="ln"><span class="ln-i">4</span>  --name <span class="tok-str">'snmp_ro_community'</span> \</span>
+<span class="ln"><span class="ln-i">5</span>  --vault-id prod</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># Проверка: файл читается только с ключом</span></span>
+<span class="ln"><span class="ln-i">8</span>ansible-vault view inventory/prod/group_vars/all/vault.yml</span>
+<span class="ln"><span class="ln-i">9</span>ANSIBLE_VAULT_PASSWORD_FILE=/etc/ansible/.vault_pass \</span>
+<span class="ln"><span class="ln-i">10</span>  ansible-inventory -i inventory/prod --list --yaml | head -<span class="tok-n">30</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /srv/net-git/.vault_pass  — права 0600, владелец тот, кто запускает ansible</span></span>
+<span class="ln"><span class="ln-i">2</span>openssl rand -base64 <span class="tok-n">32</span> | tr -d <span class="tok-str">'\n'</span> &gt; /srv/net-<span class="tok-k">git</span>/.vault_pass</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">chmod</span> <span class="tok-n">0600</span> /srv/net-<span class="tok-k">git</span>/.vault_pass</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Ключ vault не хранится <strong>в том же репозитории</strong>. <code>.vault_pass</code> в <code>.gitignore</code>, сам файл — в <code>/etc/ansible/</code> или в менеджере секретов CI. В CI ключ подставляется из секрета пайплайна, и <code>ansible-playbook</code> запускается с <code>--vault-password-file</code>, указывающим на временный файл, который удаляется после запуска. Запуск <code>ansible-playbook --ask-vault-pass</code> вручную на сервере — нормально; зашивать ключ в репозиторий, в Dockerfile или в строку пайплайна — нет.</p>
+<p>И проверяй результат рендеринга, а не только репозиторий: <code>ansible-inventory --list</code> покажет секреты в открытом виде, и если ты перенаправил это в файл или в лог CI, секрет утёк туда.</p></div></div>
+<h2 id="poryadok-vnedreniya-snachala-chitat-potom-sravnivat-i-tolko-potom-primenyat">Порядок внедрения: сначала читать, потом сравнивать, и только потом применять</h2>
+<p>Это главное, что надо унести из лекции. Порядок не оптимизируемый: попытка начать с шага 4 — это способ отрезать себе доступ единственному маршрутизатору в 23:00.</p>
+<h3 id="shag-1-inventarizaciya">Шаг 1. Инвентаризация</h3>
+<p>Таблица: устройство, платформа, версия, модель, серийник, management IP, SSH-порт, доступна ли NETCONF, доступен ли SNMPv3, имена портов. Заполняется через <code>snmpwalk</code> и <code>ssh ... | show version</code>. Результат — <code>meta.yml</code> в репозитории. Пока нет этого файла, ты не знаешь, что автоматизируешь.</p>
+<h3 id="shag-2-sbor-konfiguraciy-v-git">Шаг 2. Сбор конфигураций в Git</h3>
+<p>Ежедневно, нормализованно, как в <a href="../../lectures/net/17-netconf-telemetry.html">предыдущей лекции</a>. Ничего не применяем — только читаем. <strong>Первая неделя: <code>git log -p devices/</code></strong> — это самый полезный бесплатный инструмент аудита сети, который у тебя есть.</p>
+<h3 id="shag-3-shablony-ili-polnye-konfigi">Шаг 3. Шаблоны или полные конфиги</h3>
+<p>Для 5 устройств — оставляем <code>running.cfg</code> как есть и правим их как код. Шаблоны понадобятся, когда появится вторая одинаковая площадка.</p>
+<h3 id="shag-4-check-i-diff-i-pochemu-bez-nih-primenyat-nelzya">Шаг 4. <code>--check</code> и <code>--diff</code>, и почему без них применять нельзя</h3>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Ничего не применяем, показываем, что изменится</span></span>
+<span class="ln"><span class="ln-i">2</span>ansible-playbook playbooks/access-switch.yml \</span>
+<span class="ln"><span class="ln-i">3</span>  --check --diff \</span>
+<span class="ln"><span class="ln-i">4</span>  -i inventory/prod \</span>
+<span class="ln"><span class="ln-i">5</span>  --limit hq-sw-<span class="tok-n">03</span> \</span>
+<span class="ln"><span class="ln-i">6</span>  -v</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># Что будет удалено — отдельный, самый опасный вопрос</span></span>
+<span class="ln"><span class="ln-i">9</span>ansible-playbook playbooks/access-switch.yml \</span>
+<span class="ln"><span class="ln-i">10</span>  --check --diff \</span>
+<span class="ln"><span class="ln-i">11</span>  -i inventory/prod \</span>
+<span class="ln"><span class="ln-i">12</span>  --limit hq-sw-<span class="tok-n">03</span> \</span>
+<span class="ln"><span class="ln-i">13</span>  -v | <span class="tok-k">grep</span> -E <span class="tok-str">'^\-'</span> </span>
+</code></pre></div>
+<p>Что делают эти флаги: <code>--check</code> заставляет модуль пройти путь до конца, включая «прочитать текущее состояние» и «вычислить разницу», но <strong>не выполнить запись</strong>. <code>--diff</code> показывает, какие именно команды ушли бы на устройство и какие строки были бы удалены.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>--- before</span>
+<span class="ln"><span class="ln-i">2</span>+++ after</span>
+<span class="ln"><span class="ln-i">3</span>@@ interface GigabitEthernet1/0/3</span>
+<span class="ln"><span class="ln-i">4</span>- description FREE</span>
+<span class="ln"><span class="ln-i">5</span>+ description FREE-AP-1F</span>
+<span class="ln"><span class="ln-i">6</span>- no switchport access vlan 99</span>
+<span class="ln"><span class="ln-i">7</span>+ switchport access vlan 10</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>«Ну раз <code>--check</code> ничего не меняет, можно и без него» — рассуждение, из-за которого в 23:00 едут к стойке. У <code>--check</code> есть слепое пятно: если ты применяешь <strong>шаблон целиком</strong> модулем без проверки существующего состояния, <code>--check</code> покажет «добавить весь шаблон» и не покажет, что при применении будет <strong>удалено</strong> всё, чего в шаблоне нет. Именно поэтому вывод с <code>--diff</code> надо читать глазами, а удаляющие строки искать явно.</p>
+<p>И второе: <code>--check</code> не проверяет последствия. Он не знает, что <code>no ip route 0.0.0.0 0.0.0.0</code> оставит тебя без маршрута по умолчанию. Единственная защита — человек, который прочитал diff до нажатия Enter.</p></div></div>
+<h3 id="shag-5-pilot-na-odnom-ustroystve">Шаг 5. Пилот на одном устройстве</h3>
+<p>Одно устройство, не единственный маршрутизатор, не единственный шлюз в интернет. Из парка 5–10 устройств это означает: не на ядре, а на доступе. И обязательно: <strong>проверенный консольный доступ на этом устройстве до начала пилота</strong>, а не после.</p>
+<h3 id="shag-6-poetapno">Шаг 6. Поэтапно</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Этап</th>
+<th style="text-align:left">Парк</th>
+<th style="text-align:left">Что применяем</th>
+<th style="text-align:left">Критерий перехода</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">1 устройство (не критичное)</td>
+<td style="text-align:left">один плейбук, один тип настройки</td>
+<td style="text-align:left">неделя без ручных правок на нём</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">все устройства этой роли</td>
+<td style="text-align:left">тот же плейбук</td>
+<td style="text-align:left">ни одного инцидента, вызванного автоматизацией</td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left">вторая роль</td>
+<td style="text-align:left">другой плейбук</td>
+<td style="text-align:left">предыдущий этап по-прежнему стабилен</td>
+</tr>
+<tr>
+<td style="text-align:left">4</td>
+<td style="text-align:left">изменение в шаблоне</td>
+<td style="text-align:left">правка шаблона + <code>--check --diff</code></td>
+<td style="text-align:left">diff прочитан, пилот подтвердил</td>
+</tr>
+</tbody></table></div>
+<p>Между этапами — неделя. Не потому что так медленно, а потому что <strong>инцидент от автоматизации ты узнаёшь не сразу</strong>: он проявляется через день, когда никто этого не ждал.</p>
+<h2 id="dreyf-kto-prav-git-ili-ustroystvo">Дрейф: кто прав — Git или устройство</h2>
+<p>Дрейф — это расхождение: конфигурация на устройстве не совпадает с тем, что в репозитории. Причины банальные: кто-то зашёл по SSH в пятницу и добавил правило; устройство применило часть изменений и упало; отработал скрипт, которого нет в коде; восстановились из бэкапа.</p>
+<h3 id="obnaruzhenie">Обнаружение</h3>
+<p>Два способа, и они отвечают на разные вопросы:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ</th>
+<th style="text-align:left">Что спрашивает</th>
+<th style="text-align:left">Плюсы</th>
+<th style="text-align:left">Минусы</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>ansible --check --diff</code> по расписанию</td>
+<td style="text-align:left">«приведу ли я устройство к коду, если применю?»</td>
+<td style="text-align:left">семантический вопрос: именно то, что сделает применение</td>
+<td style="text-align:left">не видит того, что не описано в коде (чужой ACL)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>diff</code> свежеснятого конфига с файлом в Git</td>
+<td style="text-align:left">«что на устройстве отличается от истории?»</td>
+<td style="text-align:left">показывает <strong>чужие</strong> изменения тоже</td>
+<td style="text-align:left">шумит на форматировании, если нормализация неполная</td>
+</tr>
+</tbody></table></div>
+<p>Оба нужны. Второй ловит ручную правку, первый — расхождение из-за неприменённого коммита.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># ci/check-drift.yml — детектор дрейфа</span></span>
+<span class="ln"><span class="ln-i">2</span>- name: Есть ли дрейф между кодом и устройством</span>
+<span class="ln"><span class="ln-i">3</span>  hosts: network</span>
+<span class="ln"><span class="ln-i">4</span>  gather_facts: <span class="tok-k">false</span></span>
+<span class="ln"><span class="ln-i">5</span>  tasks:</span>
+<span class="ln"><span class="ln-i">6</span>    - name: Спросить у устройства, что изменилось бы</span>
+<span class="ln"><span class="ln-i">7</span>      ansible.netcommon.net_config:</span>
+<span class="ln"><span class="ln-i">8</span>        src: <span class="tok-str">"rendered/{{ inventory_hostname }}.cfg"</span></span>
+<span class="ln"><span class="ln-i">9</span>      check_mode: <span class="tok-k">true</span>                 <span class="tok-cmt"># --check</span></span>
+<span class="ln"><span class="ln-i">10</span>      diff: <span class="tok-k">true</span>                       <span class="tok-cmt"># --diff</span></span>
+<span class="ln"><span class="ln-i">11</span>      register: drift</span>
+<span class="ln"><span class="ln-i">12</span>      failed_when: <span class="tok-k">false</span></span>
+<span class="ln"><span class="ln-i">13</span>      ignore_errors: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>    - name: Приложить отчёт о расхождении</span>
+<span class="ln"><span class="ln-i">16</span>      ansible.builtin.debug:</span>
+<span class="ln"><span class="ln-i">17</span>        msg: <span class="tok-str">"ДРЕЙФ: {{ inventory_hostname }} расходится с кодом"</span></span>
+<span class="ln"><span class="ln-i">18</span>      when: drift.changed | <span class="tok-fn">default</span>(<span class="tok-k">false</span>)</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>    - name: Провалить джобу, если дрейф есть</span>
+<span class="ln"><span class="ln-i">21</span>      ansible.builtin.fail:</span>
+<span class="ln"><span class="ln-i">22</span>        msg: <span class="tok-str">"Дрейф на {{ inventory_hostname }}. Расхождение должно попасть в Git через PR."</span></span>
+<span class="ln"><span class="ln-i">23</span>      when: drift.changed | <span class="tok-fn">default</span>(<span class="tok-k">false</span>)</span>
+<span class="ln"><span class="ln-i">24</span>      ignore_errors: <span class="tok-k">true</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># .github/workflows/drift-check.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>name: drift-check</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">on</span>:</span>
+<span class="ln"><span class="ln-i">4</span>  schedule:</span>
+<span class="ln"><span class="ln-i">5</span>    - cron: <span class="tok-str">'0 */6 * * *'</span></span>
+<span class="ln"><span class="ln-i">6</span>  workflow_dispatch:</span>
+<span class="ln"><span class="ln-i">7</span>jobs:</span>
+<span class="ln"><span class="ln-i">8</span>  drift:</span>
+<span class="ln"><span class="ln-i">9</span>    runs-<span class="tok-k">on</span>: [self-hosted, network-access]     <span class="tok-cmt"># раннер должен быть ВНУТРИ management-сети</span></span>
+<span class="ln"><span class="ln-i">10</span>    steps:</span>
+<span class="ln"><span class="ln-i">11</span>      - uses: actions/checkout@v4</span>
+<span class="ln"><span class="ln-i">12</span>      - name: Собрать шаблоны</span>
+<span class="ln"><span class="ln-i">13</span>        run: |</span>
+<span class="ln"><span class="ln-i">14</span>          ansible-galaxy collection install -r requirements.yml</span>
+<span class="ln"><span class="ln-i">15</span>          python scripts/render.py</span>
+<span class="ln"><span class="ln-i">16</span>      - name: Проверить дрейф</span>
+<span class="ln"><span class="ln-i">17</span>        env:</span>
+<span class="ln"><span class="ln-i">18</span>          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}</span>
+<span class="ln"><span class="ln-i">19</span>          ANSIBLE_HOST_KEY_CHECKING: <span class="tok-str">"true"</span></span>
+<span class="ln"><span class="ln-i">20</span>        run: ansible-playbook ci/check-drift.yml --check --diff -i inventory/prod</span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Практическая деталь, на которой спотыкаются: GitHub-hosted раннер физически не видит твои 10.10.10.0/24. Для дрейфа нужен <strong>self-hosted раннер внутри management-сети</strong> — обычно та же ВМ, где живёт Ansible. Второй вариант — запускать проверку по SSH на хост-бастион и забирать отчёт оттуда. И да, при каждом запуске нужен ключ vault из секретов пайплайна: без него дрейф-детектор работает на половину парка.</p></div></div>
+<h3 id="chto-delat-s-naydennym-dreyfom">Что делать с найденным дрейфом</h3>
+<p>Правило, которое экономит больше всего нервов: <strong>побеждает устройство</strong>. Реальность всегда права: устройство — это то, через которое ходит трафик прямо сейчас, и спорить с ним в аварии бессмысленно. Но расхождение <strong>обязано попасть в Git в тот же рабочий день, через PR</strong>, и не через «перепишу потом».</p>
+<div class="codeblock" data-lang="diff"><div class="codehead"><span class="code-lang">diff</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>--- a/devices/branch-sw-<span class="tok-n">11</span>/running.cfg</span>
+<span class="ln"><span class="ln-i">2</span>+++ b/devices/branch-sw-<span class="tok-n">11</span>/running.cfg</span>
+<span class="ln"><span class="ln-i">3</span>@@ -<span class="tok-n">38</span>,<span class="tok-n">6</span> +<span class="tok-n">38</span>,<span class="tok-n">7</span> @@ /ip firewall filter</span>
+<span class="ln"><span class="ln-i">4</span> add chain=input action=accept connection-state=established,related</span>
+<span class="ln"><span class="ln-i">5</span> add chain=input action=drop connection-state=invalid</span>
+<span class="ln"><span class="ln-i">6</span>+add chain=input action=accept protocol=icmp src-address=<span class="tok-n">10.10</span>.<span class="tok-n">30.5</span> \</span>
+<span class="ln"><span class="ln-i">7</span>+    comment=<span class="tok-str">"ACCEPTED-2026-10-11T21:40 by vasya"</span></span>
+<span class="ln"><span class="ln-i">8</span> add chain=input action=accept protocol=icmp</span>
+</code></pre></div>
+<div class="codeblock" data-lang="markdown"><div class="codehead"><span class="code-lang">markdown</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Описание PR</span></span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt">## Что случилось</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-n">11.10</span>.<span class="tok-n">2026</span> <span class="tok-n">21</span>:<span class="tok-n">40</span> — при проверке после аварии у провайдера обнаружено,</span>
+<span class="ln"><span class="ln-i">5</span>что доступ к ветке <span class="tok-n">10.10</span>.<span class="tok-n">30.5</span> (сканер-мониторинг) заблокирован:</span>
+<span class="ln"><span class="ln-i">6</span>ICMP отбрасывался правилом `action=drop connection-state=invalid`.</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt">## Почему это в репозитории</span></span>
+<span class="ln"><span class="ln-i">9</span>Правило добавлено вручную во время аварии, чтобы снять ложные</span>
+<span class="ln"><span class="ln-i">10</span>алерты blackbox. После восстановления не удалено — не до кого было.</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-cmt">## Что делаем</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-n">1</span>. Правило оставляем: мониторинг ветки нужен постоянно.</span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-n">2</span>. Переносим его в шаблон доступа (`templates/routeros/branch.j2`),</span>
+<span class="ln"><span class="ln-i">15</span>   чтобы правило появилось на следующей площадке автоматически.</span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-n">3</span>. Сужаем src-address до одного адреса сканера, добавляем comment</span>
+<span class="ln"><span class="ln-i">17</span>   в формате, который понимает regexp в детекторе дрейфа.</span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span><span class="tok-cmt">## Проверка</span></span>
+<span class="ln"><span class="ln-i">20</span>`ansible-playbook --check --diff` на branch-sw-<span class="tok-n">11</span> — изменений нет.</span>
+</code></pre></div>
+<p>Почему такой PR нормален и чего в нём быть не должно:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Хорошо</th>
+<th style="text-align:left">Плохо</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Причина изменения описана и понятна</td>
+<td style="text-align:left">«не знаю, кто это добавил»</td>
+</tr>
+<tr>
+<td style="text-align:left">Изменение объяснено бизнес-причиной</td>
+<td style="text-align:left">«закоммитил, чтобы CI проходил»</td>
+</tr>
+<tr>
+<td style="text-align:left">Разовое решение проведено в шаблон</td>
+<td style="text-align:left">Правило добавлено в <code>running.cfg</code> и забыто</td>
+</tr>
+<tr>
+<td style="text-align:left">Diff приложен и прочитан</td>
+<td style="text-align:left">PR на 300 строк без описания</td>
+</tr>
+<tr>
+<td style="text-align:left">Автор изменения — тот, кто с ним согласился в аварии</td>
+<td style="text-align:left">Мёрдж чужого коммита «на всякий случай»</td>
+</tr>
+</tbody></table></div>
+<h2 id="otvetstvennost-i-processy">Ответственность и процессы</h2>
+<p>Git сам по себе не распределяет ответственность. Её распределяют три вещи, и все три нужны.</p>
+<h3 id="kto-merzhit">Кто мержит</h3>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># CODEOWNERS</span>
+<span class="ln"><span class="ln-i">2</span>/devices/        @net-lead</span>
+<span class="ln"><span class="ln-i">3</span>/devices/hq-sw-0*/  @net-lead @vasya</span>
+<span class="ln"><span class="ln-i">4</span>/templates/      @net-lead @devops-team</span>
+<span class="ln"><span class="ln-i">5</span>/inventory/      @net-team</span>
+<span class="ln"><span class="ln-i">6</span>/ci/             @devops-team</span>
+</code></pre></div>
+<p>Настройки ветки: <strong>запрет force push</strong>, <strong>запрет удаления ветки</strong>, <strong>минимум одно одобрение</strong> для <code>devices/</code> и <code>templates/</code>, обязательный статус-чек <code>render-and-lint</code> перед мержем. Для маленькой команды одного человека, который всё равно всё делает сам, это бюрократия — и она всё равно спасает, когда через полгода ты будешь применять конфиг, написанный полгода назад в 2 часа ночи.</p>
+<h3 id="kak-soglasuetsya-izmenenie">Как согласуется изменение</h3>
+<ol><li>Открывается issue или задача: что меняем, зачем, риск, окно.</li><li>Ветка от <code>main</code>, правка в <code>templates/</code> или <code>devices/</code>.</li><li>Прогон <code>--check --diff</code> на одном устройстве, diff прикладывается в PR.</li><li>Ревью: минимум один человек, не автор.</li><li>Мерж, затем применение на пилот, затем на парк.</li></ol>
+<h3 id="chto-delat-pri-avarii">Что делать при аварии</h3>
+<p>Порядок, который забывают все, и из-за которого через год сеть становится неуправляемой:</p>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p><strong>Авария: чиним руками. Восстановились — в тот же день вносим в Git.</strong> Прямо с консоли, даже в три часа ночи, даже если «это же разовая мера». Потому что разовая мера, не попавшая в Git, через три месяца становится причиной следующей аварии — кто-то её не знал и отменил.</p>
+<p>Порядок именно такой: (1) восстановить связь, (2) снять конфиг в репозиторий, (3) открыть PR, (4) провести через ревью постфактум. <strong>Шаг 3 пропускается всегда</strong> — именно он и есть точка деградации.</p>
+<p>Чего делать нельзя: «сначала починю, потом приведу всё в порядок». «Потом» не наступает. По опыту, расхождение, оставленное на аварийной правке, живёт в сети месяцами и всплывает в виде «почему тут ручное правило?» ровно в тот момент, когда оно мешает.</p></div></div>
+<h2 id="kak-eto-stykuetsya-s-ostalnym-trekom">Как это стыкуется с остальным треком</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">Инструмент</th>
+<th style="text-align:left">Почему так</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Применить конфиг к новому VLAN на 20 устройствах</td>
+<td style="text-align:left">Ansible</td>
+<td style="text-align:left">идемпотентность и <code>serial: 1</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Поднять новый коммутатор «с тем же, что у соседей»</td>
+<td style="text-align:left">Ansible + шаблон</td>
+<td style="text-align:left">параметр — это переменная, а не копипаст</td>
+</tr>
+<tr>
+<td style="text-align:left">Завести новый VPC / security group в облаке</td>
+<td style="text-align:left">Terraform</td>
+<td style="text-align:left"><a href="../../lectures/devops/12-terraform-i-ansible.html">Terraform и Ansible</a>: разные сроки жизни, разные инструменты</td>
+</tr>
+<tr>
+<td style="text-align:left">Проверить, что после деплоя всё живо</td>
+<td style="text-align:left">Prometheus + blackbox</td>
+<td style="text-align:left"><a href="../../lectures/net/16-monitoring-seti.html">Мониторинг сети</a></td>
+</tr>
+<tr>
+<td style="text-align:left">Понять, кто и что менял</td>
+<td style="text-align:left">Git + syslog</td>
+<td style="text-align:left"><a href="../../lectures/net/17-netconf-telemetry.html">NETCONF, телеметрия и syslog</a></td>
+</tr>
+<tr>
+<td style="text-align:left">Договориться о ревью и разборе конфликтов</td>
+<td style="text-align:left">Процесс Git</td>
+<td style="text-align:left"><a href="../../lectures/devops/13-git-rabota-s-komandoy.html">Git и работа в команде</a></td>
+</tr>
+</tbody></table></div>
+<p>Разделение, которое стоит запомнить: <strong>Terraform создаёт и меняет ресурсы, Ansible — приводит устройства к состоянию</strong>. Сеть как код — это не «выбрать одно из двух», это понять, что слой создания (облака, железо, лицензии) и слой конфигурации (VLAN, ACL, политики) живут по разным правилам.</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Применили на единственном маршрутизаторе без <code>--check</code>.</strong> Плейбук рабочий, шаблон верный, а в <code>mgmt_acl</code> опечатка — и всё. Страховка одна: <strong>консольный доступ до автоматизации, а не после</strong>. Это часть работы.</li><li><strong><code>serial: 1</code> без <code>any_errors_fatal</code>.</strong> Ansible остановится на первом упавшем хосте по умолчанию только при <code>serial</code>, а вот если кто-то убрал <code>serial</code> — ошибка тиражируется по всему парку за секунды. Скорость автоматизации — это и её способность разрушать.</li><li><strong>Плейбук, который удаляет всё, чего нет в шаблоне.</strong> Для <code>--check</code> и <code>--diff</code> это не видно, а для применения через <code>net_config</code> с полным <code>src</code> — видно отчётливо. Проверяй всегда удаляющие строки.</li><li><strong>Секрет в Git.</strong> Пароль или community-строка в репозитории — это компрометация навсегда, потому что пароль нельзя «отозвать из истории», а переиспользовать его после ротации не придётся. Проверяй <code>git grep -iE 'password|secret|community|psk|private-key'</code> в CI перед каждым коммитом.</li><li><strong>Шаблон перерос в копию устройства.</strong> 40 <code>{% if %}</code> внутри одного шаблона — это не шаблон, это конфигурация с плохой репутацией. Дели на <code>base</code> + роль + площадка, а когда не получается — вернись к подходу «один файл на устройство», он честнее.</li><li><strong>Раннер дрейфа вне management-сети.</strong> Пайплайн зелёный, потому что не проверил ничего: у self-hosted раннера нет маршрута до 10.10.10.0/24, playbook падает на таймауте, а <code>ignore_errors: true</code> это скрывает. Тест на «проверка вообще что-то видит» — обязателен.</li><li><strong><code>ignore_errors: true</code> в детекторе дрейфа.</strong> Ради одной строки потерял способность узнать, что парк недоступен целиком. Ошибка соединения и дрейф — разные вещи, и обрабатывать их надо по-разному.</li><li><strong>TextFSM-шаблон, проверенный один раз.</strong> Обновилась прошивка — формат вывода поменялся, шаблон возвращает ноль строк, проверка «применилось ли» молча становится бесполезной. Прогоняй парсер по свежему выводу после каждого обновления.</li><li><strong>Автоматизация без ревью.</strong> Применение шаблона на 20 устройствах из branch <code>main</code> без второго человека — это одна ошибка на 20 устройствах, а не одна ошибка. Ревью — не бюрократия, а множитель ущерба.</li><li><strong>Дрейф «потом запишу».</strong> Изменение, оставленное в устройстве без записи в Git, — это не мелкая неряшливость. Это конфигурация, которую никто не понимает, никто не может откатить и которую автоматизация в любой момент попытается удалить.</li><li><strong>Playbook, который тянет <code>show running-config</code> и пишет его в репозиторий при каждом запуске.</strong> Если это тот же репозиторий, куда идёт код, — в истории окажется состояние устройства вперемешку с намерением. Держи <code>running.cfg</code> и код в отдельных ветках или отдельных репозиториях.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему ручная настройка сети опаснее ручной настройки серверов, и назвать конкретный сценарий потери доступа</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею выбрать между подходом «шаблоны» и «один репозиторий — одно устройство» для своего размера парка, знаю, за каким рубежом второй ломается, и понимаю, что именно даёт конфигурация в Git: история, откат, ревью, детект дрейфа — и что Git не даёт: гарантию правильности</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я написал playbook с <code>serial: 1</code>, <code>any_errors_fatal</code> и <code>post_tasks</code>-проверкой живости устройства после применения, и понимаю, зачем каждая строка</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею запустить <code>--check --diff</code>, читаю вывод глазами, умею найти среди строк те, которые устройство <strong>удалит</strong>, и понимаю, почему <code>--check</code> не защищает от последствий, а консольный доступ — это часть внедрения, а не запасной вариант</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, зачем нужны NTC-templates и TextFSM, написал хотя бы один шаблон и проверил его на реальном выводе</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я различаю <code>ios</code>, <code>ios_vlans</code>, <code>ios_facts</code> и <code>netcommon.net_config</code>, понимаю разницу между <code>candidate</code>/<code>commit</code> и обычным CLI, и проверяю параметры через <code>ansible-doc</code> своей версии</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я шифрую секреты через <code>ansible-vault</code> и <code>encrypt_string</code>, ключ лежит вне репозитория, и я понимаю, что попавший в Git пароль оттуда не убрать</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я принимаю правило «побеждает устройство», но знаю, что расхождение обязано попасть в Git в тот же день через PR с объяснением причины, и знаю порядок внедрения для парка из 5–10 устройств с критерием перехода на каждом шаге</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери репозиторий для своего парка: инвентарь, выгрузка конфигураций, Jinja2-шаблон, playbook с netcommon.net_config, TextFSM-парсер для <code>show interfaces</code>, ansible-vault для community-строки, и проверь дрейф через --check --diff, не применяя ничего на единственном маршрутизаторе.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=netdev"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Сеть · оборудование» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="net/18-set-kak-kod">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/net/17-netconf-telemetry.html"><span>← Предыдущая</span><b>NETCONF, streaming telemetry и сбор конфигураций</b></a>
+        <a class="nav-next" href="../../lectures/mlops/01-python-dlya-ml.html"><span>Следующая →</span><b>Python для ML-инженера</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "net/18-set-kak-kod";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

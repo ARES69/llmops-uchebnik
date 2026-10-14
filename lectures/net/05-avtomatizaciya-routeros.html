@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Автоматизация RouterOS — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">Сетевое оборудование</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">A. MikroTik / RouterOS</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Автоматизация RouterOS</h1>
+        <p class="lead">Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации</p>
+        <div class="meta"><span class="badge">85 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">routeros scripting</span><span class="tag">rest api</span><span class="tag">git</span><span class="tag">бэкапы</span><span class="tag">автоматизация</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#tri-istochnika-pravdy-i-pochemu-eto-vazhno">Три источника правды, и почему это важно</a></li><li class="toc-l3"><a href="#eksport-chto-imenno-v-nem">Экспорт: что именно в нём</a></li><li class="toc-l3"><a href="#import-pochemu-on-hrupkiy">Импорт: почему он хрупкий</a></li><li class="toc-l2"><a href="#dreyf-sostoyanie-ushlo-ot-shablona">Дрейф: состояние ушло от шаблона</a></li><li class="toc-l2"><a href="#skriptovyy-yazyk-vosem-slov-kotoryh-hvataet">Скриптовый язык: восемь слов, которых хватает</a></li><li class="toc-l2"><a href="#skript-1-ping-monitoring-s-uvedomleniem">Скрипт 1: пинг-мониторинг с уведомлением</a></li><li class="toc-l2"><a href="#skript-2-watchdog-dlya-wan">Скрипт 2: watchdog для WAN</a></li><li class="toc-l2"><a href="#skript-3-ezhednevnyy-bekap-naruzhu">Скрипт 3: ежедневный бэкап наружу</a></li><li class="toc-l2"><a href="#planirovschik-cron-vnutri-ustroystva">Планировщик: cron внутри устройства</a></li><li class="toc-l3"><a href="#skript-dlya-sbora-sostoyaniya">Скрипт для сбора состояния</a></li><li class="toc-l2"><a href="#rest-api-http-poverh-routeros">REST API: HTTP-поверх-RouterOS</a></li><li class="toc-l3"><a href="#metody-i-format">Методы и формат</a></li><li class="toc-l3"><a href="#python-akkuratno-i-po-nastoyaschemu">Python: аккуратно и по-настоящему</a></li><li class="toc-l2"><a href="#hranenie-v-git-shablony-protiv-sostoyaniya">Хранение в Git: шаблоны против состояния</a></li><li class="toc-l2"><a href="#otkat-i-rezervnyy-kanal-upravleniya">Откат и «резервный канал управления»</a></li><li class="toc-l2"><a href="#bezopasnost-avtomatizacii">Безопасность автоматизации</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Это единственная лекция модуля, после которой сетевое оборудование перестаёт быть
+«чёрным ящиком, в который ходят руками». RouterOS — единственная из сетевых
+платформ, чью конфигурацию можно целиком выгрузить в текст, положить в Git, сравнить
+две версии и применить скриптом. Ansible, Terraform-провайдеры и готовые шаблоны
+конфигураций для MikroTik существуют именно потому, что это возможно. Разберём, как
+это устроено, и — обязательно — где автоматизация может положить всю сеть быстрее,
+чем её поднимет человек.</p>
+<h2 id="tri-istochnika-pravdy-i-pochemu-eto-vazhno">Три источника правды, и почему это важно</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Артефакт</th>
+<th style="text-align:left">Что внутри</th>
+<th style="text-align:left">Чего не внутри</th>
+<th style="text-align:left">Где применять</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>/export file=x</code></td>
+<td style="text-align:left">конфигурация текстом, как её видит RouterOS</td>
+<td style="text-align:left">runtime-состояния: динамические маршруты, аренды, сессии</td>
+<td style="text-align:left">Git, ревью, сравнение устройств</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/system backup save</code></td>
+<td style="text-align:left">бинарный снимок состояния, шифруется</td>
+<td style="text-align:left">приватные ключи в открытом виде, ничего не видно без устройства</td>
+<td style="text-align:left">восстановление на том же устройстве</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/ip service api</code> + REST</td>
+<td style="text-align:left">живое состояние и команды</td>
+<td style="text-align:left">ничего — это интерфейс управления</td>
+<td style="text-align:left">автоматизация, мониторинг</td>
+</tr>
+</tbody></table></div>
+<p><code>/export</code> — то, что ты кладёшь в Git. <code>/system backup save</code> — то, что ты кладёшь на
+флешку и думаешь, что этого достаточно. REST — то, через что ты меняешь устройство.</p>
+<h3 id="eksport-chto-imenno-v-nem">Экспорт: что именно в нём</h3>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/export file=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span></span>
+<span class="ln"><span class="ln-i">2</span>/export file=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span> hide-sensitive=yes</span>
+<span class="ln"><span class="ln-i">3</span>/export file=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span> show-defaults=yes compact=no</span>
+<span class="ln"><span class="ln-i">4</span>/export verbose</span>
+<span class="ln"><span class="ln-i">5</span>/file print</span>
+<span class="ln"><span class="ln-i">6</span>/file edit backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span>.rsc</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Параметр</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Когда нужен</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>file=</code></td>
+<td style="text-align:left">сохранить в файл на устройстве</td>
+<td style="text-align:left">вместо <code>verbose</code>, для автоматизации</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>hide-sensitive=yes</code></td>
+<td style="text-align:left">прячет пароли, ключи, PSK</td>
+<td style="text-align:left"><strong>всегда</strong>, если файл уедет с устройства</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>show-defaults=yes</code></td>
+<td style="text-align:left">добавляет значения, совпадающие с умолчаниями</td>
+<td style="text-align:left">большой diff, зато видно «отсутствие»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>compact=no</code></td>
+<td style="text-align:left">подробный формат</td>
+<td style="text-align:left">по умолчанию в большинстве версий</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>verbose</code> (без <code>file=</code>)</td>
+<td style="text-align:left">печать в терминал</td>
+<td style="text-align:left">посмотреть глазами</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>hide-sensitive=yes</code> прячет <code>pre-shared-key</code>, пароли и приватные ключи. Это делает
+файл пригодным для Git, но <strong>непригодным для повторного импорта</strong> — при <code>/import</code>
+скрытые значения останутся скрытыми или сбросятся в пустые. Поэтому схема рабочая
+такая: конфигурация живёт в Git в шаблонах с подстановками, а <code>/export hide-sensitive</code>
+хранится как «снимок состояния» для сравнения и аудита. Импортировать обратно имеет
+смысл только полный <code>/export</code>, взятый с устройства, которому ты хочешь вернуть
+исходное состояние.</p></div></div>
+<h3 id="import-pochemu-on-hrupkiy">Импорт: почему он хрупкий</h3>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/import file-name=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span>.rsc dry-run     <span class="tok-cmt"># проверить, НЕ применяя</span></span>
+<span class="ln"><span class="ln-i">2</span>/import file-name=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span>.rsc verbose</span>
+<span class="ln"><span class="ln-i">3</span>/import file-name=backup-<span class="tok-n">2026</span>-<span class="tok-n">10</span>-<span class="tok-n">12</span>.rsc from-line=<span class="tok-n">120</span> verbose</span>
+<span class="ln"><span class="ln-i">4</span>/system script add name=apply-template source=<span class="tok-str">"..."</span> policy=read,write</span>
+</code></pre></div>
+<p>Ключевой параметр здесь — <code>dry-run</code>. Он выполняет разбор файла и показывает, что
+произойдёт, не меняя конфигурацию. Это встроенная в RouterOS защита от самого
+дорогого сценария: файл от другого устройства, у которого другой порядок команд.
+Пользуйся им всегда, когда файл приехал не от тебя.</p>
+<p>Импорт воспроизводит команды, а не состояние. Отсюда три честных ограничения:</p>
+<ol><li><strong>Дефолты разных моделей разные.</strong> Конфиг с hEX на hEXS с тем же именем интерфейса
+даст другой результат. Импорт — не перенос устройства.</li><li><strong>Зависимость от порядка.</strong> Некоторые узлы нельзя создать раньше зависимостей
+(интерфейс до адреса, туннель до маршрута). Импорт выполняет команды по порядку
+файла, и если ты правил конфиг вручную, порядок мог нарушиться.</li><li><strong>Идентификаторы не переносятся.</strong> Ссылки вида <code>place-before=[find ...]</code> или
+<code>remove=[find interface=ether3]</code> описывают позицию в дереве, а не объект.</li></ol>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Перед импортом на живое устройство: <code>/system backup save</code>, затем <code>/import</code> с
+<code>bypass-backup</code> <strong>не</strong> использовать. И всегда имей под рукой консольный доступ:
+после <code>/system reset-configuration</code> или неудачного импорта сеть может оказаться
+недоступна по сети, и единственный путь — физический доступ к устройству и
+<code>/system reset-configuration</code> в терминале.</p></div></div>
+<h2 id="dreyf-sostoyanie-ushlo-ot-shablona">Дрейф: состояние ушло от шаблона</h2>
+<p>Между «применили шаблон» и «проверили» проходит неделя, в течение которой кто-то
+зашёл в WinBox и добавил правило. Теперь устройство не соответствует коду в Git, и
+никто этого не заметил. Это и называется дрейфом.</p>
+<p>Как заметить: сравнить два экспорта — эталонный с машины, которая разворачивает
+шаблон, и с реального устройства.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># На управляющей машине: забрать состояние с каждого устройства</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">for</span> h in hq-router branch-router; <span class="tok-k">do</span></span>
+<span class="ln"><span class="ln-i">3</span>  ssh <span class="tok-str">"admin@$h"</span> <span class="tok-str">'/export file=state hide-sensitive=yes'</span> &gt;/dev/null</span>
+<span class="ln"><span class="ln-i">4</span>  scp <span class="tok-str">"admin@$h:/state.rsc"</span> <span class="tok-str">"./state/$h.rsc"</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">done</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># Сравнить два устройства или устройство с эталоном</span></span>
+<span class="ln"><span class="ln-i">8</span>diff -u ./state/hq-router.rsc ./state/branch-router.rsc</span>
+</code></pre></div>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/export file=state</span>
+<span class="ln"><span class="ln-i">2</span>/file print</span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>В WinBox есть сравнение конфигураций: Files → открыть два файла и сравнить. В CLI
+отдельной команды сравнения нет — надёжный путь именно <code>diff</code>/<code>git diff</code> на рабочей
+машине. Не выдумывай команду: сравнение делается внешним инструментом.</p></div></div>
+<p>Если разница больше ожидаемой (MAC-адреса, комментарии, динамические значения) —
+значит, дрейф. Реакция: понять, чьё изменение правильнее, и провести его через шаблон,
+а не через WinBox.</p>
+<h2 id="skriptovyy-yazyk-vosem-slov-kotoryh-hvataet">Скриптовый язык: восемь слов, которых хватает</h2>
+<p>RouterOS scripting — не Bash и не Python. Это маленький интерпретатор, в котором
+переменные живут в «дереве» <code>/system script</code>, есть цикл, условие, вывод и логирование.
+Для задач «проверь, сделай, запиши» этого достаточно.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Конструкция</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Пример смысла</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>:local</code></td>
+<td style="text-align:left">локальная переменная внутри скрипта</td>
+<td style="text-align:left"><code>:local w "ether1"</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:global</code></td>
+<td style="text-align:left">глобальная переменная (живёт в <code>/system script environment</code>)</td>
+<td style="text-align:left"><code>:global lastFail ""</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:set</code></td>
+<td style="text-align:left">присвоение, <code>:set x ($x + 1)</code></td>
+<td style="text-align:left"><code>:set n ($n + 1)</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:if ... do={}</code></td>
+<td style="text-align:left">условие</td>
+<td style="text-align:left"><code>if ($ok = true) do={...}</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:foreach</code></td>
+<td style="text-align:left">цикл по элементам или ключам</td>
+<td style="text-align:left">обойти интерфейсы</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:put</code></td>
+<td style="text-align:left">вывод в терминал (или в лог скрипта)</td>
+<td style="text-align:left"><code>:put "готово"</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:log</code></td>
+<td style="text-align:left">запись в системный журнал</td>
+<td style="text-align:left"><code>:log warning "..."</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:parse</code></td>
+<td style="text-align:left">разбор строки в значение</td>
+<td style="text-align:left"><code>:parse "value"</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>:delay</code></td>
+<td style="text-align:left">пауза</td>
+<td style="text-align:left"><code>:delay 5s</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>[ ... ]</code></td>
+<td style="text-align:left">результат команды, например <code>[/ping ...]</code></td>
+<td style="text-align:left">«выполни и подставь»</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Учись скриптам через <code>:put</code>, а не через чтение. Набери в терминале
+<code>:put [/interface ethernet print]</code> и посмотри, что вернулось. Затем
+<code>:put [/ping 1.1.1.1 count=1 as-value]</code> — и ты увидешь точный состав полей,
+которые можно читать через <code>-&gt;"имя-поля"</code>. Это быстрее любой документации и
+честнее, чем угадывать имена.</p></div></div>
+<h2 id="skript-1-ping-monitoring-s-uvedomleniem">Скрипт 1: пинг-мониторинг с уведомлением</h2>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/system script add name=check-wan source={</span>
+<span class="ln"><span class="ln-i">2</span>  :local targets {<span class="tok-str">"1.1.1.1"</span>; <span class="tok-str">"8.8.8.8"</span>; <span class="tok-str">"router.company.local"</span>}</span>
+<span class="ln"><span class="ln-i">3</span>  :foreach t in=$targets do={</span>
+<span class="ln"><span class="ln-i">4</span>    :local r [/ping $t count=<span class="tok-n">3</span> as-value]</span>
+<span class="ln"><span class="ln-i">5</span>    :local <span class="tok-fn">rx</span> ($r-&gt;<span class="tok-str">"packets-received"</span>)</span>
+<span class="ln"><span class="ln-i">6</span>    :<span class="tok-fn">if</span> ($rx = <span class="tok-n">0</span>) do={</span>
+<span class="ln"><span class="ln-i">7</span>      :log error <span class="tok-str">"Нет ответа от $t"</span></span>
+<span class="ln"><span class="ln-i">8</span>      /tool e-mail send to=<span class="tok-str">"ops@company.local"</span> subject=<span class="tok-str">"MikroTik: link down"</span> \</span>
+<span class="ln"><span class="ln-i">9</span>        body=<span class="tok-str">"Нет ответа от $t в $([/system clock get time])"</span></span>
+<span class="ln"><span class="ln-i">10</span>    }</span>
+<span class="ln"><span class="ln-i">11</span>  }</span>
+<span class="ln"><span class="ln-i">12</span>}</span>
+<span class="ln"><span class="ln-i">13</span>/system script run check-wan</span>
+<span class="ln"><span class="ln-i">14</span>/system script print detail</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Имена полей результата <code>:ping ... as-value</code> зависят от версии RouterOS. Перед
+использованием выполни <code>:put [/ping 1.1.1.1 count=1 as-value]</code> и посмотри, что
+вернулось — и используй те имена, которые видишь. Я не стану угадывать за тебя.</p></div></div>
+<p>Для почты нужен один раз настроенный <code>/tool e-mail</code> (в v7 параметр называется
+<code>start-tls</code>, в v6 — <code>tls</code>), а сам вызов <code>/tool e-mail send</code> одинаков. Альтернатива без
+SMTP — <code>/tool fetch</code> к webhook (Telegram, Slack) или запись в лог, который уже уходит в
+твою систему мониторинга.</p>
+<h2 id="skript-2-watchdog-dlya-wan">Скрипт 2: watchdog для WAN</h2>
+<p>Задача: если внешний интернет не отвечает несколько раз подряд — перезапустить
+интерфейс. Классический, но полезный приём, который чинит зависшие PPP-сессии.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/system script add name=watchdog-wan source={</span>
+<span class="ln"><span class="ln-i">2</span>  :global wanFail <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">3</span>  :local wan <span class="tok-str">"pppoe-wan"</span></span>
+<span class="ln"><span class="ln-i">4</span>  :local r [/ping <span class="tok-n">1.1</span>.<span class="tok-n">1.1</span> count=<span class="tok-n">3</span> as-value]</span>
+<span class="ln"><span class="ln-i">5</span>  :local <span class="tok-fn">rx</span> ($r-&gt;<span class="tok-str">"packets-received"</span>)</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>  :<span class="tok-fn">if</span> ($rx &gt; <span class="tok-n">0</span>) do={</span>
+<span class="ln"><span class="ln-i">8</span>    :set wanFail <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">9</span>    :log info <span class="tok-str">"WAN ok"</span></span>
+<span class="ln"><span class="ln-i">10</span>  } else={</span>
+<span class="ln"><span class="ln-i">11</span>    :set <span class="tok-fn">wanFail</span> ($wanFail + <span class="tok-n">1</span>)</span>
+<span class="ln"><span class="ln-i">12</span>    :log warning <span class="tok-str">"WAN не отвечает, попытка $wanFail"</span></span>
+<span class="ln"><span class="ln-i">13</span>    :<span class="tok-fn">if</span> ($wanFail &gt;= <span class="tok-n">3</span>) do={</span>
+<span class="ln"><span class="ln-i">14</span>      :log error <span class="tok-str">"Перезапускаю $wan"</span></span>
+<span class="ln"><span class="ln-i">15</span>      /interface pppoe-client set $wan disabled=yes</span>
+<span class="ln"><span class="ln-i">16</span>      :delay 10s</span>
+<span class="ln"><span class="ln-i">17</span>      /interface pppoe-client set $wan disabled=no</span>
+<span class="ln"><span class="ln-i">18</span>      :set wanFail <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">19</span>    }</span>
+<span class="ln"><span class="ln-i">20</span>  }</span>
+<span class="ln"><span class="ln-i">21</span>}</span>
+</code></pre></div>
+<p><code>:global</code> здесь не случаен: счётчик должен пережить конец скрипта. Внутри <code>:local</code>
+переменная исчезнет, и счётчик всегда будет 1.</p>
+<h2 id="skript-3-ezhednevnyy-bekap-naruzhu">Скрипт 3: ежедневный бэкап наружу</h2>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/tool e-mail</span>
+<span class="ln"><span class="ln-i">2</span>set from-address=<span class="tok-str">"router@company.local"</span> to-address=<span class="tok-str">"ops@company.local"</span> \</span>
+<span class="ln"><span class="ln-i">3</span>    smtp-server=<span class="tok-str">"smtp.company.local"</span> smtp-port=<span class="tok-n">587</span> start-tls=yes user=<span class="tok-str">"router"</span> password=<span class="tok-str">"..."</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>/system script add name=backup-to-sftp source={</span>
+<span class="ln"><span class="ln-i">6</span>  :global sftpHost <span class="tok-str">"10.10.10.5"</span></span>
+<span class="ln"><span class="ln-i">7</span>  :global sftpUser <span class="tok-str">"backup"</span></span>
+<span class="ln"><span class="ln-i">8</span>  :global sftpPass <span class="tok-str">"..."</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>  /system backup save name=auto encryption=aes password=$sftpPass</span>
+<span class="ln"><span class="ln-i">11</span>  :delay 5s</span>
+<span class="ln"><span class="ln-i">12</span>  /export file=auto hide-sensitive=yes</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>  /tool fetch upload=yes mode=sftp address=$sftpHost user=$sftpUser password=$sftpPass \</span>
+<span class="ln"><span class="ln-i">15</span>    src-path=<span class="tok-str">"auto.backup"</span> dst-path=<span class="tok-str">"hq-router/auto.backup"</span></span>
+<span class="ln"><span class="ln-i">16</span>  /tool fetch upload=yes mode=sftp address=$sftpHost user=$sftpUser password=$sftpPass \</span>
+<span class="ln"><span class="ln-i">17</span>    src-path=<span class="tok-str">"auto.rsc"</span> dst-path=<span class="tok-str">"hq-router/auto.rsc"</span></span>
+<span class="ln"><span class="ln-i">18</span>}</span>
+<span class="ln"><span class="ln-i">19</span>/system script print</span>
+</code></pre></div>
+<p>Про <code>/tool fetch</code> стоит знать три вещи. Первая: при <code>upload=yes</code> параметр <code>src-path</code>
+— это локальный файл, а <code>dst-path</code> — имя файла на удалённой стороне. Вторая: у команды
+есть и короткая форма через <code>url=</code> (<code>sftp://backup:пароль@10.10.10.5/auto.backup</code>),
+и в ней учётные данные прямо в строке — удобно, но неудобно для скриптов, потому что
+пароль останется в <code>print</code>. Третья: <code>check-certificate</code> по умолчанию равен <code>no</code>, то
+есть HTTPS-проверка не выполняется; для внутреннего SFTP по SSH это неважно, но если
+когда-нибудь потянешь наружу через <code>https</code> — включай проверку явно.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>/system backup save</code> пишет <strong>на само устройство</strong>, и если оно зависло — выгрузить
+нечего. Надёжность здесь достигается не периодичностью, а тем, что у бэкапа есть
+внешняя копия, снятая с живого устройства. Скрипт выше как раз и снимает её:
+сначала снимок, потом отправка.</p></div></div>
+<h2 id="planirovschik-cron-vnutri-ustroystva">Планировщик: cron внутри устройства</h2>
+<p><code>/system scheduler</code> — это cron в RouterOS. <code>on-event</code> принимает либо имя скрипта,
+либо код.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/system scheduler</span>
+<span class="ln"><span class="ln-i">2</span>add name=check-wan-every-5m interval=5m on-event=watchdog-wan policy=policy,read,write,test</span>
+<span class="ln"><span class="ln-i">3</span>add name=backup-daily interval=1d start-time=<span class="tok-n">03</span>:<span class="tok-n">30</span>:<span class="tok-n">00</span> on-event=backup-to-sftp \</span>
+<span class="ln"><span class="ln-i">4</span>    policy=policy,read,write,test</span>
+<span class="ln"><span class="ln-i">5</span>add name=report-load start-time=<span class="tok-n">09</span>:<span class="tok-n">00</span>:<span class="tok-n">00</span> interval=1d on-event=<span class="tok-str">"/system resource print"</span> \</span>
+<span class="ln"><span class="ln-i">6</span>    policy=read,write</span>
+<span class="ln"><span class="ln-i">7</span>/system scheduler print detail</span>
+<span class="ln"><span class="ln-i">8</span>/system scheduler run check-wan-every-5m</span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Права — это не формальность. Без <code>policy</code> в наборе команда падает с
+<code>not enough permissions (9)</code> в логе, и снаружи это выглядит как «задача есть,
+расписание есть, <code>run</code> вручную работает, а по расписанию — тишина». И обратная связь:
+скрипт, вызванный по имени, выполняется с правами <strong>задачи</strong>, и если у скрипта
+прав больше, чем у задачи, он будет отклонён. Права скрипта и права задачи должны
+совпадать.</p></div></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>start-time=startup</code> выполняется <strong>до подъёма интерфейсов и до получения адреса
+DHCP-клиентом</strong>. Для watchdog'а WAN или бэкапа это гарантированный способ увидеть
+«интерфейс не поднят» и сделать вывод, что всё упало. Такие задачи запускай по
+расписанию времени, а не на старте.</p></div></div>
+<p>Два поля только для чтения, которые стоит смотреть регулярно, — <code>run-count</code> и
+<code>next-run</code>. Если <code>run-count</code> не растёт, задача не выполняется; если <code>next-run</code> пуст,
+у задачи нет следующего запуска (например, <code>interval=0s</code> после срабатывания).</p>
+<h3 id="skript-dlya-sbora-sostoyaniya">Скрипт для сбора состояния</h3>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/system script add name=collect-daily source={</span>
+<span class="ln"><span class="ln-i">2</span>  :local r [/system resource print as-value]</span>
+<span class="ln"><span class="ln-i">3</span>  :local u [/interface wireless registration-table print count-only]</span>
+<span class="ln"><span class="ln-i">4</span>  :log <span class="tok-fn">info</span> (<span class="tok-str">"uptime="</span> . ($r-&gt;<span class="tok-str">"uptime"</span>) . <span class="tok-str">" cpu="</span> . ($r-&gt;<span class="tok-str">"cpu-load"</span>) . \</span>
+<span class="ln"><span class="ln-i">5</span>             <span class="tok-str">" free="</span> . ($r-&gt;<span class="tok-str">"free-memory"</span>) . <span class="tok-str">" wifi-clients="</span> . $u)</span>
+<span class="ln"><span class="ln-i">6</span>}</span>
+<span class="ln"><span class="ln-i">7</span>/system scheduler add name=collect-daily start-time=<span class="tok-n">23</span>:<span class="tok-n">55</span>:<span class="tok-n">00</span> interval=1d \</span>
+<span class="ln"><span class="ln-i">8</span>  on-event=collect-daily policy=policy,read</span>
+</code></pre></div>
+<p>Такой лог потом уезжает в твою систему сбора логов (см.
+<a href="../../lectures/net/16-monitoring-seti.html">лекцию про мониторинг сети</a>) и становится историей, по
+которой видно деградацию за неделю до аварии.</p>
+<h2 id="rest-api-http-poverh-routeros">REST API: HTTP-поверх-RouterOS</h2>
+<p>REST даёт тебе текстовый интерфейс к тому же дереву конфигурации. URL соответствует
+пути в конфиге, ответ — JSON.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># Только из management-сети и только по TLS</span></span>
+<span class="ln"><span class="ln-i">2</span>/ip service set api-ssl available-from=<span class="tok-n">10.10</span>.<span class="tok-n">10.0</span>/<span class="tok-n">24</span> certificate=mycert disabled=no</span>
+<span class="ln"><span class="ln-i">3</span>/ip service set api available-from=<span class="tok-n">10.10</span>.<span class="tok-n">10.0</span>/<span class="tok-n">24</span> disabled=no      <span class="tok-cmt"># только для теста</span></span>
+<span class="ln"><span class="ln-i">4</span>/ip service print</span>
+</code></pre></div>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p><code>api</code> (8728) — это HTTP без шифрования: логин и пароль идут открытым текстом по
+сети. Включай его только на время отладки с localhost-контейнера, с ограничением по
+адресу, и выключай сразу.</p></div></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>У <code>api-ssl</code> <strong>обязателен сертификат</strong>. Без него (<code>certificate=none</code>) служба
+соглашается только на анонимный Diffie-Hellman: соединение шифруется, но роутер не
+доказывает свою личность, и <code>curl</code> или браузер к нему не подключатся вообще.
+Симптом — «API включил, а <code>curl</code> возвращает ошибку», и поиск уходит в сторону от
+настоящей причины.
+Сертификат создаётся в <code>/certificate</code>, подписывается и выбирается в свойстве
+<code>certificate</code> службы. Для первого знакомства допустимо включить <code>api</code> без TLS с
+ограничением по адресу — но только на время теста.</p></div></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Ограничение по адресу в <code>/ip service</code> не прячет порт от сканирования (подробно — в
+<a href="../../lectures/net/01-routeros-os.html">лекции про RouterOS</a>). Чтобы порт 8729 не был виден снаружи,
+нужен ещё <code>drop</code> в цепочке <code>input</code> для интерфейса WAN.</p></div></div>
+<h3 id="metody-i-format">Методы и формат</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метод</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Пример</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>GET</code></td>
+<td style="text-align:left">прочитать узел или список</td>
+<td style="text-align:left"><code>/rest/system/resource</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>PUT</code></td>
+<td style="text-align:left">создать объект, тело — JSON</td>
+<td style="text-align:left"><code>/rest/ip/address</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>PATCH</code></td>
+<td style="text-align:left">изменить поля существующего</td>
+<td style="text-align:left"><code>/rest/interface/ether2</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>POST</code></td>
+<td style="text-align:left">вызвать метод узла</td>
+<td style="text-align:left"><code>/rest/system/reboot</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>DELETE</code></td>
+<td style="text-align:left">удалить</td>
+<td style="text-align:left"><code>/rest/ip/firewall/filter/3</code></td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># прочитать состояние</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">curl</span> -k -u ops:<span class="tok-str">'пароль'</span> https://<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>/rest/system/resource</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># список адресов с выборочными полями</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">curl</span> -k -u ops:<span class="tok-str">'пароль'</span> \</span>
+<span class="ln"><span class="ln-i">6</span>  <span class="tok-str">'https://10.10.10.1/rest/ip/address?proplist=address,interface,disabled'</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># создать правило firewall</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">curl</span> -k -u ops:<span class="tok-str">'пароль'</span> -X PUT https://<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>/rest/ip/firewall/filter \</span>
+<span class="ln"><span class="ln-i">10</span>  -H <span class="tok-str">'Content-Type: application/json'</span> \</span>
+<span class="ln"><span class="ln-i">11</span>  -d '{<span class="tok-str">"chain"</span>:<span class="tok-str">"input"</span>,<span class="tok-str">"action"</span>:<span class="tok-str">"accept"</span>,<span class="tok-str">"in-interface"</span>:<span class="tok-str">"vlan10-mgmt"</span>,</span>
+<span class="ln"><span class="ln-i">12</span>       <span class="tok-str">"src-address"</span>:<span class="tok-str">"10.10.10.0/24"</span>,<span class="tok-str">"comment"</span>:<span class="tok-str">"ops-access"</span>}'</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-cmt"># выключить интерфейс</span></span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-k">curl</span> -k -u ops:<span class="tok-str">'пароль'</span> -X PATCH https://<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>/rest/interface/ether2 \</span>
+<span class="ln"><span class="ln-i">16</span>  -H <span class="tok-str">'Content-Type: application/json'</span> -d <span class="tok-str">'{"disabled":"true"}'</span></span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-cmt"># вызвать метод: выполнить скрипт</span></span>
+<span class="ln"><span class="ln-i">19</span><span class="tok-k">curl</span> -k -u ops:<span class="tok-str">'пароль'</span> -X POST https://<span class="tok-n">10.10</span>.<span class="tok-n">10.1</span>/rest/system/script/run \</span>
+<span class="ln"><span class="ln-i">20</span>  -H <span class="tok-str">'Content-Type: application/json'</span> -d <span class="tok-str">'{"script-name":"check-wan"}'</span></span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Фильтр полей в URL пишется как <code>?proplist=</code> (в части версий — <code>?.proplist=</code>).
+Проверь по ответу: если вернулись все поля, значит фильтр не применился, и это
+безопасно — ты просто прочитал лишнее. Значения в JSON для <code>PATCH</code> передаются
+строками, даже если это <code>disabled</code>.</p></div></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Порядок вызова <code>method=on-response</code> в <code>curl</code> не важен, но порядок URL — важен:
+<code>/rest/ip/address</code> — это узел, <code>/rest/ip/address/2</code> — конкретный элемент. Ошибка
+в номере элемента при <code>DELETE</code> удалит не то правило, которое ты думал. Всегда
+сначала <code>GET</code> с <code>?proplist</code>, потом действие.</p></div></div>
+<h3 id="python-akkuratno-i-po-nastoyaschemu">Python: аккуратно и по-настоящему</h3>
+<p>Скрипт ниже делает четыре вещи: читает список интерфейсов, добавляет правило
+firewall, собирает счётчики и — с защитой — выключает интерфейс по имени.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">import</span> os</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> sys</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> requests</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>ROUTER = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"ROUTER"</span>, <span class="tok-str">"https://10.10.10.1"</span>)</span>
+<span class="ln"><span class="ln-i">6</span>USER = os.environ[<span class="tok-str">"ROUTER_USER"</span>]</span>
+<span class="ln"><span class="ln-i">7</span>PASS = os.environ[<span class="tok-str">"ROUTER_PASS"</span>]</span>
+<span class="ln"><span class="ln-i">8</span>CA = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"ROUTER_CA"</span>, <span class="tok-str">"/etc/pki/router-ca.pem"</span>)</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>DRY_RUN = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"DRY_RUN"</span>, <span class="tok-str">"1"</span>) != <span class="tok-str">"0"</span>   <span class="tok-cmt"># по умолчанию НЕ применяем</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>s = requests.<span class="tok-fn">Session</span>()</span>
+<span class="ln"><span class="ln-i">13</span>s.auth = (USER, PASS)</span>
+<span class="ln"><span class="ln-i">14</span>s.verify = CA</span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-k">def</span> <span class="tok-fn">api</span>(method, path, payload=None):</span>
+<span class="ln"><span class="ln-i">18</span>    url = f<span class="tok-str">"{ROUTER}/rest/{path.lstrip('/')}"</span></span>
+<span class="ln"><span class="ln-i">19</span>    r = s.<span class="tok-fn">request</span>(method, url, json=payload, timeout=<span class="tok-n">10</span>)</span>
+<span class="ln"><span class="ln-i">20</span>    r.<span class="tok-fn">raise_for_status</span>()</span>
+<span class="ln"><span class="ln-i">21</span>    <span class="tok-k">return</span> r.<span class="tok-fn">json</span>() <span class="tok-k">if</span> r.content.<span class="tok-fn">strip</span>() <span class="tok-k">else</span> {}</span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span></span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-k">def</span> <span class="tok-fn">list_interfaces</span>():</span>
+<span class="ln"><span class="ln-i">25</span>    <span class="tok-k">return</span> <span class="tok-fn">api</span>(<span class="tok-str">"GET"</span>, <span class="tok-str">"interface"</span>)</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span><span class="tok-k">def</span> <span class="tok-fn">add_allow_rule</span>():</span>
+<span class="ln"><span class="ln-i">29</span>    payload = {</span>
+<span class="ln"><span class="ln-i">30</span>        <span class="tok-str">"chain"</span>: <span class="tok-str">"input"</span>,</span>
+<span class="ln"><span class="ln-i">31</span>        <span class="tok-str">"action"</span>: <span class="tok-str">"accept"</span>,</span>
+<span class="ln"><span class="ln-i">32</span>        <span class="tok-str">"in-interface"</span>: <span class="tok-str">"vlan10-mgmt"</span>,</span>
+<span class="ln"><span class="ln-i">33</span>        <span class="tok-str">"src-address"</span>: <span class="tok-str">"10.10.10.0/24"</span>,</span>
+<span class="ln"><span class="ln-i">34</span>        <span class="tok-str">"comment"</span>: <span class="tok-str">"added-by-automation"</span>,</span>
+<span class="ln"><span class="ln-i">35</span>    }</span>
+<span class="ln"><span class="ln-i">36</span>    <span class="tok-k">if</span> DRY_RUN:</span>
+<span class="ln"><span class="ln-i">37</span>        <span class="tok-fn">print</span>(f<span class="tok-str">"[dry-run] PUT /ip/firewall/filter {payload}"</span>)</span>
+<span class="ln"><span class="ln-i">38</span>        <span class="tok-k">return</span> None</span>
+<span class="ln"><span class="ln-i">39</span>    <span class="tok-k">return</span> <span class="tok-fn">api</span>(<span class="tok-str">"PUT"</span>, <span class="tok-str">"ip/firewall/filter"</span>, payload)</span>
+<span class="ln"><span class="ln-i">40</span></span>
+<span class="ln"><span class="ln-i">41</span></span>
+<span class="ln"><span class="ln-i">42</span><span class="tok-k">def</span> <span class="tok-fn">counters</span>():</span>
+<span class="ln"><span class="ln-i">43</span>    items = <span class="tok-fn">api</span>(<span class="tok-str">"GET"</span>, <span class="tok-str">"ip/firewall/filter?proplist=comment,action,bytes"</span>)</span>
+<span class="ln"><span class="ln-i">44</span>    <span class="tok-k">return</span> <span class="tok-fn">sorted</span>(items, key=<span class="tok-k">lambda</span> x: <span class="tok-fn">int</span>(x.<span class="tok-fn">get</span>(<span class="tok-str">"bytes"</span>, <span class="tok-n">0</span>)), reverse=True)[:<span class="tok-n">10</span>]</span>
+<span class="ln"><span class="ln-i">45</span></span>
+<span class="ln"><span class="ln-i">46</span></span>
+<span class="ln"><span class="ln-i">47</span><span class="tok-k">def</span> <span class="tok-fn">disable_interface</span>(name):</span>
+<span class="ln"><span class="ln-i">48</span>    found = [i <span class="tok-k">for</span> i <span class="tok-k">in</span> <span class="tok-fn">api</span>(<span class="tok-str">"GET"</span>, <span class="tok-str">"interface"</span>) <span class="tok-k">if</span> i.<span class="tok-fn">get</span>(<span class="tok-str">"name"</span>) == name]</span>
+<span class="ln"><span class="ln-i">49</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> found:</span>
+<span class="ln"><span class="ln-i">50</span>        <span class="tok-k">raise</span> <span class="tok-fn">SystemExit</span>(f<span class="tok-str">"интерфейс {name} не найден"</span>)</span>
+<span class="ln"><span class="ln-i">51</span>    <span class="tok-k">if</span> DRY_RUN:</span>
+<span class="ln"><span class="ln-i">52</span>        <span class="tok-fn">print</span>(f<span class="tok-str">"[dry-run] PATCH /interface/{name} disabled=true"</span>)</span>
+<span class="ln"><span class="ln-i">53</span>        <span class="tok-k">return</span></span>
+<span class="ln"><span class="ln-i">54</span>    <span class="tok-fn">api</span>(<span class="tok-str">"PATCH"</span>, f<span class="tok-str">"interface/{name}"</span>, {<span class="tok-str">"disabled"</span>: <span class="tok-str">"true"</span>})</span>
+<span class="ln"><span class="ln-i">55</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"{name} выключен на {ROUTER}"</span>)</span>
+<span class="ln"><span class="ln-i">56</span></span>
+<span class="ln"><span class="ln-i">57</span></span>
+<span class="ln"><span class="ln-i">58</span><span class="tok-k">if</span> __name__ == <span class="tok-str">"__main__"</span>:</span>
+<span class="ln"><span class="ln-i">59</span>    <span class="tok-cmt"># применяем только с явным флагом --enable</span></span>
+<span class="ln"><span class="ln-i">60</span>    <span class="tok-k">if</span> <span class="tok-str">"--enable"</span> <span class="tok-k">in</span> sys.argv:</span>
+<span class="ln"><span class="ln-i">61</span>        DRY_RUN = False</span>
+<span class="ln"><span class="ln-i">62</span>    <span class="tok-fn">print</span>(<span class="tok-str">"режим:"</span>, <span class="tok-str">"ПРИМЕНЯТЬ"</span> <span class="tok-k">if</span> <span class="tok-k">not</span> DRY_RUN <span class="tok-k">else</span> <span class="tok-str">"dry-run, ничего не меняется"</span>)</span>
+<span class="ln"><span class="ln-i">63</span></span>
+<span class="ln"><span class="ln-i">64</span>    <span class="tok-fn">print</span>(<span class="tok-str">"интерфейсы:"</span>, [i.<span class="tok-fn">get</span>(<span class="tok-str">"name"</span>) <span class="tok-k">for</span> i <span class="tok-k">in</span> <span class="tok-fn">list_interfaces</span>()])</span>
+<span class="ln"><span class="ln-i">65</span>    <span class="tok-fn">add_allow_rule</span>()</span>
+<span class="ln"><span class="ln-i">66</span>    <span class="tok-fn">print</span>(<span class="tok-str">"топ по счётчикам:"</span>, <span class="tok-fn">counters</span>())</span>
+<span class="ln"><span class="ln-i">67</span>    <span class="tok-fn">disable_interface</span>(<span class="tok-str">"ether3"</span>)</span>
+</code></pre></div>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p>Скрипт, который может выключить интерфейс, требует жёсткой дисциплины. Первый шаг —
+всегда dry run: он печатает, что <em>сделал бы</em>, и меняет ничего. Второй шаг — отдельная
+учётка с минимальными правами. Третий — запуск сначала на одном устройстве, а не
+на всех сразу. Четвёртый — вторая машина, с которой ты перезагрузишь это устройство,
+должна быть готова. Автоматизация, которая тиражирует ошибку на двадцать площадок,
+хуже ручной работы: она делает всё быстрее.</p></div></div>
+<h2 id="hranenie-v-git-shablony-protiv-sostoyaniya">Хранение в Git: шаблоны против состояния</h2>
+<p>Репозиторий должен различать <strong>шаблон</strong> (то, что мы хотим) и <strong>состояние</strong> (то, что
+есть). Смешивать их нельзя: иначе через месяц ты не отличишь свой код от мусора,
+который накопился от ручных правок.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>network/</span>
+<span class="ln"><span class="ln-i">2</span>  devices/</span>
+<span class="ln"><span class="ln-i">3</span>    hq-router/</span>
+<span class="ln"><span class="ln-i">4</span>      state.rsc            # выгрузка hide-sensitive — только для диффа и аудита</span>
+<span class="ln"><span class="ln-i">5</span>      backup-2026-10-12.backup</span>
+<span class="ln"><span class="ln-i">6</span>  templates/</span>
+<span class="ln"><span class="ln-i">7</span>    base.rsc.j2            # общие куски: сервисы, логирование, NTP</span>
+<span class="ln"><span class="ln-i">8</span>    edge-hq.rsc.j2         # площадка с WAN</span>
+<span class="ln"><span class="ln-i">9</span>    edge-branch.rsc.j2     # площадка без WAN</span>
+<span class="ln"><span class="ln-i">10</span>    ap-branch.rsc.j2       # точка доступа</span>
+<span class="ln"><span class="ln-i">11</span>  vars/</span>
+<span class="ln"><span class="ln-i">12</span>    inventory.yml          # имя, роль, адреса, ключи — без секретов</span>
+<span class="ln"><span class="ln-i">13</span>  scripts/</span>
+<span class="ln"><span class="ln-i">14</span>    render.py</span>
+<span class="ln"><span class="ln-i">15</span>    deploy.sh</span>
+</code></pre></div>
+<p>Шаблон от состояния отличается тем, что в нём есть переменные. Jinja2 или простая
+подстановка — без разницы; разница в дисциплине.</p>
+<div class="codeblock" data-lang="jinja"><div class="codehead"><span class="code-lang">jinja</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># templates/edge-hq.rsc.j2</span></span>
+<span class="ln"><span class="ln-i">2</span>/ip service</span>
+<span class="ln"><span class="ln-i">3</span>set telnet disabled=yes</span>
+<span class="ln"><span class="ln-i">4</span>set ftp disabled=yes</span>
+<span class="ln"><span class="ln-i">5</span>set www disabled=yes</span>
+<span class="ln"><span class="ln-i">6</span>set api disabled=yes</span>
+<span class="ln"><span class="ln-i">7</span>set ssh available-from={{ mgmt_network }} port=<span class="tok-n">2222</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>/ip address</span>
+<span class="ln"><span class="ln-i">10</span>add address={{ mgmt_ip }}/<span class="tok-n">24</span> interface=bridge1 comment=<span class="tok-str">"management"</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>/ip firewall filter</span>
+<span class="ln"><span class="ln-i">13</span>add chain=input action=accept connection-state=established,related</span>
+<span class="ln"><span class="ln-i">14</span>add chain=input action=drop connection-state=invalid</span>
+<span class="ln"><span class="ln-i">15</span>add chain=input action=accept protocol=icmp</span>
+<span class="ln"><span class="ln-i">16</span>add chain=input action=accept in-interface=bridge1 src-address={{ mgmt_network }}</span>
+<span class="ln"><span class="ln-i">17</span>add chain=input action=drop in-interface={{ wan_if }}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># vars/inventory.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>hq_router:</span>
+<span class="ln"><span class="ln-i">3</span>  mgmt_network: <span class="tok-n">10.10</span>.<span class="tok-n">10.0</span>/<span class="tok-n">24</span></span>
+<span class="ln"><span class="ln-i">4</span>  mgmt_ip: <span class="tok-n">10.10</span>.<span class="tok-n">10.1</span></span>
+<span class="ln"><span class="ln-i">5</span>  wan_if: ether1</span>
+</code></pre></div>
+<p>Правила, которые экономят нервы:</p>
+<ul><li><strong>Секреты — не в Git.</strong> Пароли, приватные ключи WireGuard, PSK IPsec, токены
+Telegram. В шаблоне — только имена переменных, значения подставляются на этапе
+применения из менеджера секретов или вручную. Ключ WireGuard, попавший в репозиторий,
+означает, что площадку скомпрометировали навсегда.</li><li><strong>Рендеринг и применение — разные шаги.</strong> Сначала получить файл, посмотреть глазами
+diff с тем, что сейчас на устройстве, и только потом <code>/import</code>.</li><li><strong>Шаблоны — маленькие.</strong> Один большой шаблон на всё офис — это не шаблон, а копия
+устройства со словом «шаблон». Общие куски выносятся в <code>base</code>.</li><li><strong>Ansible умеет из коробки.</strong> Коллекция <code>community.routeros</code> даёт <code>routeros_command</code>,
+<code>routeros_facts</code>, <code>routeros_interface</code> и другие модули — не нужно писать HTTP-клиент,
+если задача типовая. Как это стыкуется с IaC в целом — в
+<a href="../../lectures/devops/12-terraform-i-ansible.html">лекции про Terraform и Ansible</a>.</li></ul>
+<h2 id="otkat-i-rezervnyy-kanal-upravleniya">Откат и «резервный канал управления»</h2>
+<p>Автоматизация без отката — это ставка. Откат на RouterOS выглядит так.</p>
+<div class="codeblock" data-lang="routeros"><div class="codehead"><span class="code-lang">routeros</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>/system backup save name=before-change encryption=aes password=<span class="tok-str">"..."</span></span>
+<span class="ln"><span class="ln-i">2</span>/system backup print</span>
+<span class="ln"><span class="ln-i">3</span>/file print</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># — что-то пошло не так —</span></span>
+<span class="ln"><span class="ln-i">6</span>/file print where name~<span class="tok-str">"before-change"</span></span>
+<span class="ln"><span class="ln-i">7</span>/system backup load name=before-change password=<span class="tok-str">"..."</span></span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Ситуация</th>
+<th style="text-align:left">Что делать</th>
+<th style="text-align:left">Что нужно физически</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">плохая конфигурация, устройство доступно</td>
+<td style="text-align:left"><code>/system backup load</code></td>
+<td style="text-align:left">ничего</td>
+</tr>
+<tr>
+<td style="text-align:left">устройство не грузится</td>
+<td style="text-align:left">восстановление через меню загрузки и файл <code>.backup</code> с флешки</td>
+<td style="text-align:left">физический доступ</td>
+</tr>
+<tr>
+<td style="text-align:left">нужно начать с нуля</td>
+<td style="text-align:left"><code>/system reset-configuration no-defaults=yes</code></td>
+<td style="text-align:left">доступ к терминалу (COM или serial)</td>
+</tr>
+<tr>
+<td style="text-align:left">всё сломалось, WinBox не открывается</td>
+<td style="text-align:left">сброс кнопкой на корпусе</td>
+<td style="text-align:left">физический доступ</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Подготовка консольного доступа — это часть работы, а не запасной вариант.
+У большинства моделей есть COM-порт или serial-консоль: включи <code>/system console set
+port=usb-serial</code> и держи USB-кабель под рукой. Управление по сети — это
+удобство, а не канал восстановления. Подробнее про планы отказов и проверенные
+бэкапы — в <a href="../../lectures/devops/19-backup-i-dr.html">лекции про backup и DR</a>.</p></div></div>
+<h2 id="bezopasnost-avtomatizacii">Безопасность автоматизации</h2>
+<p>Риск, который надо назвать прямо: <strong>автоматизация с правами root на сетевом
+оборудовании может положить всю сеть</strong>. Не теоретически — одним циклом <code>for</code> по
+списку устройств, одним опечатанным фильтром, одним <code>PATCH</code> не на тот интерфейс. Всё
+это происходит быстрее, чем ты успеваешь заметить.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Мера</th>
+<th style="text-align:left">Что даёт</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">отдельный пользователь <code>netops</code> с минимальными <code>policy</code></td>
+<td style="text-align:left">скрипт не может, например, перезагрузить устройство, если это не разрешено</td>
+</tr>
+<tr>
+<td style="text-align:left">пользователь только для чтения — по умолчанию</td>
+<td style="text-align:left">забытый скрипт только читает</td>
+</tr>
+<tr>
+<td style="text-align:left">API-доступ ограничен адресом management-сети</td>
+<td style="text-align:left">вектор из интернета закрыт</td>
+</tr>
+<tr>
+<td style="text-align:left">только <code>api-ssl</code>, ключ или сертификат</td>
+<td style="text-align:left">пароль не летает открытым текстом по сети</td>
+</tr>
+<tr>
+<td style="text-align:left">dry run первым шагом</td>
+<td style="text-align:left">большинство ошибок видно до применения</td>
+</tr>
+<tr>
+<td style="text-align:left">консольный доступ настроен заранее</td>
+<td style="text-align:left">откат возможен, даже если сеть легла</td>
+</tr>
+<tr>
+<td style="text-align:left">скрипты в Git, а не в голове</td>
+<td style="text-align:left">любой может проверить, что именно будет применено</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Группы и наборы политик в RouterOS отличаются между v6 и v7. Перед созданием своей
+группы посмотри <code>/user group print</code> и <code>/user group print detail</code> на конкретном
+устройстве и собирай минимальный набор прав осознанно, а не копируя пример из
+интернета. Универсального «правильного» списка политик не существует — он зависит от
+того, что именно твоя автоматизация должна уметь.</p></div></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong><code>hide-sensitive=yes</code> и импорт обратно.</strong> Экспорт со скрытыми секретами годится для
+Git, но при обратном импорте секреты не восстановятся. Это две разные операции, и их
+путают.</li><li><strong>Импорт на другую модель.</strong> Дефолты и имена интерфейсов другие — получишь не то
+устройство, а всю перенастроенную сеть. Импорт — это воспроизведение команд, а не
+перенос настроек.</li><li><strong><code>place-before=[find ...]</code> в шаблоне.</strong> Он описывает позицию, а не объект. Стоило
+тебе добавить правило руками — и скрипт встанет не туда. Именно поэтому
+сопоставлять по <code>comment</code>, а не по номеру строки.</li><li><strong>Планировщик без <code>policy</code>.</strong> Задача есть, расписание есть, <code>run</code> вручную работает,
+по расписанию — тишина. Смотри <code>/log</code>.</li><li><strong>Бэкап на самом устройстве.</strong> <code>/system backup save</code> кладёт файл на флешку того же
+устройства. Если оно зависло — бэкап недоступен, как и устройство.</li><li><strong>Секреты в Git.</strong> Приватный ключ WireGuard в репозитории — это не «неаккуратно»,
+это компрометация площадки навсегда, потому что ключ не перегенерируется.</li><li><strong>Один пользователь <code>admin</code> на всю автоматизацию.</strong> Один баг в Python — и доступ ко
+всем устройствам сразу. Скрипту нужен свой пользователь с меньшими правами.</li><li><strong>Нет консольного доступа.</strong> Автоматизация отключила интерфейс управления. WinBox не
+открывается. Сети нет. Физически подходить к устройству в 23:00 — не план.</li><li><strong>Скрипт с <code>sleep</code>-подобной логикой без таймаута.</strong> <code>/system scheduler</code> с <code>interval=30s</code>
+и командой, которая висит минуту, — это задача, которая накапливается. Проверяй
+<code>run-count</code> в <code>/system scheduler print</code>.</li><li><strong>«Мы проверили на тестовом стенде».</strong> Стенд и продакшн отличаются моделью,
+версией прошивки и списком пользователей. Прогон без <code>dry run</code> на одном устройстве
+из двадцати — обязательный шаг, а не опция.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю разницу между <code>/export hide-sensitive</code>, <code>/system backup save</code>
+и тем, что вообще не является бэкапом</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему импорт конфига на другую модель даёт другое устройство</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею отличить шаблон от состояния и знаю, зачем в репозитории обе сущности</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю 8–10 конструкций RouterOS-скриптинга и умею узнать имена полей
+через <code>:put</code>, а не угадывать их</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу написать и поставить в <code>/system scheduler</code> watchdog-скрипт и понимаю,
+зачем в нём <code>:global</code>, а не <code>:local</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю методы REST API (<code>GET</code>/<code>PUT</code>/<code>PATCH</code>/<code>POST</code>/<code>DELETE</code>) и умею прочитать
+состояние устройства через <code>curl</code> с проверкой сертификата</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею написать скрипт, который сначала только печатает предполагаемое действие,
+и включать применение только явным флагом</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать меры, которые не дают автоматизации положить всю сеть,
+и знаю, почему консольный доступ — не опция, а часть работы</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Сделай репозиторий с шаблонами конфигурации, добавь в него скрипт рендеринга и скрипт выгрузки <code>/export</code> на SFTP по расписанию через <code>/system scheduler</code>, напиши на Python вызов REST API, который сначала только печатает список интерфейсов, а по флагу dry-run выключает один — и ни разу не примени его к рабочему устройству без проверки.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=netdev"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Сеть · оборудование» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="net/05-avtomatizaciya-routeros">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/net/04-tunneli.html"><span>← Предыдущая</span><b>Туннели и VPN</b></a>
+        <a class="nav-next" href="../../lectures/net/01-cisco-ios-bazovoe.html"><span>Следующая →</span><b>Cisco IOS: режимы и базовая настройка</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "net/05-avtomatizaciya-routeros";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

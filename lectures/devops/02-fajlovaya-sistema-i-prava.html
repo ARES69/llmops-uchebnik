@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Файловая система и права доступа — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">A. Linux и сеть</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Файловая система и права доступа</h1>
+        <p class="lead">Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du</p>
+        <div class="meta"><span class="badge">70 мин</span><span class="badge lvl-junior">Новичок</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">linux</span><span class="tag">права</span><span class="tag">chmod</span><span class="tag">chown</span><span class="tag">sudo</span><span class="tag">inode</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#katalogi-linux-chto-gde-lezhit">Каталоги Linux: что где лежит</a></li><li class="toc-l2"><a href="#razbor-ls-l-prava">Разбор ls -l: права</a></li><li class="toc-l3"><a href="#chmod-simvolnyy-i-vosmerichnyy">chmod: символьный и восьмеричный</a></li><li class="toc-l3"><a href="#chown-i-umask">chown и umask</a></li><li class="toc-l3"><a href="#spec-bity">Спец-биты</a></li><li class="toc-l3"><a href="#sudo-i-sudoers">sudo и sudoers</a></li><li class="toc-l2"><a href="#zhestkie-i-myagkie-ssylki">Жёсткие и мягкие ссылки</a></li><li class="toc-l3"><a href="#simlinki-v-konfigah">Симлинки в конфигах</a></li><li class="toc-l3"><a href="#mount-i-fstab">mount и fstab</a></li><li class="toc-l2"><a href="#inode-pochemu-df-i-du-rashodyatsya">Inode: почему df и du расходятся</a></li><li class="toc-l3"><a href="#prichina-1-fayly-udaleny-no-processy-ih-derzhat-otkrytymi">Причина 1: файлы удалены, но процессы их держат открытыми</a></li><li class="toc-l3"><a href="#prichina-2-fayly-v-katalogah-kotorye-du-ne-obhodit">Причина 2: файлы в каталогах, которые du не обходит</a></li><li class="toc-l3"><a href="#prichina-3-zarezervirovannye-bloki-i-raznye-razmery-blokov">Причина 3: зарезервированные блоки и разные размеры блоков</a></li><li class="toc-l3"><a href="#prichina-4-redkaya-no-realnaya-zakonchilis-inode">Причина 4 (редкая, но реальная): закончились inode</a></li><li class="toc-l2"><a href="#praktika">Практика</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Права доступа — это не академическая часть Unix, а операционная безопасность.
+Когда в твоём контуре лежат ключи от LLM-провайдера, доступы к Proxmox и
+конфигурация с паролем от внутреннего сервиса, то «кто и что может прочитать»
+перестаёт быть теорией и становится вопросом, по которому придётся отвечать.
+Вторая часть лекции — inode: механика, которая объясняет самый известный
+парадокс Linux, из-за которого инциденты «диск полон, а файлов нет» тянутся
+неделями.</p>
+<h2 id="katalogi-linux-chto-gde-lezhit">Каталоги Linux: что где лежит</h2>
+<p>FHS (Filesystem Hierarchy Standard) — не догма, а соглашение, на котором держатся
+все дистрибутивы и весь софт. Знание его экономит время: вместо поиска «где
+конфиг» ты идёшь сразу в нужный каталог.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Путь</th>
+<th style="text-align:left">Что лежит</th>
+<th style="text-align:left">Пример из твоего контура</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>/</code></td>
+<td style="text-align:left">корень, монтируется всегда</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/etc</code></td>
+<td style="text-align:left">конфигурация всей системы</td>
+<td style="text-align:left"><code>/etc/nginx/nginx.conf</code>, <code>/etc/hosts</code>, <code>/etc/systemd/system/</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/var</code></td>
+<td style="text-align:left">изменяемое: логи, базы, очереди</td>
+<td style="text-align:left"><code>/var/log</code>, <code>/var/lib/postgresql</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/var/log</code></td>
+<td style="text-align:left">логи всех служб</td>
+<td style="text-align:left"><code>/var/log/syslog</code>, <code>/var/log/nginx/error.log</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/home</code></td>
+<td style="text-align:left">домашние каталоги пользователей</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/root</code></td>
+<td style="text-align:left">домашний каталог root</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/opt</code></td>
+<td style="text-align:left">сторонний софт целиком</td>
+<td style="text-align:left"><code>/opt/myapp</code>, <code>/opt/grafana</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/srv</code></td>
+<td style="text-align:left">данные, отдаваемые по сети</td>
+<td style="text-align:left">бывает реже, чем <code>/opt</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/tmp</code></td>
+<td style="text-align:left">временные файлы, очищается</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/usr</code></td>
+<td style="text-align:left">программы и библиотеки, read-only по смыслу</td>
+<td style="text-align:left"><code>/usr/bin</code>, <code>/usr/local/bin</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/bin</code>, <code>/sbin</code></td>
+<td style="text-align:left">тоже программы, на <code>/usr</code> — симлинки</td>
+<td style="text-align:left"><code>/bin</code> → <code>/usr/bin</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/proc</code></td>
+<td style="text-align:left">виртуальная ФС: процессы и ядро</td>
+<td style="text-align:left"><code>/proc/&lt;pid&gt;/</code>, <code>/proc/meminfo</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/sys</code></td>
+<td style="text-align:left">виртуальная ФС: устройства и драйверы</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/dev</code></td>
+<td style="text-align:left">устройства: диски, сетевые, null</td>
+<td style="text-align:left"><code>/dev/sda</code>, <code>/dev/null</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/boot</code></td>
+<td style="text-align:left">ядро и initramfs</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/etc/default/grub</code></td>
+<td style="text-align:left">конфиг загрузчика GRUB</td>
+<td style="text-align:left"></td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p><code>/proc</code>, <code>/sys</code> и <code>/dev</code> — не файлы на диске. Они генерируются ядром в памяти.
+«Удалить» <code>/proc</code> нельзя, его не существует как файла. Практический вывод:
+если ты ищешь причину через <code>find / -name ...</code>, всегда исключай <code>/proc</code>,
+<code>/sys</code> и <code>/dev</code>, иначе поиск зависнет намертво.</p></div></div>
+<p>Проверить, что и куда смонтировано:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>lsblk -f                        <span class="tok-cmt"># диски и точки монтирования</span></span>
+<span class="ln"><span class="ln-i">2</span>df -h                           <span class="tok-cmt"># использование по файловым системам</span></span>
+<span class="ln"><span class="ln-i">3</span>mount | column -t               <span class="tok-cmt"># все монтирования, читаемо</span></span>
+<span class="ln"><span class="ln-i">4</span>findmnt / /var                  <span class="tok-cmt"># что смонтировано в конкретный каталог</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">cat</span> /proc/mounts                <span class="tok-cmt"># низкоуровневый список, его читает systemd</span></span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Команда</th>
+<th style="text-align:left">Отвечает на вопрос</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>df -h</code></td>
+<td style="text-align:left">сколько <strong>файловой системе</strong> нужно места (свободно / занято)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>du -sh /var/*</code></td>
+<td style="text-align:left">сколько места занимает <strong>конкретный каталог</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>stat file</code></td>
+<td style="text-align:left">метаданные: размер, inode, владелец, время</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ls -i file</code></td>
+<td style="text-align:left">номер inode файла</td>
+</tr>
+</tbody></table></div>
+<p>Разница между <code>df</code> и <code>du</code> — не в реализации, а в семантике: <code>df</code> считает по
+блокам, <code>du</code> обходит дерево. Если ответы расходятся — читайте про inode ниже.</p>
+<h2 id="razbor-ls-l-prava">Разбор <code>ls -l</code>: права</h2>
+<p>Строка из десяти символов — это ответы на четыре вопроса сразу.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>-rwxr-xr--  1  devops  devops  4096  Jan 15 10:23  deploy.sh</span>
+<span class="ln"><span class="ln-i">2</span>│└┬┘└┬┘└┬┘   │  │       │       │       │           └── имя</span>
+<span class="ln"><span class="ln-i">3</span>│ │  │  │    │  │       │       │       └──── дата изменения</span>
+<span class="ln"><span class="ln-i">4</span>│ │  │  │    │  │       │       └───────── размер в байтах</span>
+<span class="ln"><span class="ln-i">5</span>│ │  │  │    │  │       └───────────────── группа-владелец</span>
+<span class="ln"><span class="ln-i">6</span>│ │  │  │    │  └───────────────────────── владелец</span>
+<span class="ln"><span class="ln-i">7</span>│ │  │  │    └──────────────────────────── число жёстких ссылок</span>
+<span class="ln"><span class="ln-i">8</span>│ │  │  └───────────────────────────────── права группы</span>
+<span class="ln"><span class="ln-i">9</span>│ │  └──────────────────────────────────── права остальных (other)</span>
+<span class="ln"><span class="ln-i">10</span>│ └─────────────────────────────────────── тип файла</span>
+<span class="ln"><span class="ln-i">11</span>└───────────────────────────────────────── права владельца (user)</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Тип</th>
+<th style="text-align:left">Что это</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>-</code></td>
+<td style="text-align:left">обычный файл</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>d</code></td>
+<td style="text-align:left">каталог</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>l</code></td>
+<td style="text-align:left">символическая ссылка</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>L</code></td>
+<td style="text-align:left">сокет</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>c</code> / <code>b</code></td>
+<td style="text-align:left">устройство символьное / блочное</td>
+</tr>
+</tbody></table></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Буква</th>
+<th style="text-align:left">Право</th>
+<th style="text-align:left">Для файла</th>
+<th style="text-align:left">Для каталога</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>r</code></td>
+<td style="text-align:left">читать</td>
+<td style="text-align:left">читать содержимое</td>
+<td style="text-align:left">перечислять имена</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>w</code></td>
+<td style="text-align:left">писать</td>
+<td style="text-align:left">менять содержимое</td>
+<td style="text-align:left">создавать и удалять <strong>элементы</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>x</code></td>
+<td style="text-align:left">исполнять</td>
+<td style="text-align:left">запускать</td>
+<td style="text-align:left"><strong>заходить внутрь</strong> и обходить</td>
+</tr>
+</tbody></table></div>
+<p>Последний столбец — ловушка, на которой спотыкается половина новичков. Право <code>w</code>
+на каталоге — это не «редактировать каталог». Это «создавать и удалять в нём
+файлы». А право <code>r</code> без <code>x</code> даёт каталог, в котором видны имена, но нельзя
+войти. Проверяется это так:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">mkdir</span> -p /tmp/priv-test &amp;&amp; <span class="tok-k">chmod</span> <span class="tok-n">400</span> /tmp/priv-test   <span class="tok-cmt"># r-- : имена видно</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">ls</span> /tmp/priv-test        <span class="tok-cmt"># видно, что пусто — ls работает</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">cd</span> /tmp/priv-test        <span class="tok-cmt"># Permission denied — нужен x</span></span>
+</code></pre></div>
+<h3 id="chmod-simvolnyy-i-vosmerichnyy">chmod: символьный и восьмеричный</h3>
+<p>Символьный — когда меняешь один класс прав:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">chmod</span> u+x deploy.sh        <span class="tok-cmt"># дать владельцу исполнение</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">chmod</span> g-w config.yaml      <span class="tok-cmt"># убрать запись у группы</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">chmod</span> o=rw shared.txt      <span class="tok-cmt"># установить права для остальных точно</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">chmod</span> a+rx script.sh       <span class="tok-cmt"># всем классам — чтение и исполнение</span></span>
+</code></pre></div>
+<p>Восьмеричный — когда задаёшь всё сразу. Это форма, которую ты увидишь в
+большинстве примеров:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Значение</th>
+<th style="text-align:left">Буквы</th>
+<th style="text-align:left">Кто обычно использует</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>700</code></td>
+<td style="text-align:left"><code>rwx------</code></td>
+<td style="text-align:left">приватный ключ, <code>.ssh/config</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>750</code></td>
+<td style="text-align:left"><code>rwxr-x---</code></td>
+<td style="text-align:left">скрипты, доступные своей группе</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>755</code></td>
+<td style="text-align:left"><code>rwxr-xr-x</code></td>
+<td style="text-align:left">исполняемые файлы, каталоги, публичные каталоги</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>640</code></td>
+<td style="text-align:left"><code>rw-r-----</code></td>
+<td style="text-align:left">конфиги с секретами, читает владелец и группа</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>600</code></td>
+<td style="text-align:left"><code>rw-------</code></td>
+<td style="text-align:left"><code>.env</code> с токенами, ключи приложений</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>644</code></td>
+<td style="text-align:left"><code>rw-r--r--</code></td>
+<td style="text-align:left">обычные файлы, доступные всем на чтение</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>775</code> / <code>664</code></td>
+<td style="text-align:left"><code>rwxrwxr-x-</code></td>
+<td style="text-align:left">общие рабочие каталоги для команды</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">chmod</span> <span class="tok-n">640</span> /etc/myapp/secrets.yaml     <span class="tok-cmt"># конфиг с токеном</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">chmod</span> +x deploy.sh                    <span class="tok-cmt"># +x добавляет x всем, у кого есть r</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">chmod</span> -R <span class="tok-n">755</span> /opt/myapp/public        <span class="tok-cmt"># рекурсивно по каталогу</span></span>
+<span class="ln"><span class="ln-i">4</span>find /opt/myapp/config -name <span class="tok-str">'*.yaml'</span> -exec <span class="tok-k">chmod</span> <span class="tok-n">640</span> {} \;</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>chmod -R 777</code> на продакшне — это не «решить проблему с правами», а снять
+контроль над системой. Если что-то не работает, сначала посмотри в лог: там
+почти всегда написано, прав какого пользователя и на какой путь не хватило.
+<code>777</code> на каталоге даёт любому пользователю права удалять в нём файлы, включая
+чужие, — это уязвимость, а не настройка.</p></div></div>
+<h3 id="chown-i-umask">chown и umask</h3>
+<p>Владелец меняется через <code>chown</code>, группа — через <code>chgrp</code> или ту же команду:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> <span class="tok-k">chown</span> devops:devops /opt/myapp</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> <span class="tok-k">chown</span> -R devops:devops /opt/myapp</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">sudo</span> <span class="tok-k">chown</span> -R devops: /opt/myapp       <span class="tok-cmt"># только владелец, группа прежняя</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">sudo</span> chgrp -R deploy /opt/myapp/config</span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Смена владельца файла <strong>сбрасывает бит setuid</strong>. Это защита ядра от
+классической атаки: пользователь создаёт setuid-скрипт, а root случайно
+запускает его — и получает root. После <code>chown</code> привилегия исчезает.</p></div></div>
+<p><code>umask</code> — маска, которая <strong>вычитается</strong> из 777 при создании файлов и из 777 при
+создании каталогов. Значение <code>022</code> означает: новый файл получит 755, новый
+каталог — 755.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>umask                      <span class="tok-cmt"># посмотреть текущую</span></span>
+<span class="ln"><span class="ln-i">2</span>umask <span class="tok-n">027</span>                  <span class="tok-cmt"># файлы 640, каталоги 750</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">echo</span> <span class="tok-str">'umask 027'</span> &gt;&gt; ~/.bashrc</span>
+<span class="ln"><span class="ln-i">4</span>touch /tmp/umask-test &amp;&amp; <span class="tok-k">ls</span> -l /tmp/umask-test</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Маска</th>
+<th style="text-align:left">Файлы</th>
+<th style="text-align:left">Каталоги</th>
+<th style="text-align:left">Для чего</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>022</code></td>
+<td style="text-align:left">644</td>
+<td style="text-align:left">755</td>
+<td style="text-align:left">умолчание Debian/Ubuntu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>027</code></td>
+<td style="text-align:left">640</td>
+<td style="text-align:left">750</td>
+<td style="text-align:left">рабочая среда с группой</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>077</code></td>
+<td style="text-align:left">600</td>
+<td style="text-align:left">700</td>
+<td style="text-align:left">приватные данные, ничего не светить наружу</td>
+</tr>
+</tbody></table></div>
+<h3 id="spec-bity">Спец-биты</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Бит</th>
+<th style="text-align:left">Как ставится</th>
+<th style="text-align:left">Что делает</th>
+<th style="text-align:left">Живой пример</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">setuid</td>
+<td style="text-align:left"><code>chmod u+s</code>, <code>4xxx</code></td>
+<td style="text-align:left">запуск с правами владельца файла</td>
+<td style="text-align:left"><code>passwd</code>, <code>ping</code>, <code>sudo</code></td>
+</tr>
+<tr>
+<td style="text-align:left">setgid</td>
+<td style="text-align:left"><code>chmod g+s</code>, <code>2xxx</code></td>
+<td style="text-align:left">каталог: новые файлы наследуют группу; файл: запуск с правами группы</td>
+<td style="text-align:left">общая рабочая папка</td>
+</tr>
+<tr>
+<td style="text-align:left">sticky</td>
+<td style="text-align:left"><code>chmod +t</code>, <code>1xxx</code></td>
+<td style="text-align:left">из каталога удалить файл может только владелец файла или root</td>
+<td style="text-align:left"><code>/tmp</code>, <code>/var/tmp</code></td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">ls</span> -ld /tmp                    <span class="tok-cmt"># drwxrwxrwt — буква t на месте x, sticky</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">ls</span> -l $(which passwd)         <span class="tok-cmt"># -rwsr-xr-x — setuid на passwd</span></span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># sticky на каталоге: пользователь не может удалить чужой файл</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">sudo</span> <span class="tok-k">mkdir</span> /tmp/shared &amp;&amp; <span class="tok-k">sudo</span> <span class="tok-k">chmod</span> <span class="tok-n">1777</span> /tmp/shared</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-cmt"># коллега создаёт файл, ты его не удалишь — сработает защита</span></span>
+</code></pre></div>
+<p>Про <code>/tmp</code> стоит знать отдельно: sticky-бит там стоит по умолчанию, и это
+единственная причина, по которой один пользователь не может снести файлы
+другого. Он не спасает от переполнения <code>/tmp</code> — от этого спасает <code>systemd-tmpfiles</code>
+и отдельный tmpfs, о котором пойдёт речь дальше в связке с HA.</p>
+<h3 id="sudo-i-sudoers">sudo и sudoers</h3>
+<p><code>sudo</code> даёт выполнить команду от имени другого пользователя, но <strong>не</strong> является
+самоцелью. Правильная настройка — выдать конкретные команды конкретному
+инженеру, а не <code>NOPASSWD: ALL</code>.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> -l                        <span class="tok-cmt"># что мне реально разрешено</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> -u postgres psql          <span class="tok-cmt"># выполнить от имени postgres</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">sudo</span> -u root <span class="tok-k">systemctl</span> status nginx</span>
+</code></pre></div>
+<p>Файл <code>/etc/sudoers</code> правится только через <code>visudo</code> — он валидирует синтаксис
+перед записью, и это единственная причина, по которой нельзя писать в него
+обычным редактором. Ошибка в этом файле режет тебе root до перезагрузки.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> visudo</span>
+</code></pre></div>
+<p>Полезные записи:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span># перезапуск своего сервиса без пароля</span>
+<span class="ln"><span class="ln-i">2</span>devops ALL=(root) NOPASSWD: /usr/bin/systemctl restart myapp.service</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span># скрипт с полными правами, но доступ к его содержимому закрыт</span>
+<span class="ln"><span class="ln-i">5</span>devops ALL=(root) NOPASSWD: /usr/local/sbin/rotate-app-logs</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span># несколько команд через запятую — так КОМПАКТНЕЕ и его легче ревьюить</span>
+<span class="ln"><span class="ln-i">8</span>devops ALL=(root) NOPASSWD: /bin/systemctl reload nginx, \</span>
+<span class="ln"><span class="ln-i">9</span>            /bin/journalctl -u myapp *</span>
+</code></pre></div>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p><code>devops ALL=(root) NOPASSWD: ALL</code> — это пароль root без пароля. Правило
+<code>sudo tee /etc/sudoers.d/10-devops</code> тоже плохая идея: если у пользователя есть
+безпарольный <code>sudo</code> для всего, он может переписать сам sudoers. Минимум —
+конкретные команды; максимум — заворачивать сложную логику в отдельный
+root-owned скрипт, который сам делает <code>sudo</code>-проверки внутри.</p></div></div>
+<p>Скрипт, который можно безопасно отдать в безпарольный sudo:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> tee /usr/<span class="tok-k">local</span>/sbin/rotate-app-logs &gt; /dev/null &lt;&lt;<span class="tok-str">'EOF'</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">#!/usr/bin/env bash</span></span>
+<span class="ln"><span class="ln-i">3</span>set -euo pipefail</span>
+<span class="ln"><span class="ln-i">4</span>[[ $EUID -eq <span class="tok-n">0</span> ]] || { <span class="tok-k">echo</span> <span class="tok-str">"нужны root-права"</span> &gt;&amp;<span class="tok-n">2</span>; exit <span class="tok-n">1</span>; }</span>
+<span class="ln"><span class="ln-i">5</span>find /var/log/myapp -name <span class="tok-str">'*.log'</span> -mtime +<span class="tok-n">14</span> -delete</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">systemctl</span> reload myapp.service</span>
+<span class="ln"><span class="ln-i">7</span>EOF</span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">sudo</span> <span class="tok-k">chown</span> root:root /usr/<span class="tok-k">local</span>/sbin/rotate-app-logs</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">sudo</span> <span class="tok-k">chmod</span> <span class="tok-n">755</span> /usr/<span class="tok-k">local</span>/sbin/rotate-app-logs</span>
+</code></pre></div>
+<p>Скрипт принадлежит root, писать в него инженер не может — значит, содержимое
+команды, которую ему разрешили, нельзя подменить.</p>
+<h2 id="zhestkie-i-myagkie-ssylki">Жёсткие и мягкие ссылки</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Свойство</th>
+<th style="text-align:left">Жёсткая <code>ln</code></th>
+<th style="text-align:left">Мягкая <code>ln -s</code></th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Что делает</td>
+<td style="text-align:left">второе имя того же inode</td>
+<td style="text-align:left">указатель на путь</td>
+</tr>
+<tr>
+<td style="text-align:left">Может быть на каталог</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">да</td>
+</tr>
+<tr>
+<td style="text-align:left">Может пересечь границу ФС</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">да</td>
+</tr>
+<tr>
+<td style="text-align:left">Показывает <code>ls -l</code></td>
+<td style="text-align:left">нет, выглядит как обычный файл</td>
+<td style="text-align:left"><code>l</code> и <code>-&gt; /target</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Живёт ли после удаления оригинала</td>
+<td style="text-align:left">да (это тот же файл)</td>
+<td style="text-align:left">нет, превращается в битую ссылку</td>
+</tr>
+<tr>
+<td style="text-align:left">Что хранится</td>
+<td style="text-align:left">ничего, только запись в каталоге</td>
+<td style="text-align:left">путь в содержимом</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">cd</span> ~/lab2</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">echo</span> <span class="tok-str">"version 1"</span> &gt; current.log</span>
+<span class="ln"><span class="ln-i">3</span>ln    current.log hard.log     <span class="tok-cmt"># жёсткая: второе имя</span></span>
+<span class="ln"><span class="ln-i">4</span>ln -s current.log soft.log    <span class="tok-cmt"># мягкая: указатель</span></span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">ls</span> -li current.log hard.log soft.log   <span class="tok-cmt"># -i показывает inode</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">rm</span> current.log</span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">cat</span> hard.log                    <span class="tok-cmt"># работает — тот же inode</span></span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">cat</span> soft.log                    <span class="tok-cmt"># No such file — битая ссылка</span></span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># правильный «релизный» паттерн</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">mkdir</span> -p /opt/myapp/releases/v1.<span class="tok-n">2.0</span></span>
+<span class="ln"><span class="ln-i">13</span>ln -sfn /opt/myapp/releases/v1.<span class="tok-n">2.0</span> /opt/myapp/current</span>
+</code></pre></div>
+<p>Классический паттерн — <strong>symlink flip</strong>: рядом лежат версии, а <code>current</code>
+переключается мгновенно, созданием новой ссылки. Откат — одна команда. Именно
+на этом паттерне построены релизы Capistrano-стиля и часть Kubernetes-паттернов.</p>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p><code>ln -s /path/to/dir/</code> — со слэшем на конце ссылка будет указывать на сам
+каталог, а не на содержимое. Без слэша — на содержимое. Ошибка в одном символе,
+и скрипт будет писать файлы в неожиданное место. Всегда проверяй результат
+через <code>readlink -f</code>.</p></div></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>readlink -f /opt/myapp/current     <span class="tok-cmt"># куда реально указывает ссылка</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">ls</span> -l /opt/myapp/current</span>
+</code></pre></div>
+<h3 id="simlinki-v-konfigah">Симлинки в конфигах</h3>
+<p>Симлинк — стандартный способ «настоящего» переключения между окружениями:
+<code>/etc/nginx/sites-enabled/site.conf</code> является симлинком на файл в
+<code>sites-available</code>. В <code>systemd</code> тоже: <code>multi-user.target.wants/nginx.service</code>
+— симлинк, созданный <code>systemctl enable</code>, который и означает «запускать при
+загрузке». Подробно — в <a href="../../lectures/devops/03-processy-i-systemd.html">лекции про systemd</a>.</p>
+<h3 id="mount-i-fstab">mount и fstab</h3>
+<p><code>fstab</code> (<code>/etc/fstab</code>) описывает, что монтировать при загрузке. Формат полей:</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>устройство        точка     тип      опции                 дамп  проверка</span>
+<span class="ln"><span class="ln-i">2</span>/dev/sdb1         /var/lib  ext4     defaults,noatime       0      1</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Опция</th>
+<th style="text-align:left">Что делает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>defaults</code></td>
+<td style="text-align:left">базовый набор: rw, suid, dev, exec, auto, async</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>noatime</code></td>
+<td style="text-align:left">не обновлять время доступа — прирост производительности на SSD</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nodiratime</code></td>
+<td style="text-align:left">не обновлять и время изменения каталогов</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ro</code></td>
+<td style="text-align:left">монтировать только для чтения</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>noexec</code></td>
+<td style="text-align:left">запрет запуск бинарников с этой ФС — для пользовательских данных</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nosuid</code></td>
+<td style="text-align:left">игнорировать setuid/setgid — то же назначение</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nofail</code></td>
+<td style="text-align:left">не ронять загрузку, если монтирование не удалось</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># проверить fstab без перезагрузки — обязательно перед reboot</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> mount -a</span>
+<span class="ln"><span class="ln-i">3</span>findmnt --verify --verbose</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># добавить диск</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">sudo</span> blkid /dev/sdb                     <span class="tok-cmt"># узнать UUID</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">echo</span> <span class="tok-str">'UUID=xxxx-...  /srv/data  ext4  defaults,noatime,nofail  0  2'</span> \</span>
+<span class="ln"><span class="ln-i">8</span>  | <span class="tok-k">sudo</span> tee -a /etc/fstab</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">sudo</span> mount /srv/data</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># временно перемонтировать с другими опциями</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">sudo</span> mount -o remount,ro /var/lib</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Точка монтирования должна существовать <strong>до</strong> добавления в fstab, иначе
+система не загрузится. Опечатка в UUID — тоже. Всегда <code>mount -a</code> перед
+перезагрузкой; в виртуалке Proxmox это означает лишний reboot на неисправность,
+который никто не оценит.</p></div></div>
+<h2 id="inode-pochemu-df-i-du-rashodyatsya">Inode: почему <code>df</code> и <code>du</code> расходятся</h2>
+<p><code>du</code> обходит файлы и считает их размер. <code>df</code> смотрит на файловую систему и
+считает занятые <strong>блоки</strong>. Это две разные величины, и между ними есть
+законный зазор. У тебя <strong>обязательно</strong> будут инциденты, где <code>df -h</code> говорит
+«100%», а <code>du -sh /</code> говорит «использовано 40%». Вот три причины.</p>
+<h3 id="prichina-1-fayly-udaleny-no-processy-ih-derzhat-otkrytymi">Причина 1: файлы удалены, но процессы их держат открытыми</h3>
+<p>Механизм такой. <code>rm</code> удаляет запись из каталога и уменьшает счётчик ссылок на
+inode. Если у inode остались <strong>открытые файловые дескрипторы</strong> (открытые файлы,
+активные <code>mmap</code>, сокеты), ядро не освобождает блоки — файла в ФС уже нет, а
+место занято. Логи, ротация, tmpfs с распакованными файлами, процессы,
+забывшие закрыть соединение с базой, — все они создают такую утечку.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># 1. видно, что диск полон</span></span>
+<span class="ln"><span class="ln-i">2</span>df -h /</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># 2. видно, что по каталогам места немного</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">sudo</span> du -sh /var/* <span class="tok-n">2</span>&gt;/dev/null | sort -h | tail</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># 3. ищем дескрипторы на удалённые файлы: +L1 = ссылки == 1, т.е. имени нет</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">sudo</span> lsof +L1</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">sudo</span> lsof +L1 | <span class="tok-k">awk</span> <span class="tok-str">'$5 &gt; 1048576 {printf "%10.1f MB  %s\n", $5/1048576, $NF}'</span></span>
+</code></pre></div>
+<p><code>+L1</code> — ключ, который стоит запомнить: «файлы с числом ссылок меньше двух,
+то есть на диске их уже нет».</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># освободить место, не перезагружаясь: убить владельца дескриптора</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> kill -TERM $(<span class="tok-k">sudo</span> lsof -t +L1)</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># радикально, если это известный и безобидный процесс:</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">sudo</span> <span class="tok-k">systemctl</span> restart myapp.service</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Убийство процесса освобождает место, но может означать потерю несохранённого
+состояния и простой сервиса. Сначала выясни, что это за процесс и можно ли
+его перезапустить без последствий. Если это <code>systemd-journald</code> — перезапуск
+безопасен. Если это <code>postgres</code> — сначала проверь, что реплика или бэкап есть.</p></div></div>
+<h3 id="prichina-2-fayly-v-katalogah-kotorye-du-ne-obhodit">Причина 2: файлы в каталогах, которые <code>du</code> не обходит</h3>
+<p>Привилегированные каталоги вроде <code>/proc</code>, <code>/sys</code> дают <code>du</code> ошибки доступа.
+Некоторые реализации при этом всё равно пишут в <code>stderr</code> и идут дальше, а
+<code>du -sh /</code> с редиректом ошибок покажет «неполную» картину.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">sudo</span> du -shx / <span class="tok-n">2</span>&gt;/dev/null          <span class="tok-cmt"># -x: не выходить за пределы ФС</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> du -h --max-depth=<span class="tok-n">1</span> / <span class="tok-n">2</span>&gt;/dev/null | sort -h</span>
+</code></pre></div>
+<p>Флаг <code>-x</code> (one-file-system) стоит почти всегда: без него <code>du /</code> залезет в
+<code>/proc</code>, <code>/sys</code>, <code>/dev/shm</code> и другие смонтированные файловые системы и выдаст
+цифры, не имеющие отношения к твоему диску.</p>
+<h3 id="prichina-3-zarezervirovannye-bloki-i-raznye-razmery-blokov">Причина 3: зарезервированные блоки и разные размеры блоков</h3>
+<p>ext4 резервирует 5% (настраивается через <code>-m</code>) блоков под корень. Кроме того,
+файл размером 1 КБ занимает целый блок 4 КБ. Миллион мелких файлов — это
+4 гигабайта, хотя <code>du</code> покажет «1 ГБ».</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># ищем потерянное место, учитывая блоки и inode</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> tune2fs -l /dev/sda1 | <span class="tok-k">grep</span> -i <span class="tok-str">'reserved\|block count\|block size'</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">sudo</span> debugfs -R <span class="tok-str">'stats'</span> /dev/sda1 <span class="tok-n">2</span>&gt;/dev/null | <span class="tok-k">grep</span> -i inode</span>
+</code></pre></div>
+<h3 id="prichina-4-redkaya-no-realnaya-zakonchilis-inode">Причина 4 (редкая, но реальная): закончились inode</h3>
+<p><code>df -i /</code> показывает использование inode отдельно от байтов. Миллион файлов по
+100 байт каждый забивает таблицу inode при свободных гигабайтах, и создание
+новых файлов падает с <code>No space left on device</code>, хотя <code>df -h</code> показывает
+свободное место. Причина обычно — неудачно распакованный архив в <code>/var/lib</code>.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>df -i /</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">sudo</span> find /var/lib -xdev -type f <span class="tok-n">2</span>&gt;/dev/null | wc -l</span>
+</code></pre></div>
+<h2 id="praktika">Практика</h2>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">mkdir</span> -p ~/lab2 &amp;&amp; <span class="tok-k">cd</span> ~/lab2</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># 1. права и маска</span></span>
+<span class="ln"><span class="ln-i">4</span>umask <span class="tok-n">027</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">mkdir</span> secret-dir</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">echo</span> <span class="tok-str">"token=abc123"</span> &gt; secret-dir/token.env</span>
+<span class="ln"><span class="ln-i">7</span>touch run.sh</span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">chmod</span> <span class="tok-n">640</span> secret-dir/token.env</span>
+<span class="ln"><span class="ln-i">9</span><span class="tok-k">chmod</span> +x run.sh</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">ls</span> -l</span>
+<span class="ln"><span class="ln-i">11</span>umask <span class="tok-n">022</span></span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># 2. ссылки</span></span>
+<span class="ln"><span class="ln-i">14</span><span class="tok-k">echo</span> <span class="tok-str">"release v1.0.0"</span> &gt; /tmp/lab2-app.txt</span>
+<span class="ln"><span class="ln-i">15</span>ln    /tmp/lab2-app.txt hard.link</span>
+<span class="ln"><span class="ln-i">16</span>ln -s /tmp/lab2-app.txt soft.link</span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-k">ls</span> -li /tmp/lab2-app.txt hard.link soft.link</span>
+<span class="ln"><span class="ln-i">18</span>readlink -f soft.link</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span><span class="tok-cmt"># 3. смоделировать утечку диска</span></span>
+<span class="ln"><span class="ln-i">21</span>dd <span class="tok-k">if</span>=/dev/urandom of=big.log bs=1M count=<span class="tok-n">200</span> <span class="tok-n">2</span>&gt;/dev/null</span>
+<span class="ln"><span class="ln-i">22</span>tail -f big.log &gt; /dev/null &amp;          <span class="tok-cmt"># процесс держит файл открытым</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">rm</span> big.log                            <span class="tok-cmt"># имени нет, место занято</span></span>
+<span class="ln"><span class="ln-i">24</span>df -h / ; du -sh ~/lab2               <span class="tok-cmt"># df не увидит разницу, du — тоже</span></span>
+<span class="ln"><span class="ln-i">25</span><span class="tok-k">sudo</span> lsof +L1 | head                  <span class="tok-cmt"># вот он, наш призрак</span></span>
+<span class="ln"><span class="ln-i">26</span>kill %<span class="tok-n">1</span>                               <span class="tok-cmt"># место освободится</span></span>
+</code></pre></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong><code>chmod -R 777</code> как лекарство.</strong> Не лечит ничего, открывает систему.
+Правильный путь: <code>journalctl -u &lt;unit&gt; | grep -i permission</code> → понять, от
+какого пользователя и к каку пути нет доступа → выдать точечные права.</li><li><strong>Файлы, в которых ты «не ходил», а права слетели.</strong> <code>chown</code> сбрасывает setuid,
+копирование через <code>cp</code> без <code>-p</code> не сохраняет права и временные метки. Отсюда
+«вчера скрипт запускался, сегодня Permission denied» после правки репозитория.</li><li><strong>Рекурсивный <code>chmod</code> по <code>/</code> или <code>/etc</code>.</strong> <code>sudo chmod -R 755 /etc</code> без
+исключений сносит права с приватных ключей и конфигов с секретами. Если нужно
+массово — обязательно с <code>-print</code> сначала, посмотри список, потом <code>-exec</code>.</li><li><strong>Битый symlink, который не сломался сразу.</strong> Приложение продолжает работать,
+потому что inode уже в памяти. Симлинк «указывает в никуда» — и через месяц
+после деплоя новой версии ты получаешь <code>FileNotFound</code>. Проверяй ссылки:
+<code>find /opt -xtype l</code>.</li><li><strong><code>NOPASSWD: ALL</code>.</strong> Читается как «дать доступ к рестарту», работает как «дать
+root». В аудите это первое, на что смотрят.</li><li><strong>Забытый <code>setuid</code> на скрипте.</strong> Иногда «чтобы заработало» ставят <code>chmod
+u+s</code>. На bash-скриптах и на скриптах с <code>#!/bin/sh</code> это не работает так, как
+ожидают, а на интерпретируемых файлах — источник уязвимостей. Если нужен
+root — это <code>sudo</code> или обёртка в root-owned скрипт.</li><li><strong>Закончились inode, а не байты.</strong> <code>No space left on device</code> при
+<code>df -h</code>, показывающем свободные гигабайты. Проверяй <code>df -i /</code> до того, как
+начнёшь удалять файлы наугад.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу прочитать строку <code>-rwxr-xr--</code> и объяснить каждую позицию</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю разницу между <code>w</code> и <code>x</code> на каталоге и могу это продемонстрировать</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, чем символическая ссылка отличается от жёсткой, и в каком случае
+после <code>rm</code> оригинала первая выживет, а вторая нет</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею объяснить, почему <code>df -h</code> показывает 100%, а <code>du -sh</code> — половину,
+и знаю, что делать с каждым из трёх ответов</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что делает <code>lsof +L1</code> и почему после <code>kill</code> процесса место
+освобождается без <code>rm</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу записать в sudoers конкретную команду и объяснить, почему это
+лучше, чем <code>NOPASSWD: ALL</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, зачем нужен <code>mount -a</code> перед перезагрузкой после правки fstab</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею найти потерянное место одной командой с <code>du -shx /</code></span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Создай тестовый каталог в /tmp, выставь на него umask и права 750, заведи жёсткую и мягкую ссылки, затем смоделируй утечку диска: открой файл, удали его и найди через lsof, кто держит занятое место.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=linux"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Linux» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/02-fajlovaya-sistema-i-prava">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/01-terminal-i-navigaciya.html"><span>← Предыдущая</span><b>Терминал и навигация</b></a>
+        <a class="nav-next" href="../../lectures/devops/03-processy-i-systemd.html"><span>Следующая →</span><b>Процессы, сигналы и systemd</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/02-fajlovaya-sistema-i-prava";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

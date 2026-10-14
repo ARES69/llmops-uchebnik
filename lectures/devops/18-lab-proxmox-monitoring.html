@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лаборатория: мониторинг Proxmox, AD и Ubuntu — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">DevOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">D. Наблюдаемость</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Лаборатория: мониторинг Proxmox, AD и Ubuntu</h1>
+        <p class="lead">Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD</p>
+        <div class="meta"><span class="badge">120 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">lab</span><span class="tag">proxmox</span><span class="tag">active directory</span><span class="tag">windows</span><span class="tag">метрики</span><span class="tag">лабораторная</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#sloi-nablyudaemosti">Слои наблюдаемости</a></li><li class="toc-l2"><a href="#sloy-1-zhelezo-smart-i-temperatura">Слой 1: железо — SMART и температура</a></li><li class="toc-l3"><a href="#chto-mozhno-poluchit-bez-specialnogo-softa">Что можно получить без специального софта</a></li><li class="toc-l3"><a href="#alternativa-smartctl-exporter">Альтернатива: smartctl_exporter</a></li><li class="toc-l3"><a href="#chego-node-exporter-ne-umeet-principialno">Чего node_exporter не умеет принципиально</a></li><li class="toc-l2"><a href="#sloy-2-gipervizor-metriki-proxmox-bez-agenta">Слой 2: гипервизор — метрики Proxmox без агента</a></li><li class="toc-l3"><a href="#token-s-minimalnymi-pravami">Токен с минимальными правами</a></li><li class="toc-l3"><a href="#eksporter-na-standartnoy-biblioteke">Экспортёр на стандартной библиотеке</a></li><li class="toc-l3"><a href="#node-exporter-na-samom-gipervizore">node_exporter на самом гипервизоре</a></li><li class="toc-l2"><a href="#sloy-3a-gost-ubuntu">Слой 3a: гость Ubuntu</a></li><li class="toc-l2"><a href="#sloy-3b-gost-windows-ad-dc">Слой 3b: гость Windows AD DC</a></li><li class="toc-l3"><a href="#pochemu-eto-samaya-slozhnaya-chast">Почему это самая сложная часть</a></li><li class="toc-l3"><a href="#kollektory-domena-i-klyuchevye-metriki">Коллекторы домена и ключевые метрики</a></li><li class="toc-l3"><a href="#dyra-kotoruyu-nado-zakryt-rost-ntdsdit">Дыра, которую надо закрыть: рост NTDS.dit</a></li><li class="toc-l3"><a href="#qemu-guest-agent-i-pochemu-on-nuzhen">qemu-guest-agent и почему он нужен</a></li><li class="toc-l2"><a href="#sobiraem-prometheus-i-pravila-alertov">Собираем Prometheus и правила алертов</a></li><li class="toc-l2"><a href="#proverka-pod-nagruzkoy-ne-zhdi-avarii">Проверка под нагрузкой: не жди аварии</a></li><li class="toc-l2"><a href="#simptom-kuda-smotret">Симптом → куда смотреть</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Эта лекция — ключевая практическая работа всего DevOps-трека. До неё ты умел собирать метрики в теории: <a href="../../lectures/devops/16-prometheus.html">Prometheus и PromQL</a>, <a href="../../lectures/devops/17-grafana-loki-alerty.html">дашборды, логи и алерты</a>. После неё у тебя есть работающая система наблюдаемости на <strong>твоём</strong> контуре: Proxmox-гипервизор, Ubuntu-серверы и Windows AD DC. Материал рассчитан на два-три вечера, потому что часть шагов требует перезагрузки и прав администратора домена. Если у тебя нет доступа к Proxmox прямо сейчас — читай и собирай конфиги в стенде: все примеры воспроизводимы.</p>
+<h2 id="sloi-nablyudaemosti">Слои наблюдаемости</h2>
+<p>Главная ошибка при мониторинге виртуализированного контура — смотреть только внутрь гостя. Тогда классическая фраза «AD тормозит» превращается в гадание: то ли контроллер домена перегружен, то ли гипервизор отбирает у него CPU, то ли деградировал диск под виртуальной машиной, то ли умер вентилятор и всё встало на thermal throttling.</p>
+<p>Правильный подход — три независимых слоя. Каждый отвечает на свой вопрос, и у каждого своя точка отказа:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Слой</th>
+<th style="text-align:left">Источник</th>
+<th style="text-align:left">Что видим</th>
+<th style="text-align:left">Чего не видим</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Железо</strong></td>
+<td style="text-align:left">SMART (<code>smartctl</code>/<code>smartd</code>), <code>ipmitool</code>, <code>lm-sensors</code></td>
+<td style="text-align:left">состояние дисков, температуру, вентиляторы, отказ PSU</td>
+<td style="text-align:left">что происходит на уровне ОС</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Гипервизор</strong></td>
+<td style="text-align:left">API Proxmox, <code>node_exporter</code> на хосте, QEMU-статистика</td>
+<td style="text-align:left">steal/iowait, память и swap хоста, загрузка ВМ, balloon</td>
+<td style="text-align:left">что происходит <strong>внутри</strong> гостя</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Гость</strong></td>
+<td style="text-align:left"><code>node_exporter</code> в Ubuntu, <code>windows_exporter</code> в Windows</td>
+<td style="text-align:left">процессы, диски, службы, доменные метрики</td>
+<td style="text-align:left">перегрузку со стороны гипервизора</td>
+</tr>
+</tbody></table></div>
+<p>Порядок диагностики всегда сверху вниз. Если <code>pve01</code> показывает 25% steal — тебе не нужно подниматься внутрь ВМ вообще, проблема в гипервизоре. Если steal 0, а внутри гостя <code>iowait</code> 60% — иди в гость. Именно поэтому метрики гипервизора собираются первыми, а не последними.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Внешние метрики ВМ из API Proxmox (<code>cpu</code>, <code>mem</code>, <code>netin</code>, <code>diskread</code>)
+показывают <strong>нагрузку, которую гипервизор наблюдает снаружи</strong>, а не то,
+что происходит внутри. Внутри ВМ может висеть процесс с дедлоком,
+который снаружи выглядит как «ВМ спит, CPU 0%». Это дыра, которую
+закрывает только агент в госте — и частично qemu-guest-agent.</p></div></div>
+<h2 id="sloy-1-zhelezo-smart-i-temperatura">Слой 1: железо — SMART и температура</h2>
+<h3 id="chto-mozhno-poluchit-bez-specialnogo-softa">Что можно получить без специального софта</h3>
+<p>В Proxmox <code>smartmontools</code> уже стоит, и вместе с ним идёт демон <code>smartd</code>, который умеет сам рассылать отчёты. Сначала посмотри, что уже есть, и не переустанавливай:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>smartctl -a /dev/sda | head -<span class="tok-n">40</span></span>
+<span class="ln"><span class="ln-i">2</span>smartctl --scan-open</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">systemctl</span> status smartd --no-pager</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">cat</span> /etc/smartd.conf</span>
+</code></pre></div>
+<p>Дефолтный <code>/etc/smartd.conf</code> в Proxmox близок к этому — сканирование атрибутов раз в сутки плюс длинный self-test раз в неделю:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /etc/smartd.conf — после правки</span></span>
+<span class="ln"><span class="ln-i">2</span>DEVICESCAN -a -o on -S on \</span>
+<span class="ln"><span class="ln-i">3</span>  -<span class="tok-fn">s</span> (S/../.././<span class="tok-n">02</span>|L/../../<span class="tok-n">6</span>/<span class="tok-n">03</span>) \</span>
+<span class="ln"><span class="ln-i">4</span>  -m exec /usr/<span class="tok-k">local</span>/bin/smartd-notify.sh \</span>
+<span class="ln"><span class="ln-i">5</span>  -M exec /usr/<span class="tok-k">local</span>/bin/smartd-notify.sh</span>
+</code></pre></div>
+<p>Зачем <code>-m exec</code> вместо почты: отчёт попадает не в почтовый ящик, а в файл, который превращается в метрику. Настоящая почта на <code>root@</code> в типовом контуре либо не настроена, либо ушла в спам и через полгода про неё забыли — это самая частая причина, по которой про диск узнают после его смерти.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /usr/local/bin/smartd-notify.sh — вызывается smartd, $1 = устройство, stdin = отчёт</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">#!/bin/bash</span></span>
+<span class="ln"><span class="ln-i">3</span>OUTDIR=/var/lib/node_exporter/textfile_collector</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">mkdir</span> -p <span class="tok-str">"$OUTDIR"</span></span>
+<span class="ln"><span class="ln-i">5</span>DEV=$(<span class="tok-k">echo</span> <span class="tok-str">"$1"</span> | tr <span class="tok-str">'/'</span> <span class="tok-str">'_'</span>)</span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">cat</span> &gt;&gt; <span class="tok-str">"$OUTDIR/smartd_${DEV}.prom"</span> &lt;&lt;EOF</span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># HELP node_smart_report Устройство: $1</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># TYPE node_smart_report gauge</span></span>
+<span class="ln"><span class="ln-i">9</span>EOF</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">grep</span> -E <span class="tok-str">'^[A-Za-z_0-9]+:'</span> &gt;&gt; <span class="tok-str">"$OUTDIR/smartd_${DEV}.prom"</span></span>
+<span class="ln"><span class="ln-i">11</span>exit <span class="tok-n">0</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">chmod</span> +x /usr/<span class="tok-k">local</span>/bin/smartd-notify.sh</span>
+<span class="ln"><span class="ln-i">2</span>install -d -m <span class="tok-n">0755</span> /var/lib/node_exporter/textfile_collector</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">systemctl</span> restart smartd</span>
+</code></pre></div>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Имена метрик, которые textfile-коллектор создаст из этого файла, зависят
+от версии <code>node_exporter</code>. Не угадывай их — посмотри:
+<code>curl -s localhost:9100/metrics | grep -i smart</code>. Дальше пиши алерты
+по фактическим именам. Разница между поколениями экспортёров — источник
+половины «не работает, хотя должно».</p></div></div>
+<h3 id="alternativa-smartctl-exporter">Альтернатива: smartctl_exporter</h3>
+<p>Если не хочется писать скрипты — есть готовый <code>prometheus-community/smartctl_exporter</code>. Он поднимает HTTP-эндпоинт и сам забирает отчёты из <code>smartd</code>, который при этом настроен на <code>-m exec</code> в его адрес:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">docker</span> run -d --name smartctl-exporter --restart unless-stopped \</span>
+<span class="ln"><span class="ln-i">2</span>  -v /dev:/dev:ro \</span>
+<span class="ln"><span class="ln-i">3</span>  -p <span class="tok-n">9102</span>:<span class="tok-n">9102</span> \</span>
+<span class="ln"><span class="ln-i">4</span>  prom/smartctl-exporter:<span class="tok-n">0.9</span>.<span class="tok-n">0</span> --verbose</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># фрагмент prometheus.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>  - job_name: smart</span>
+<span class="ln"><span class="ln-i">3</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">4</span>      - targets: [<span class="tok-str">'pve01:9102'</span>]</span>
+<span class="ln"><span class="ln-i">5</span>    relabel_configs:</span>
+<span class="ln"><span class="ln-i">6</span>      - source_labels: [device]</span>
+<span class="ln"><span class="ln-i">7</span>        target_label: device</span>
+</code></pre></div>
+<h3 id="chego-node-exporter-ne-umeet-principialno">Чего node_exporter не умеет принципиально</h3>
+<p><code>node_exporter</code> — софтовый сборщик. Он не имеет права читать регистры материнской платы и контроллера вентиляторов. Он физически не видит:</p>
+<ul><li>температуру материнской платы и VRM;</li><li>скорость вентиляторов;</li><li>состояние вентиляторов блока питания;</li><li>температуру SSD (кроме тех значений, что есть в SMART-атрибутах).</li></ul>
+<p>Вариантов два, и это надо проговорить честно:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Вариант</th>
+<th style="text-align:left">Когда применять</th>
+<th style="text-align:left">Что получишь</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>ipmi_exporter</code></td>
+<td style="text-align:left">сервер с BMC/IPMI (материнка с IPMI, серверная платформа, IPMI-карта)</td>
+<td style="text-align:left">температуры всех датчиков, вентиляторы, статус PSU, температура процессора</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>lm-sensors</code> + textfile</td>
+<td style="text-align:left">белая материнка без BMC</td>
+<td style="text-align:left">температура CPU (<code>coretemp</code>), иногда вентиляторы — если драйвер их отдаёт</td>
+</tr>
+<tr>
+<td style="text-align:left">Ничего</td>
+<td style="text-align:left">офисный ПК без датчиков в драйвере</td>
+<td style="text-align:left">только температура диска из SMART-атрибута 194/190</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">apt</span> install lm-sensors</span>
+<span class="ln"><span class="ln-i">2</span>sensors-detect --auto</span>
+<span class="ln"><span class="ln-i">3</span>sensors</span>
+</code></pre></div>
+<p>Кривая <code>sensors-textfile.sh</code> превращает вывод в метрики. Парсер здесь намеренно простой: вывод <code>sensors</code> на разных платах разный, и ты всё равно будешь его дописывать под свою материнку.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">cat</span> &gt;/usr/<span class="tok-k">local</span>/bin/sensors-textfile.sh &lt;&lt;<span class="tok-str">'EOF'</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt">#!/bin/bash</span></span>
+<span class="ln"><span class="ln-i">3</span>OUT=/var/lib/node_exporter/textfile_collector/sensors.prom</span>
+<span class="ln"><span class="ln-i">4</span>install -d -m <span class="tok-n">0755</span> <span class="tok-str">"$(dirname "</span>$OUT<span class="tok-str">")"</span></span>
+<span class="ln"><span class="ln-i">5</span>TMP=<span class="tok-str">"${OUT}.$$"</span></span>
+<span class="ln"><span class="ln-i">6</span>{</span>
+<span class="ln"><span class="ln-i">7</span>  <span class="tok-k">echo</span> <span class="tok-str">"# HELP hw_sensor_temperature_celsius Температура датчиков, C"</span></span>
+<span class="ln"><span class="ln-i">8</span>  <span class="tok-k">echo</span> <span class="tok-str">"# TYPE hw_sensor_temperature_celsius gauge"</span></span>
+<span class="ln"><span class="ln-i">9</span>  <span class="tok-k">echo</span> <span class="tok-str">"# HELP hw_sensor_fan_rpm Скорость вентиляторов, RPM"</span></span>
+<span class="ln"><span class="ln-i">10</span>  <span class="tok-k">echo</span> <span class="tok-str">"# TYPE hw_sensor_fan_rpm gauge"</span></span>
+<span class="ln"><span class="ln-i">11</span>  sensors <span class="tok-n">2</span>&gt;/dev/null | <span class="tok-k">awk</span> '</span>
+<span class="ln"><span class="ln-i">12</span>    /^[A-Za-z0-9_-]+:/ { chip=$<span class="tok-n">0</span>; <span class="tok-fn">sub</span>(/:.*/,<span class="tok-str">""</span>,chip); next }</span>
+<span class="ln"><span class="ln-i">13</span>    /°C/ {</span>
+<span class="ln"><span class="ln-i">14</span>      key=$<span class="tok-n">1</span>; val=$<span class="tok-n">3</span>; <span class="tok-fn">gsub</span>(/°C/,<span class="tok-str">""</span>,val); <span class="tok-fn">gsub</span>(/\(.*/,<span class="tok-str">""</span>,val);</span>
+<span class="ln"><span class="ln-i">15</span>      <span class="tok-k">if</span> (chip != <span class="tok-str">""</span> &amp;&amp; chip != <span class="tok-str">"Adapter"</span> &amp;&amp; val != <span class="tok-str">""</span>)</span>
+<span class="ln"><span class="ln-i">16</span>        printf <span class="tok-str">"hw_sensor_temperature_celsius{chip=\"%s\",sensor=\"%s\"} %s\n"</span>, chip, key, val;</span>
+<span class="ln"><span class="ln-i">17</span>    }</span>
+<span class="ln"><span class="ln-i">18</span>    /RPM/ {</span>
+<span class="ln"><span class="ln-i">19</span>      key=$<span class="tok-n">1</span>; val=$<span class="tok-n">3</span>; <span class="tok-fn">gsub</span>(/RPM/,<span class="tok-str">""</span>,val); <span class="tok-fn">gsub</span>(/\(.*/,<span class="tok-str">""</span>,val);</span>
+<span class="ln"><span class="ln-i">20</span>      <span class="tok-k">if</span> (chip != <span class="tok-str">""</span> &amp;&amp; val != <span class="tok-str">""</span>)</span>
+<span class="ln"><span class="ln-i">21</span>        printf <span class="tok-str">"hw_sensor_fan_rpm{chip=\"%s\",fan=\"%s\"} %s\n"</span>, chip, key, val;</span>
+<span class="ln"><span class="ln-i">22</span>    }'</span>
+<span class="ln"><span class="ln-i">23</span>} &gt; <span class="tok-str">"$TMP"</span></span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-k">mv</span> <span class="tok-str">"$TMP"</span> <span class="tok-str">"$OUT"</span></span>
+<span class="ln"><span class="ln-i">25</span>EOF</span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-k">chmod</span> +x /usr/<span class="tok-k">local</span>/bin/sensors-textfile.sh</span>
+<span class="ln"><span class="ln-i">27</span><span class="tok-k">echo</span> <span class="tok-str">'*/5 * * * * root /usr/local/bin/sensors-textfile.sh'</span> &gt;/etc/cron.d/sensors-textfile</span>
+<span class="ln"><span class="ln-i">28</span>/usr/<span class="tok-k">local</span>/bin/sensors-textfile.sh &amp;&amp; <span class="tok-k">cat</span> /var/lib/node_exporter/textfile_collector/sensors.prom</span>
+</code></pre></div>
+<div class="callout callout-warning"><div class="callout-title"><span class="callout-icon">!</span>Внимание</div><div class="callout-body"><p>Если датчиков нет — это не проблема скрипта. Софтом температуру
+материнской платы не получить. Правильные варианты: IPMI-карта,
+BMC-модуль или внешний USB-датчик температуры. Дальше мониторинг
+дисков по SMART и всё. Не выдумывай «нормальную температуру» из
+ничего — это ложное чувство защищённости.</p></div></div>
+<h2 id="sloy-2-gipervizor-metriki-proxmox-bez-agenta">Слой 2: гипервизор — метрики Proxmox без агента</h2>
+<p>Штатный список внешних metric-серверов Proxmox — <strong>Graphite, InfluxDB и OpenTelemetry</strong>. Prometheus в этом списке нет, плагин для Prometheus тоже. Вариантов было два: ставить агента-экспортёра на сам гипервизор либо разговаривать с API напрямую. Второй путь дешевле и надёжнее — API Proxmox сам по себе очень стабильная вещь.</p>
+<h3 id="token-s-minimalnymi-pravami">Токен с минимальными правами</h3>
+<p>Ключевая идея: пользователь без пароля, роль только на чтение, доступ выдан <strong>напрямую токену</strong>, а не через пользователя. Именно прямое назначение позволяет отключить privilege separation и не дать токену унаследовать права сверх нужных.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># 1. пользователь без пароля и без прав</span></span>
+<span class="ln"><span class="ln-i">2</span>pveum user add pveexporter@pve</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># 2. минимальная роль: только аудит узлов, ВМ и хранилищ</span></span>
+<span class="ln"><span class="ln-i">5</span>pveum role add ProxmoxAudit -privs <span class="tok-str">"Sys.Audit,VM.Audit,Datastore.Audit"</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># 3. роль пользователю</span></span>
+<span class="ln"><span class="ln-i">8</span>pveum aclmod / -user pveexporter@pve -role ProxmoxAudit</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-cmt"># 4. роль напрямую токену — обязательное условие для --privsep 0</span></span>
+<span class="ln"><span class="ln-i">11</span>pveum aclmod / -user pveexporter@pve -token pvexport -role ProxmoxAudit</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-cmt"># 5. сам токен</span></span>
+<span class="ln"><span class="ln-i">14</span>pveum user token add pveexporter@pve pvexport --privsep <span class="tok-n">0</span></span>
+</code></pre></div>
+<p>Команда выведет две строки: <code>token ID: pveexporter@pve!pvexport</code> и <code>value: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>. Их нужно сохранить <strong>сейчас</strong> — значение второй раз не показывается.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>install -d -m <span class="tok-n">0700</span> /etc/pve-exporter</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">echo</span> <span class="tok-str">'pveexporter@pve!pvexport=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'</span> \</span>
+<span class="ln"><span class="ln-i">3</span>  &gt;/etc/pve-exporter/token</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">chmod</span> <span class="tok-n">0600</span> /etc/pve-exporter/token</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span><span class="tok-k">curl</span> -s -H <span class="tok-str">"Authorization: PVEAPIToken=$(cat /etc/pve-exporter/token)"</span> \</span>
+<span class="ln"><span class="ln-i">7</span>  https://$(hostname -f):<span class="tok-n">8006</span>/api2/json/nodes/$(hostname)/status | head -c <span class="tok-n">200</span></span>
+</code></pre></div>
+<p>Что конкретно отдают нужные эндпоинты — это и есть карта твоей наблюдаемости гипервизора:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Эндпоинт</th>
+<th style="text-align:left">Ключевые поля</th>
+<th style="text-align:left">Что это значит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>/nodes/{node}/status</code></td>
+<td style="text-align:left"><code>cpu</code> (доля 0–1), <code>wait</code> (доля iowait), <code>idle</code>, <code>loadavg[3]</code>, <code>memory{total,used}</code>, <code>swap</code>, <code>rootfs{total,used,avail}</code>, <code>ksm{shared}</code>, <code>uptime</code>, <code>cpuinfo{cpus}</code></td>
+<td style="text-align:left">состояние самого хоста</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/nodes/{node}/qemu</code></td>
+<td style="text-align:left">список ВМ: <code>vmid</code>, <code>name</code>, <code>status</code></td>
+<td style="text-align:left">инвентарь</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/nodes/{node}/qemu/{vmid}/status/current</code></td>
+<td style="text-align:left"><code>cpu</code> (доля), <code>mem</code>, <code>maxmem</code>, <code>balloon</code>, <code>netin</code>, <code>netout</code> (байт/с), <code>diskread</code>, <code>diskwrite</code> (байт/с), <code>uptime</code>, <code>status</code>, <code>ha</code></td>
+<td style="text-align:left">нагрузка конкретной ВМ снаружи</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>/nodes/{node}/disks/list</code></td>
+<td style="text-align:left"><code>health</code>, <code>model</code>, <code>serial</code>, <code>size</code>, <code>wearout</code> (NVMe), <code>smart</code> (если включён smartplug)</td>
+<td style="text-align:left">износ дисков, если есть smartplug</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Поля <code>cpu</code>, <code>mem</code> в <code>/status/current</code> — это <strong>среднее с прошлого опроса
+(примерно за минуту)</strong>, а не моментальное значение. Не пытайся строить
+по ним панель с шагом 15 секунд: получишь ступеньки и решишь, что
+метрика «сглаживается». Для высокочастотных вещей внутри ВМ нужен агент
+в госте, для внешнего вида — <code>node_exporter</code> на самом гипервизоре.</p></div></div>
+<h3 id="eksporter-na-standartnoy-biblioteke">Экспортёр на стандартной библиотеке</h3>
+<p>Дальше — весь экспортёр целиком. Никаких pip-зависимостей: Python 3 на Proxmox уже есть, файл кладётся рядом с системными, запускается из systemd. Метрики отдаёт в стандартном текстовом формате, который понимает любой Prometheus.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt">#!/usr/bin/env python3</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># /opt/pve-exporter/pve_exporter.py</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># Метрики Proxmox VE API -&gt; Prometheus. Только стандартная библиотека.</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">import</span> json, os, re, socket, ssl, urllib.request</span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">from</span> http.server <span class="tok-k">import</span> BaseHTTPRequestHandler, HTTPServer</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>HOST    = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_HOST"</span>, socket.<span class="tok-fn">getfqdn</span>())</span>
+<span class="ln"><span class="ln-i">8</span>BIND    = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_BIND"</span>, <span class="tok-str">"0.0.0.0"</span>)</span>
+<span class="ln"><span class="ln-i">9</span>PORT    = <span class="tok-fn">int</span>(os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_PORT"</span>, <span class="tok-str">"9103"</span>))</span>
+<span class="ln"><span class="ln-i">10</span>NODE    = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_NODE"</span>, socket.<span class="tok-fn">gethostname</span>())</span>
+<span class="ln"><span class="ln-i">11</span>CA      = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_CA"</span>, <span class="tok-str">"/etc/pve/pve-root-ca.pem"</span>)</span>
+<span class="ln"><span class="ln-i">12</span>VERIFY  = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"PVE_VERIFY"</span>, <span class="tok-str">"1"</span>) == <span class="tok-str">"1"</span></span>
+<span class="ln"><span class="ln-i">13</span>TOKEN   = <span class="tok-fn">open</span>(<span class="tok-str">"/etc/pve-exporter/token"</span>).<span class="tok-fn">read</span>().<span class="tok-fn">strip</span>()</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>ctx = ssl.<span class="tok-fn">create_default_context</span>(cafile=CA <span class="tok-k">if</span> os.path.<span class="tok-fn">exists</span>(CA) <span class="tok-k">else</span> None)</span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-k">if</span> <span class="tok-k">not</span> VERIFY:</span>
+<span class="ln"><span class="ln-i">17</span>    ctx.check_hostname = False</span>
+<span class="ln"><span class="ln-i">18</span>    ctx.verify_mode = ssl.CERT_NONE</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>dirty = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"[^a-zA-Z0-9_]"</span>)</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-k">def</span> <span class="tok-fn">esc</span>(v):</span>
+<span class="ln"><span class="ln-i">24</span>    <span class="tok-k">return</span> dirty.<span class="tok-fn">sub</span>(<span class="tok-str">"_"</span>, <span class="tok-fn">str</span>(v))</span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span><span class="tok-k">def</span> <span class="tok-fn">api</span>(path):</span>
+<span class="ln"><span class="ln-i">28</span>    req = urllib.request.<span class="tok-fn">Request</span>(<span class="tok-str">"https://%s:8006%s"</span> % (HOST, path))</span>
+<span class="ln"><span class="ln-i">29</span>    req.<span class="tok-fn">add_header</span>(<span class="tok-str">"Authorization"</span>, <span class="tok-str">"PVEAPIToken="</span> + TOKEN)</span>
+<span class="ln"><span class="ln-i">30</span>    <span class="tok-k">with</span> urllib.request.<span class="tok-fn">urlopen</span>(req, context=ctx, timeout=<span class="tok-n">10</span>) <span class="tok-k">as</span> r:</span>
+<span class="ln"><span class="ln-i">31</span>        <span class="tok-k">return</span> json.<span class="tok-fn">load</span>(r)[<span class="tok-str">"data"</span>]</span>
+<span class="ln"><span class="ln-i">32</span></span>
+<span class="ln"><span class="ln-i">33</span></span>
+<span class="ln"><span class="ln-i">34</span><span class="tok-k">def</span> <span class="tok-fn">node_metrics</span>(node):</span>
+<span class="ln"><span class="ln-i">35</span>    d = <span class="tok-fn">api</span>(<span class="tok-str">"/api2/json/nodes/%s/status"</span> % node)</span>
+<span class="ln"><span class="ln-i">36</span>    lb = <span class="tok-str">'node="%s"'</span> % <span class="tok-fn">esc</span>(node)</span>
+<span class="ln"><span class="ln-i">37</span>    load = d.<span class="tok-fn">get</span>(<span class="tok-str">"loadavg"</span>) <span class="tok-k">or</span> [<span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>]</span>
+<span class="ln"><span class="ln-i">38</span>    out = [</span>
+<span class="ln"><span class="ln-i">39</span>        <span class="tok-str">"pve_api_up 1"</span>,</span>
+<span class="ln"><span class="ln-i">40</span>        <span class="tok-str">"pve_cpu_ratio{%s} %.4f"</span> % (lb, <span class="tok-fn">float</span>(d.<span class="tok-fn">get</span>(<span class="tok-str">"cpu"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">41</span>        <span class="tok-str">"pve_iowait_ratio{%s} %.4f"</span> % (lb, <span class="tok-fn">float</span>(d.<span class="tok-fn">get</span>(<span class="tok-str">"wait"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">42</span>        <span class="tok-str">"pve_load1{%s} %.3f"</span> % (lb, <span class="tok-fn">float</span>(load[<span class="tok-n">0</span>])),</span>
+<span class="ln"><span class="ln-i">43</span>        <span class="tok-str">"pve_load5{%s} %.3f"</span> % (lb, <span class="tok-fn">float</span>(load[<span class="tok-n">1</span>])),</span>
+<span class="ln"><span class="ln-i">44</span>        <span class="tok-str">"pve_load15{%s} %.3f"</span> % (lb, <span class="tok-fn">float</span>(load[<span class="tok-n">2</span>])),</span>
+<span class="ln"><span class="ln-i">45</span>        <span class="tok-str">"pve_uptime_seconds{%s} %d"</span> % (lb, <span class="tok-fn">int</span>(d.<span class="tok-fn">get</span>(<span class="tok-str">"uptime"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">46</span>    ]</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-k">for</span> part <span class="tok-k">in</span> (<span class="tok-str">"memory"</span>, <span class="tok-str">"swap"</span>, <span class="tok-str">"rootfs"</span>):</span>
+<span class="ln"><span class="ln-i">48</span>        blk = d.<span class="tok-fn">get</span>(part) <span class="tok-k">or</span> {}</span>
+<span class="ln"><span class="ln-i">49</span>        <span class="tok-k">for</span> key <span class="tok-k">in</span> (<span class="tok-str">"total"</span>, <span class="tok-str">"used"</span>, <span class="tok-str">"avail"</span>):</span>
+<span class="ln"><span class="ln-i">50</span>            <span class="tok-k">if</span> key <span class="tok-k">in</span> blk:</span>
+<span class="ln"><span class="ln-i">51</span>                out.<span class="tok-fn">append</span>(<span class="tok-str">"pve_%s_%s_bytes{%s} %d"</span> % (part, key, lb, <span class="tok-fn">int</span>(blk[key])))</span>
+<span class="ln"><span class="ln-i">52</span>    <span class="tok-k">if</span> d.<span class="tok-fn">get</span>(<span class="tok-str">"ksm"</span>):</span>
+<span class="ln"><span class="ln-i">53</span>        out.<span class="tok-fn">append</span>(<span class="tok-str">'pve_ksm_shared_bytes{%s} %d'</span> % (lb, <span class="tok-fn">int</span>(d[<span class="tok-str">"ksm"</span>].<span class="tok-fn">get</span>(<span class="tok-str">"shared"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)))</span>
+<span class="ln"><span class="ln-i">54</span>    <span class="tok-k">if</span> d.<span class="tok-fn">get</span>(<span class="tok-str">"cpuinfo"</span>):</span>
+<span class="ln"><span class="ln-i">55</span>        out.<span class="tok-fn">append</span>(<span class="tok-str">'pve_cpu_cores{%s} %d'</span> % (lb, <span class="tok-fn">int</span>(d[<span class="tok-str">"cpuinfo"</span>].<span class="tok-fn">get</span>(<span class="tok-str">"cpus"</span>) <span class="tok-k">or</span> <span class="tok-n">1</span>)))</span>
+<span class="ln"><span class="ln-i">56</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">57</span></span>
+<span class="ln"><span class="ln-i">58</span></span>
+<span class="ln"><span class="ln-i">59</span><span class="tok-k">def</span> <span class="tok-fn">vm_metrics</span>(node):</span>
+<span class="ln"><span class="ln-i">60</span>    out = []</span>
+<span class="ln"><span class="ln-i">61</span>    <span class="tok-k">for</span> vm <span class="tok-k">in</span> <span class="tok-fn">api</span>(<span class="tok-str">"/api2/json/nodes/%s/qemu"</span> % node):</span>
+<span class="ln"><span class="ln-i">62</span>        st = <span class="tok-fn">api</span>(<span class="tok-str">"/api2/json/nodes/%s/qemu/%s/status/current"</span> % (node, vm[<span class="tok-str">"vmid"</span>]))</span>
+<span class="ln"><span class="ln-i">63</span>        lb = <span class="tok-str">'id="%s",name="%s",node="%s"'</span> % (</span>
+<span class="ln"><span class="ln-i">64</span>            vm[<span class="tok-str">"vmid"</span>], <span class="tok-fn">esc</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"name"</span>) <span class="tok-k">or</span> <span class="tok-str">"vm"</span>), <span class="tok-fn">esc</span>(node))</span>
+<span class="ln"><span class="ln-i">65</span>        mem = <span class="tok-fn">int</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"mem"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">66</span>        maxmem = <span class="tok-fn">int</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"maxmem"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">67</span>        out += [</span>
+<span class="ln"><span class="ln-i">68</span>            <span class="tok-str">'pve_qemu_info{%s,status="%s"} 1'</span> % (lb, <span class="tok-fn">esc</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"status"</span>) <span class="tok-k">or</span> <span class="tok-str">""</span>)),</span>
+<span class="ln"><span class="ln-i">69</span>            <span class="tok-str">"pve_qemu_up{%s} %d"</span> % (lb, <span class="tok-n">1</span> <span class="tok-k">if</span> st.<span class="tok-fn">get</span>(<span class="tok-str">"status"</span>) == <span class="tok-str">"running"</span> <span class="tok-k">else</span> <span class="tok-n">0</span>),</span>
+<span class="ln"><span class="ln-i">70</span>            <span class="tok-str">"pve_qemu_cpu_ratio{%s} %.4f"</span> % (lb, <span class="tok-fn">float</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"cpu"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">71</span>            <span class="tok-str">"pve_qemu_mem_bytes{%s} %d"</span> % (lb, mem),</span>
+<span class="ln"><span class="ln-i">72</span>            <span class="tok-str">"pve_qemu_maxmem_bytes{%s} %d"</span> % (lb, maxmem),</span>
+<span class="ln"><span class="ln-i">73</span>            <span class="tok-str">"pve_qemu_mem_used_ratio{%s} %.4f"</span> % (lb, mem / maxmem <span class="tok-k">if</span> maxmem <span class="tok-k">else</span> <span class="tok-n">0.0</span>),</span>
+<span class="ln"><span class="ln-i">74</span>            <span class="tok-str">"pve_qemu_balloon_bytes{%s} %d"</span> % (lb, <span class="tok-fn">int</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"balloon"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">75</span>            <span class="tok-str">"pve_qemu_netin_bytes_per_second{%s} %.1f"</span> % (lb, <span class="tok-fn">float</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"netin"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">76</span>            <span class="tok-str">"pve_qemu_netout_bytes_per_second{%s} %.1f"</span> % (lb, <span class="tok-fn">float</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"netout"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">77</span>            <span class="tok-str">"pve_qemu_diskread_bytes_per_second{%s} %.1f"</span> % (lb, <span class="tok-fn">float</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"diskread"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">78</span>            <span class="tok-str">"pve_qemu_diskwrite_bytes_per_second{%s} %.1f"</span> % (lb, <span class="tok-fn">float</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"diskwrite"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">79</span>            <span class="tok-str">"pve_qemu_uptime_seconds{%s} %d"</span> % (lb, <span class="tok-fn">int</span>(st.<span class="tok-fn">get</span>(<span class="tok-str">"uptime"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)),</span>
+<span class="ln"><span class="ln-i">80</span>        ]</span>
+<span class="ln"><span class="ln-i">81</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">82</span></span>
+<span class="ln"><span class="ln-i">83</span></span>
+<span class="ln"><span class="ln-i">84</span><span class="tok-k">def</span> <span class="tok-fn">disk_metrics</span>(node):</span>
+<span class="ln"><span class="ln-i">85</span>    out = []</span>
+<span class="ln"><span class="ln-i">86</span>    <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">87</span>        disks = <span class="tok-fn">api</span>(<span class="tok-str">"/api2/json/nodes/%s/disks/list"</span> % node)</span>
+<span class="ln"><span class="ln-i">88</span>    <span class="tok-k">except</span> Exception:</span>
+<span class="ln"><span class="ln-i">89</span>        <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">90</span>    <span class="tok-k">for</span> dsk <span class="tok-k">in</span> disks:</span>
+<span class="ln"><span class="ln-i">91</span>        dev = <span class="tok-fn">esc</span>(dsk.<span class="tok-fn">get</span>(<span class="tok-str">"devpath"</span>))</span>
+<span class="ln"><span class="ln-i">92</span>        lb = <span class="tok-str">'node="%s",dev="%s"'</span> % (<span class="tok-fn">esc</span>(node), dev)</span>
+<span class="ln"><span class="ln-i">93</span>        out.<span class="tok-fn">append</span>(<span class="tok-str">'pve_disk_info{%s,health="%s"} 1'</span> % (lb, <span class="tok-fn">esc</span>(dsk.<span class="tok-fn">get</span>(<span class="tok-str">"health"</span>) <span class="tok-k">or</span> <span class="tok-str">"UNKNOWN"</span>)))</span>
+<span class="ln"><span class="ln-i">94</span>        out.<span class="tok-fn">append</span>(<span class="tok-str">"pve_disk_size_bytes{%s} %d"</span> % (lb, <span class="tok-fn">int</span>(dsk.<span class="tok-fn">get</span>(<span class="tok-str">"size"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)))</span>
+<span class="ln"><span class="ln-i">95</span>        <span class="tok-k">if</span> dsk.<span class="tok-fn">get</span>(<span class="tok-str">"wearout"</span>) <span class="tok-k">is</span> <span class="tok-k">not</span> None:</span>
+<span class="ln"><span class="ln-i">96</span>            out.<span class="tok-fn">append</span>(<span class="tok-str">"pve_disk_wear_percent{%s} %.1f"</span> % (lb, <span class="tok-fn">float</span>(dsk[<span class="tok-str">"wearout"</span>])))</span>
+<span class="ln"><span class="ln-i">97</span>        <span class="tok-k">for</span> attr, val <span class="tok-k">in</span> re.<span class="tok-fn">findall</span>(r<span class="tok-str">"(\w+)_value=([0-9]+)"</span>, dsk.<span class="tok-fn">get</span>(<span class="tok-str">"smart"</span>) <span class="tok-k">or</span> <span class="tok-str">""</span>):</span>
+<span class="ln"><span class="ln-i">98</span>            out.<span class="tok-fn">append</span>(<span class="tok-str">'pve_disk_smart_attr{%s,attr="%s"} %s'</span> % (lb, attr.<span class="tok-fn">lower</span>(), val))</span>
+<span class="ln"><span class="ln-i">99</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">100</span></span>
+<span class="ln"><span class="ln-i">101</span></span>
+<span class="ln"><span class="ln-i">102</span><span class="tok-k">class</span> <span class="tok-fn">Handler</span>(BaseHTTPRequestHandler):</span>
+<span class="ln"><span class="ln-i">103</span>    <span class="tok-k">def</span> <span class="tok-fn">do_GET</span>(self):</span>
+<span class="ln"><span class="ln-i">104</span>        <span class="tok-k">if</span> self.path.<span class="tok-fn">split</span>(<span class="tok-str">"?"</span>)[<span class="tok-n">0</span>] <span class="tok-k">not</span> <span class="tok-k">in</span> (<span class="tok-str">"/"</span>, <span class="tok-str">"/metrics"</span>, <span class="tok-str">"/healthz"</span>):</span>
+<span class="ln"><span class="ln-i">105</span>            self.<span class="tok-fn">send_error</span>(<span class="tok-n">404</span>)</span>
+<span class="ln"><span class="ln-i">106</span>            <span class="tok-k">return</span></span>
+<span class="ln"><span class="ln-i">107</span>        <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">108</span>            body = <span class="tok-str">"\n"</span>.<span class="tok-fn">join</span>(<span class="tok-fn">node_metrics</span>(NODE) + <span class="tok-fn">vm_metrics</span>(NODE) + <span class="tok-fn">disk_metrics</span>(NODE))</span>
+<span class="ln"><span class="ln-i">109</span>            code = <span class="tok-n">200</span></span>
+<span class="ln"><span class="ln-i">110</span>        <span class="tok-k">except</span> Exception <span class="tok-k">as</span> exc:</span>
+<span class="ln"><span class="ln-i">111</span>            body = <span class="tok-str">"pve_api_up 0\n# %s\n"</span> % <span class="tok-fn">str</span>(exc).<span class="tok-fn">replace</span>(<span class="tok-str">"\n"</span>, <span class="tok-str">" "</span>)</span>
+<span class="ln"><span class="ln-i">112</span>            code = <span class="tok-n">503</span></span>
+<span class="ln"><span class="ln-i">113</span>        raw = body.<span class="tok-fn">encode</span>(<span class="tok-str">"utf-8"</span>)</span>
+<span class="ln"><span class="ln-i">114</span>        self.<span class="tok-fn">send_response</span>(code)</span>
+<span class="ln"><span class="ln-i">115</span>        self.<span class="tok-fn">send_header</span>(<span class="tok-str">"Content-Type"</span>, <span class="tok-str">"text/plain; version=0.0.4; charset=utf-8"</span>)</span>
+<span class="ln"><span class="ln-i">116</span>        self.<span class="tok-fn">send_header</span>(<span class="tok-str">"Content-Length"</span>, <span class="tok-fn">str</span>(<span class="tok-fn">len</span>(raw)))</span>
+<span class="ln"><span class="ln-i">117</span>        self.<span class="tok-fn">end_headers</span>()</span>
+<span class="ln"><span class="ln-i">118</span>        self.wfile.<span class="tok-fn">write</span>(raw)</span>
+<span class="ln"><span class="ln-i">119</span></span>
+<span class="ln"><span class="ln-i">120</span>    <span class="tok-k">def</span> <span class="tok-fn">log_message</span>(self, *args):</span>
+<span class="ln"><span class="ln-i">121</span>        <span class="tok-k">pass</span></span>
+<span class="ln"><span class="ln-i">122</span></span>
+<span class="ln"><span class="ln-i">123</span></span>
+<span class="ln"><span class="ln-i">124</span><span class="tok-k">if</span> __name__ == <span class="tok-str">"__main__"</span>:</span>
+<span class="ln"><span class="ln-i">125</span>    <span class="tok-fn">HTTPServer</span>((BIND, PORT), Handler).<span class="tok-fn">serve_forever</span>()</span>
+</code></pre></div>
+<div class="codeblock" data-lang="ini"><div class="codehead"><span class="code-lang">ini</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /etc/systemd/system/pve-exporter.service</span></span>
+<span class="ln"><span class="ln-i">2</span>[Unit]</span>
+<span class="ln"><span class="ln-i">3</span>Description=Proxmox VE API exporter for Prometheus</span>
+<span class="ln"><span class="ln-i">4</span>After=network-online.target pveproxy.service</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>[Service]</span>
+<span class="ln"><span class="ln-i">7</span>Type=simple</span>
+<span class="ln"><span class="ln-i">8</span>User=root</span>
+<span class="ln"><span class="ln-i">9</span>Environment=PVE_HOST=your-pve-hostname.example.com</span>
+<span class="ln"><span class="ln-i">10</span>Environment=PVE_NODE=your-pve-hostname</span>
+<span class="ln"><span class="ln-i">11</span>Environment=PVE_CA=/etc/pve/pve-root-ca.pem</span>
+<span class="ln"><span class="ln-i">12</span>EnvironmentFile=-/etc/pve-exporter/env</span>
+<span class="ln"><span class="ln-i">13</span>ExecStart=/usr/bin/python3 /opt/pve-exporter/pve_exporter.py</span>
+<span class="ln"><span class="ln-i">14</span>Restart=always</span>
+<span class="ln"><span class="ln-i">15</span>RestartSec=<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">16</span>NoNewPrivileges=yes</span>
+<span class="ln"><span class="ln-i">17</span>ProtectSystem=full</span>
+<span class="ln"><span class="ln-i">18</span>PrivateTmp=yes</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>[Install]</span>
+<span class="ln"><span class="ln-i">21</span>WantedBy=multi-user.target</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>python3 -m py_compile /opt/pve-exporter/pve_exporter.py &amp;&amp; <span class="tok-k">echo</span> <span class="tok-str">"синтаксис ок"</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">systemctl</span> daemon-reload &amp;&amp; <span class="tok-k">systemctl</span> enable --now pve-exporter</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">curl</span> -s localhost:<span class="tok-n">9103</span>/metrics | <span class="tok-k">grep</span> -E <span class="tok-str">'^pve_(api_up|qemu_up|load1|disk_info)'</span></span>
+</code></pre></div>
+<p>Тонкости, на которых обычно спотыкаются:</p>
+<ul><li><code>PVE_HOST</code> должен совпадать с SAN в сертификате узла. Если не совпадает — поставь <code>PVE_VERIFY=0</code> и запри доступ файрволом, но не оставляй открытым в сеть.</li><li><code>pve_disk_smart_attr</code> заполняется только если в UI узла у диска включён smartplug: <strong>Datacenter → Storage → Disks → выбрать диск → Use for SMART check</strong>.</li><li>Эндпоинт раскрывает инвентарь ВМ. Держи 9103 на управляющей сети и не пробрасывай наружу.</li></ul>
+<h3 id="node-exporter-na-samom-gipervizore">node_exporter на самом гипервизоре</h3>
+<p>API Proxmox не отдаёт <strong>steal time</strong> — а это главный индикатор «хост отбирает ресурсы у гостя». Steal есть только в <code>/proc/stat</code>, то есть в <code>node_exporter</code>. Ставь его на самом хосте, иначе половина самой полезной метрики гипервизора теряется.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">apt</span> install prometheus-node-exporter</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">apt</span> install lm-sensors smartmontools</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">systemctl</span> enable --now prometheus-node-exporter</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">curl</span> -s localhost:<span class="tok-n">9100</span>/metrics | <span class="tok-k">grep</span> -E <span class="tok-str">'^node_cpu_seconds_total|^node_scrape_collector'</span></span>
+</code></pre></div>
+<h2 id="sloy-3a-gost-ubuntu">Слой 3a: гость Ubuntu</h2>
+<p>Пакет есть и в Debian, и в Ubuntu, и в репозитории Proxmox. Начинай с него:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">apt</span> update &amp;&amp; <span class="tok-k">apt</span> install -y prometheus-node-exporter</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">systemctl</span> enable --now prometheus-node-exporter</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">curl</span> -s localhost:<span class="tok-n">9100</span>/metrics | <span class="tok-k">grep</span> -E <span class="tok-str">'^node_load1|^node_filesystem_avail_bytes'</span> | head</span>
+</code></pre></div>
+<p>Если пакета нет (минимальный образ, сторонний репозиторий, прокси без него) — ставится бинарником. Это не «плохой способ», это нормальный fallback: один файл, ноль зависимостей.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>ARCH=amd64; VERSION=<span class="tok-n">1.8</span>.<span class="tok-n">2</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">curl</span> -sSL -o /tmp/ne.tar.gz \</span>
+<span class="ln"><span class="ln-i">3</span>  <span class="tok-str">"https://github.com/prometheus/node_exporter/releases/download/v${VERSION}/node_exporter-${VERSION}.linux-${ARCH}.tar.gz"</span></span>
+<span class="ln"><span class="ln-i">4</span>tar -xzf /tmp/ne.tar.gz -C /tmp</span>
+<span class="ln"><span class="ln-i">5</span>install -m <span class="tok-n">0755</span> /tmp/node_exporter-${VERSION}.linux-${ARCH}/node_exporter /usr/<span class="tok-k">local</span>/bin/node_exporter</span>
+<span class="ln"><span class="ln-i">6</span>id prometheus &gt;/dev/null <span class="tok-n">2</span>&gt;&amp;<span class="tok-n">1</span> || useradd -rs /bin/false -M prometheus</span>
+<span class="ln"><span class="ln-i">7</span>install -d -o prometheus -g prometheus -m <span class="tok-n">0755</span> /var/lib/node_exporter/textfile_collector</span>
+</code></pre></div>
+<div class="codeblock" data-lang="ini"><div class="codehead"><span class="code-lang">ini</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># /etc/systemd/system/node-exporter.service</span></span>
+<span class="ln"><span class="ln-i">2</span>[Unit]</span>
+<span class="ln"><span class="ln-i">3</span>Description=Prometheus node exporter</span>
+<span class="ln"><span class="ln-i">4</span>Documentation=https://github.com/prometheus/node_exporter</span>
+<span class="ln"><span class="ln-i">5</span>After=network-online.target</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>[Service]</span>
+<span class="ln"><span class="ln-i">8</span>Type=simple</span>
+<span class="ln"><span class="ln-i">9</span>User=prometheus</span>
+<span class="ln"><span class="ln-i">10</span>Group=prometheus</span>
+<span class="ln"><span class="ln-i">11</span>EnvironmentFile=-/etc/default/node_exporter</span>
+<span class="ln"><span class="ln-i">12</span>ExecStart=/usr/local/bin/node_exporter \</span>
+<span class="ln"><span class="ln-i">13</span>  --collector.textfile.directory=/var/lib/node_exporter/textfile_collector \</span>
+<span class="ln"><span class="ln-i">14</span>  --collector.systemd \</span>
+<span class="ln"><span class="ln-i">15</span>  --web.listen-address=:<span class="tok-n">9100</span></span>
+<span class="ln"><span class="ln-i">16</span>ExecReload=/bin/kill -HUP $MAINPID</span>
+<span class="ln"><span class="ln-i">17</span>Restart=always</span>
+<span class="ln"><span class="ln-i">18</span>RestartSec=<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">19</span>LimitNOFILE=<span class="tok-n">65536</span></span>
+<span class="ln"><span class="ln-i">20</span>NoNewPrivileges=yes</span>
+<span class="ln"><span class="ln-i">21</span>ProtectSystem=strict</span>
+<span class="ln"><span class="ln-i">22</span>ProtectHome=yes</span>
+<span class="ln"><span class="ln-i">23</span>PrivateTmp=yes</span>
+<span class="ln"><span class="ln-i">24</span>ProtectKernelTunables=yes</span>
+<span class="ln"><span class="ln-i">25</span>ProtectControlGroups=yes</span>
+<span class="ln"><span class="ln-i">26</span>RestrictSUIDSGID=yes</span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span>[Install]</span>
+<span class="ln"><span class="ln-i">29</span>WantedBy=multi-user.target</span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">systemctl</span> daemon-reload &amp;&amp; <span class="tok-k">systemctl</span> enable --now node-exporter</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">systemctl</span> status node-exporter --no-pager | head -<span class="tok-n">5</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">curl</span> -s localhost:<span class="tok-n">9100</span>/metrics | <span class="tok-k">grep</span> <span class="tok-str">'^node_textfile'</span> || <span class="tok-k">echo</span> <span class="tok-str">"textfile-пока пуст"</span></span>
+</code></pre></div>
+<p>Если ставил пакетом и хочешь только поменять аргументы — не правь юнит руками, а используй <code>systemctl edit node-exporter</code>, иначе апгрейд пакета перезапишет твои изменения.</p>
+<h2 id="sloy-3b-gost-windows-ad-dc">Слой 3b: гость Windows AD DC</h2>
+<h3 id="pochemu-eto-samaya-slozhnaya-chast">Почему это самая сложная часть</h3>
+<p>Контроллер домена — не «ещё одна Windows-машина». У него есть состояние, которое <strong>нельзя пересоздать из образа</strong>: база <code>NTDS.dit</code>, SYSVOL, учётные записи, SID-ы, учётные записи компьютеров. Залил такой ВМ из дешёвого бэкапа «месячной давности» — получил рассинхрон репликации, отсутствующих пользователей и объяснения пользователям, почему их «уволили» полгода назад.</p>
+<p>Отсюда два правила, которые надо принять до установки экспортёра:</p>
+<ol><li>У всех метрик windows_exporter <strong>английские имена даже в русской локали</strong> Windows. Ищи <code>windows_ad_...</code>, а не <code>windows_домен_...</code>. Авторинговые коды событий при этом остаются цифрами — 4625 это 4625 в любой локали.</li><li>Установка требует прав администратора домена, а не локального администратора.</li></ol>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>winget install prometheus-community.windows_exporter</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># или без winget: скачать windows_exporter-&lt;версия&gt;.amd64.msi и</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-cmt"># msiexec /i windows_exporter-*.msi /quiet</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># C:\Program Files\windows_exporter\windows_exporter.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>collectors:</span>
+<span class="ln"><span class="ln-i">3</span>  enabled:</span>
+<span class="ln"><span class="ln-i">4</span>    - ad</span>
+<span class="ln"><span class="ln-i">5</span>    - cpu</span>
+<span class="ln"><span class="ln-i">6</span>    - dns</span>
+<span class="ln"><span class="ln-i">7</span>    - logical_disk</span>
+<span class="ln"><span class="ln-i">8</span>    - memory</span>
+<span class="ln"><span class="ln-i">9</span>    - network</span>
+<span class="ln"><span class="ln-i">10</span>    - os</span>
+<span class="ln"><span class="ln-i">11</span>    - physical_disk</span>
+<span class="ln"><span class="ln-i">12</span>    - service</span>
+<span class="ln"><span class="ln-i">13</span>    - system</span>
+<span class="ln"><span class="ln-i">14</span>    - time</span>
+<span class="ln"><span class="ln-i">15</span>    - textfile</span>
+<span class="ln"><span class="ln-i">16</span>  disabled: [mssql, iis, netframework, vmware, thermal]</span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span>textfile:</span>
+<span class="ln"><span class="ln-i">19</span>  directory: <span class="tok-str">'C:\Program Files\windows_exporter\textfile_collector'</span></span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span>enable_com_handler: <span class="tok-k">true</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>Get-Service windows_exporter</span>
+<span class="ln"><span class="ln-i">2</span>curl.exe -k https://localhost:<span class="tok-n">9186</span>/metrics?collector=ad | Select-Object -First <span class="tok-n">15</span></span>
+<span class="ln"><span class="ln-i">3</span>curl.exe -k https://localhost:<span class="tok-n">9186</span>/metrics | findstr /C:<span class="tok-str">"ad_ntds"</span> /C:<span class="tok-str">"ntds_dit"</span></span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>New-NetFirewallRule -DisplayName <span class="tok-str">'windows_exporter (Prometheus)'</span> `</span>
+<span class="ln"><span class="ln-i">6</span>  -Direction Inbound -Protocol TCP -LocalPort <span class="tok-n">9186</span> `</span>
+<span class="ln"><span class="ln-i">7</span>  -RemoteAddress <span class="tok-n">10.10</span>.<span class="tok-n">10.0</span>/<span class="tok-n">24</span> -Action Allow</span>
+</code></pre></div>
+<p>Коллектор <code>logical_disk</code> в старых сборках назывался <code>file_systems</code> — если у тебя старая версия, проверь <code>curl -k https://localhost:9186/metrics | findstr /C:"collector_success"</code> и посмотри, какие коллекторы реально включились.</p>
+<h3 id="kollektory-domena-i-klyuchevye-metriki">Коллекторы домена и ключевые метрики</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Коллектор</th>
+<th style="text-align:left">Что собирает</th>
+<th style="text-align:left">Ключевые метрики</th>
+<th style="text-align:left">Почему важно</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>ad</code></td>
+<td style="text-align:left">состояние служб каталога</td>
+<td style="text-align:left"><code>windows_ad_ldap_client_sessions</code>, <code>windows_ad_atq_outstanding_requests</code>, <code>windows_ad_replication_pending_operations</code>, <code>windows_ad_replication_sync_requests_schema_mismatch_failure_total</code></td>
+<td style="text-align:left">очередь LDAP и отставшая репликация — ранние признаки деградации</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>time</code></td>
+<td style="text-align:left">Windows Time Service</td>
+<td style="text-align:left"><code>windows_time_offset_seconds</code></td>
+<td style="text-align:left">рассинхрон ломает Kerberos: вход падает с ошибкой 0x8007052D</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>service</code></td>
+<td style="text-align:left">состояние служб</td>
+<td style="text-align:left"><code>windows_service_state{name="NTDS|Netlogon|DFSR|DNS"}</code></td>
+<td style="text-align:left">NTDS не в <code>running</code> = контроллер домена мёртв для клиентов</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>dns</code></td>
+<td style="text-align:left">DNS-сервер</td>
+<td style="text-align:left"><code>windows_dns_...</code></td>
+<td style="text-align:left">без DNS домен не резолвится, пользователи не заходят</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>physical_disk</code></td>
+<td style="text-align:left">физические диски</td>
+<td style="text-align:left"><code>windows_physical_disk_health_status</code>, <code>windows_physical_disk_size_bytes</code></td>
+<td style="text-align:left">здоровье диска ВМ, а не самого контроллера</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>logical_disk</code></td>
+<td style="text-align:left">логические тома</td>
+<td style="text-align:left"><code>windows_logical_disk_size_bytes</code>, <code>..._free_bytes</code></td>
+<td style="text-align:left">NTDS и база WDS/SCCM могут расти быстрее всего</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>os</code></td>
+<td style="text-align:left">ОС</td>
+<td style="text-align:left"><code>windows_os_info</code>, <code>windows_os_memory_free_bytes</code>, uptime</td>
+<td style="text-align:left">общая картина гостя</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>textfile</code></td>
+<td style="text-align:left">кастомные <code>.prom</code></td>
+<td style="text-align:left">всё, что ты туда положил</td>
+<td style="text-align:left">сюда попадёт NTDS.dit</td>
+</tr>
+</tbody></table></div>
+<h3 id="dyra-kotoruyu-nado-zakryt-rost-ntdsdit">Дыра, которую надо закрыть: рост NTDS.dit</h3>
+<p>Это причина №1 тормозов Active Directory на маленьком контуре, и ни один штатный коллектор её не показывает. Механизм такой: при загрузке DC весь <code>NTDS.dit</code> (а он может быть 20–40 ГБ) читается в память. Пока он влезает в кэш — всё быстро. Перестал влезать — каждая операция логина идёт на диск, и AD «встаёт колом», хотя CPU и сеть в норме.</p>
+<p>Что сделать: раз в 5–15 минут измерять размер файла и класть его в textfile-коллектор. Заодно посчитаем события, которые о нём же говорят.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># C:\ProgramData\ad-textfile\ad-custom.ps1</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Кладёт кастомные метрики AD в textfile-коллектор windows_exporter.</span></span>
+<span class="ln"><span class="ln-i">3</span>$ErrorActionPreference = <span class="tok-str">'Stop'</span></span>
+<span class="ln"><span class="ln-i">4</span>$OutDir  = <span class="tok-str">'C:\Program Files\windows_exporter\textfile_collector'</span></span>
+<span class="ln"><span class="ln-i">5</span>$OutFile = Join-Path $OutDir <span class="tok-str">'ad_custom.prom'</span></span>
+<span class="ln"><span class="ln-i">6</span>$TmpFile = <span class="tok-str">"$OutFile.tmp"</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>$L = New-Object <span class="tok-str">'System.Collections.Generic.List[string]'</span></span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_ntds_dit_size_bytes Размер базы данных Active Directory, байты'</span>)</span>
+<span class="ln"><span class="ln-i">11</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_ntds_dit_size_bytes gauge'</span>)</span>
+<span class="ln"><span class="ln-i">12</span>$Dit = Get-Item <span class="tok-str">'C:\Windows\NTDS\ntds.dit'</span> -ErrorAction SilentlyContinue</span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-fn">if</span> ($Dit) {</span>
+<span class="ln"><span class="ln-i">14</span>    $L.<span class="tok-fn">Add</span>((<span class="tok-str">'ad_ntds_dit_size_bytes {0}'</span> -f $Dit.Length))</span>
+<span class="ln"><span class="ln-i">15</span>    $L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_ntds_dit_age_hours Часов с последней записи в NTDS.dit'</span>)</span>
+<span class="ln"><span class="ln-i">16</span>    $L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_ntds_dit_age_hours gauge'</span>)</span>
+<span class="ln"><span class="ln-i">17</span>    $L.<span class="tok-fn">Add</span>((<span class="tok-str">'ad_ntds_dit_age_hours {0}'</span> -<span class="tok-fn">f</span> ([math]::<span class="tok-fn">Round</span>(((Get-Date) - $Dit.LastWriteTime).TotalHours, <span class="tok-n">2</span>))))</span>
+<span class="ln"><span class="ln-i">18</span>} else {</span>
+<span class="ln"><span class="ln-i">19</span>    $L.<span class="tok-fn">Add</span>(<span class="tok-str">'ad_ntds_dit_size_bytes 0'</span>)</span>
+<span class="ln"><span class="ln-i">20</span>}</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_sysvol_free_bytes Свободно на системном томе, байты'</span>)</span>
+<span class="ln"><span class="ln-i">23</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_sysvol_free_bytes gauge'</span>)</span>
+<span class="ln"><span class="ln-i">24</span>$Vol = Get-CimInstance Win32_LogicalDisk -Filter <span class="tok-str">"DeviceID='C:'"</span></span>
+<span class="ln"><span class="ln-i">25</span>$L.<span class="tok-fn">Add</span>((<span class="tok-str">'ad_sysvol_free_bytes {0}'</span> -f $Vol.FreeSpace))</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_directory_service_events События журнала Directory Service за 15 минут'</span>)</span>
+<span class="ln"><span class="ln-i">28</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_directory_service_events gauge'</span>)</span>
+<span class="ln"><span class="ln-i">29</span><span class="tok-fn">foreach</span> ($Code in <span class="tok-n">4000</span>, <span class="tok-n">4013</span>, <span class="tok-n">4028</span>, <span class="tok-n">4615</span>) {</span>
+<span class="ln"><span class="ln-i">30</span>    $N = @(Get-WinEvent -FilterHashtable @{</span>
+<span class="ln"><span class="ln-i">31</span>        LogName = <span class="tok-str">'Directory Service'</span>; Id = $Code</span>
+<span class="ln"><span class="ln-i">32</span>        StartTime = (Get-Date).<span class="tok-fn">AddMinutes</span>(-<span class="tok-n">15</span>)</span>
+<span class="ln"><span class="ln-i">33</span>    } -ErrorAction SilentlyContinue).Count</span>
+<span class="ln"><span class="ln-i">34</span>    $L.<span class="tok-fn">Add</span>((<span class="tok-str">'ad_directory_service_events{{code="{0}"}} {1}'</span> -f $Code, $N))</span>
+<span class="ln"><span class="ln-i">35</span>}</span>
+<span class="ln"><span class="ln-i">36</span></span>
+<span class="ln"><span class="ln-i">37</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_failed_logon_total Неуспешные входы за 15 минут'</span>)</span>
+<span class="ln"><span class="ln-i">38</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_failed_logon_total gauge'</span>)</span>
+<span class="ln"><span class="ln-i">39</span>$Fail = @(Get-WinEvent -FilterHashtable @{</span>
+<span class="ln"><span class="ln-i">40</span>    LogName = <span class="tok-str">'Security'</span>; Id = <span class="tok-n">4625</span></span>
+<span class="ln"><span class="ln-i">41</span>    StartTime = (Get-Date).<span class="tok-fn">AddMinutes</span>(-<span class="tok-n">15</span>)</span>
+<span class="ln"><span class="ln-i">42</span>} -ErrorAction SilentlyContinue).Count</span>
+<span class="ln"><span class="ln-i">43</span>$L.<span class="tok-fn">Add</span>((<span class="tok-str">'ad_failed_logon_total {0}'</span> -f $Fail))</span>
+<span class="ln"><span class="ln-i">44</span></span>
+<span class="ln"><span class="ln-i">45</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# HELP ad_textfile_script_up Скрипт отработал успешно'</span>)</span>
+<span class="ln"><span class="ln-i">46</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'# TYPE ad_textfile_script_up gauge'</span>)</span>
+<span class="ln"><span class="ln-i">47</span>$L.<span class="tok-fn">Add</span>(<span class="tok-str">'ad_textfile_script_up 1'</span>)</span>
+<span class="ln"><span class="ln-i">48</span></span>
+<span class="ln"><span class="ln-i">49</span>[System.IO.File]::<span class="tok-fn">WriteAllLines</span>($TmpFile, $L)</span>
+<span class="ln"><span class="ln-i">50</span>Move-Item -Force $TmpFile $OutFile</span>
+</code></pre></div>
+<p>Значения кодов: <strong>4000</strong> и <strong>4013</strong> — внутренняя ошибка службы каталога, чаще всего проблемы с базой или нехватка памяти при выделении; <strong>4028</strong> — общая внутренняя ошибка БД NTDS, обычно следствие рассинхрона времени или рассогласования <code>CN</code>; <strong>4615</strong> — контроллер домена не смог получить доступ к журналу безопасности; <strong>4625</strong> — неуспешный вход (нужен ещё аудит «Logon/Logoff», на контроллере домена он включён по умолчанию). Если хочешь читать описания на своей локали — <code>wevtutil gp Directory Service /lf:true | findstr /C:"0x" /C:4000</code>.</p>
+<p>Задание по расписанию. Короткий вариант — одна команда:</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>New-Item -ItemType Directory -Force -Path C:\ProgramData\ad-textfile | Out-Null</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># положи сюда ad-custom.ps1, затем:</span></span>
+<span class="ln"><span class="ln-i">3</span>schtasks /Create /SC MINUTE /MO <span class="tok-n">10</span> /TN <span class="tok-str">"ad-custom-textfile"</span> /TR <span class="tok-str">"powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\ad-textfile\ad-custom.ps1"</span> /RU SYSTEM /RL HIGHEST /F</span>
+<span class="ln"><span class="ln-i">4</span>schtasks /Run /TN <span class="tok-str">"ad-custom-textfile"</span></span>
+<span class="ln"><span class="ln-i">5</span>type <span class="tok-str">"C:\Program Files\windows_exporter\textfile_collector\ad_custom.prom"</span></span>
+</code></pre></div>
+<p>Через <code>Register-ScheduledTask</code> — правильнее: задача видна в планировщике, у неё есть история и нормальная обработка ошибок.</p>
+<div class="codeblock" data-lang="powershell"><div class="codehead"><span class="code-lang">powershell</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>$action = New-ScheduledTaskAction -Execute <span class="tok-str">'powershell.exe'</span> `</span>
+<span class="ln"><span class="ln-i">2</span>  -Argument <span class="tok-str">'-NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\ad-textfile\ad-custom.ps1'</span></span>
+<span class="ln"><span class="ln-i">3</span>$trigger = New-ScheduledTaskTrigger -Once -<span class="tok-fn">At</span> (Get-Date).<span class="tok-fn">AddMinutes</span>(<span class="tok-n">1</span>) `</span>
+<span class="ln"><span class="ln-i">4</span>  -<span class="tok-fn">RepetitionInterval</span> (New-TimeSpan -Minutes <span class="tok-n">5</span>)</span>
+<span class="ln"><span class="ln-i">5</span>$principal = New-ScheduledTaskPrincipal -UserId <span class="tok-str">'SYSTEM'</span> -LogonType ServiceAccount -RunLevel Highest</span>
+<span class="ln"><span class="ln-i">6</span>Register-ScheduledTask -TaskName <span class="tok-str">'ad-custom-textfile'</span> -Action $action `</span>
+<span class="ln"><span class="ln-i">7</span>  -Trigger $trigger -Principal $principal -Force</span>
+<span class="ln"><span class="ln-i">8</span>Start-ScheduledTask -TaskName <span class="tok-str">'ad-custom-textfile'</span></span>
+<span class="ln"><span class="ln-i">9</span>Get-ScheduledTaskInfo -TaskName <span class="tok-str">'ad-custom-textfile'</span></span>
+</code></pre></div>
+<h3 id="qemu-guest-agent-i-pochemu-on-nuzhen">qemu-guest-agent и почему он нужен</h3>
+<p>Без агента гипервизор не получает от гостя ничего, кроме данных о нагрузке. Отсюда — две конкретные дыры:</p>
+<ol><li><strong>Неточная память.</strong> Если у гостя не включён balloon, <code>mem</code> в API покажет всю выделенную память, даже если гость использует треть. Для планирования ёмкости это враньё.</li><li><strong>Нет согласованных бэкапов и заморозки.</strong> Агент умеет <code>fsfreeze</code>/<code>fsthaw</code> — без него снапшот делается «на живую», и об этом ещё будет лекция о бэкапах, но уже в <a href="../../lectures/devops/19-backup-i-dr.html">следующей</a>.</li></ol>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-k">apt</span> install qemu-guest-agent</span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">systemctl</span> enable --now qemu-guest-agent</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">echo</span> -e <span class="tok-str">"nameserver 10.10.10.1\nsearch corp.example.com"</span> &gt;/etc/resolv.conf.d/ad.conf</span>
+</code></pre></div>
+<p>В Windows госте — <code>qemu-ga.msi</code> из ISO Proxmox, служба <code>QEMU Guest Agent</code>. После установки в веб-интерфейсе ВМ появится IP из гостя, а в конфигурации можно включить Balloon Device.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Агент не заменяет метрики изнутри гостя. Он закрывает технический пробел
+между хостом и ВМ. Реальные метрики процессов, дисков и домена даёт
+только экспортёр, запущенный внутри гостя. Одно без другого — дыра.</p></div></div>
+<h2 id="sobiraem-prometheus-i-pravila-alertov">Собираем Prometheus и правила алертов</h2>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># prometheus.yml — цели лаборатории</span></span>
+<span class="ln"><span class="ln-i">2</span>scrape_configs:</span>
+<span class="ln"><span class="ln-i">3</span>  - job_name: pve-exporter</span>
+<span class="ln"><span class="ln-i">4</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">5</span>      - targets: [<span class="tok-str">'pve01.example.com:9103'</span>]</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>  - job_name: pve-node</span>
+<span class="ln"><span class="ln-i">8</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">9</span>      - targets: [<span class="tok-str">'pve01.example.com:9100'</span>]</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span>  - job_name: smart</span>
+<span class="ln"><span class="ln-i">12</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">13</span>      - targets: [<span class="tok-str">'pve01.example.com:9102'</span>]</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>  - job_name: ubuntu</span>
+<span class="ln"><span class="ln-i">16</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">17</span>      - targets:</span>
+<span class="ln"><span class="ln-i">18</span>          - <span class="tok-str">'ubuntu-01.example.com:9100'</span></span>
+<span class="ln"><span class="ln-i">19</span>          - <span class="tok-str">'ubuntu-02.example.com:9100'</span></span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span>  - job_name: windows-ad</span>
+<span class="ln"><span class="ln-i">22</span>    scheme: https</span>
+<span class="ln"><span class="ln-i">23</span>    tls_config:</span>
+<span class="ln"><span class="ln-i">24</span>      insecure_skip_verify: <span class="tok-k">true</span></span>
+<span class="ln"><span class="ln-i">25</span>    basic_auth:</span>
+<span class="ln"><span class="ln-i">26</span>      username: prometheus</span>
+<span class="ln"><span class="ln-i">27</span>      password_file: /etc/prometheus/secrets/win_password</span>
+<span class="ln"><span class="ln-i">28</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">29</span>      - targets: [<span class="tok-str">'dc-01.example.com:9186'</span>]</span>
+<span class="ln"><span class="ln-i">30</span>        labels:</span>
+<span class="ln"><span class="ln-i">31</span>          role: dc</span>
+<span class="ln"><span class="ln-i">32</span>    metric_relabel_configs:</span>
+<span class="ln"><span class="ln-i">33</span>      <span class="tok-cmt"># помечаем ВМ контроллера домена, чтобы правила не били по всем</span></span>
+<span class="ln"><span class="ln-i">34</span>      - source_labels: [id]</span>
+<span class="ln"><span class="ln-i">35</span>        regex: <span class="tok-str">'100'</span></span>
+<span class="ln"><span class="ln-i">36</span>        target_label: role</span>
+<span class="ln"><span class="ln-i">37</span>        replacement: dc</span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># prometheus-rules-lab.yml</span></span>
+<span class="ln"><span class="ln-i">2</span>groups:</span>
+<span class="ln"><span class="ln-i">3</span>  - name: iron</span>
+<span class="ln"><span class="ln-i">4</span>    rules:</span>
+<span class="ln"><span class="ln-i">5</span>      - alert: HypervisorNodeDown</span>
+<span class="ln"><span class="ln-i">6</span>        expr: up{job=~<span class="tok-str">"pve-node|pve-exporter"</span>} == <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">7</span>        for: 2m</span>
+<span class="ln"><span class="ln-i">8</span>        labels: {severity: critical, layer: hardware}</span>
+<span class="ln"><span class="ln-i">9</span>        annotations:</span>
+<span class="ln"><span class="ln-i">10</span>          summary: <span class="tok-str">"Гипервизор не отвечает: {{ $labels.instance }}"</span></span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>      - alert: DiskSmartFailed</span>
+<span class="ln"><span class="ln-i">13</span>        expr: pve_disk_info{health!=<span class="tok-str">"PASSED"</span>} == <span class="tok-n">1</span> or pve_disk_health != <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">14</span>        for: 1m</span>
+<span class="ln"><span class="ln-i">15</span>        labels: {severity: critical, layer: hardware}</span>
+<span class="ln"><span class="ln-i">16</span>        annotations:</span>
+<span class="ln"><span class="ln-i">17</span>          summary: <span class="tok-str">"SMART: диск {{ $labels.dev }} на {{ $labels.node }} — {{ $value }}"</span></span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span>      - alert: NvmeWearoutLow</span>
+<span class="ln"><span class="ln-i">20</span>        expr: pve_disk_wear_percent &lt; <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">21</span>        for: 30m</span>
+<span class="ln"><span class="ln-i">22</span>        labels: {severity: warning, layer: hardware}</span>
+<span class="ln"><span class="ln-i">23</span>        annotations:</span>
+<span class="ln"><span class="ln-i">24</span>          summary: <span class="tok-str">"Ресурс NVMe {{ $labels.dev }} меньше 10%"</span></span>
+<span class="ln"><span class="ln-i">25</span>          description: <span class="tok-str">"Осталось {{ $value }}% ресурса записи. Заказывай замену."</span></span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>  - name: hypervisor</span>
+<span class="ln"><span class="ln-i">28</span>    rules:</span>
+<span class="ln"><span class="ln-i">29</span>      - alert: StealTimeHigh</span>
+<span class="ln"><span class="ln-i">30</span>        expr: |</span>
+<span class="ln"><span class="ln-i">31</span>          sum <span class="tok-fn">by</span> (instance) (<span class="tok-fn">rate</span>(node_cpu_seconds_total{mode=<span class="tok-str">"steal"</span>}[5m]))</span>
+<span class="ln"><span class="ln-i">32</span>            / sum <span class="tok-fn">by</span> (instance) (<span class="tok-fn">rate</span>(node_cpu_seconds_total{mode!=<span class="tok-str">"idle"</span>}[5m])) &gt; <span class="tok-n">0.10</span></span>
+<span class="ln"><span class="ln-i">33</span>        for: 15m</span>
+<span class="ln"><span class="ln-i">34</span>        labels: {severity: warning, layer: hypervisor}</span>
+<span class="ln"><span class="ln-i">35</span>        annotations:</span>
+<span class="ln"><span class="ln-i">36</span>          summary: <span class="tok-str">"Steal {{ $value | humanizePercentage }} на {{ $labels.instance }}"</span></span>
+<span class="ln"><span class="ln-i">37</span>          description: <span class="tok-str">"Гипервизор отбирает CPU у гостей. Проверь загрузку соседних ВМ и настройки vCPU."</span></span>
+<span class="ln"><span class="ln-i">38</span></span>
+<span class="ln"><span class="ln-i">39</span>      - alert: DomainControllerVmDown</span>
+<span class="ln"><span class="ln-i">40</span>        expr: pve_qemu_up{role=<span class="tok-str">"dc"</span>} == <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">41</span>        for: 5m</span>
+<span class="ln"><span class="ln-i">42</span>        labels: {severity: critical, layer: hypervisor}</span>
+<span class="ln"><span class="ln-i">43</span>        annotations:</span>
+<span class="ln"><span class="ln-i">44</span>          summary: <span class="tok-str">"ВМ контроллера домена выключена ({{ $labels.name }})"</span></span>
+<span class="ln"><span class="ln-i">45</span></span>
+<span class="ln"><span class="ln-i">46</span>      - alert: HypervisorMemoryPressure</span>
+<span class="ln"><span class="ln-i">47</span>        expr: |</span>
+<span class="ln"><span class="ln-i">48</span>          (<span class="tok-n">1</span> - pve_memory_avail_bytes / pve_memory_total_bytes) &gt; <span class="tok-n">0.90</span></span>
+<span class="ln"><span class="ln-i">49</span>        for: 10m</span>
+<span class="ln"><span class="ln-i">50</span>        labels: {severity: warning, layer: hypervisor}</span>
+<span class="ln"><span class="ln-i">51</span></span>
+<span class="ln"><span class="ln-i">52</span>  - name: guest</span>
+<span class="ln"><span class="ln-i">53</span>    rules:</span>
+<span class="ln"><span class="ln-i">54</span>      - alert: GuestDown</span>
+<span class="ln"><span class="ln-i">55</span>        expr: up{job=~<span class="tok-str">"ubuntu|windows-ad"</span>} == <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">56</span>        for: 3m</span>
+<span class="ln"><span class="ln-i">57</span>        labels: {severity: critical, layer: guest}</span>
+<span class="ln"><span class="ln-i">58</span></span>
+<span class="ln"><span class="ln-i">59</span>      - alert: GuestDiskSpaceLow</span>
+<span class="ln"><span class="ln-i">60</span>        expr: |</span>
+<span class="ln"><span class="ln-i">61</span>          (node_filesystem_avail_bytes{fstype!~<span class="tok-str">"tmpfs|overlay"</span>}</span>
+<span class="ln"><span class="ln-i">62</span>            / node_filesystem_size_bytes{fstype!~<span class="tok-str">"tmpfs|overlay"</span>}) &lt; <span class="tok-n">0.15</span></span>
+<span class="ln"><span class="ln-i">63</span>        for: 15m</span>
+<span class="ln"><span class="ln-i">64</span>        labels: {severity: warning, layer: guest}</span>
+<span class="ln"><span class="ln-i">65</span>        annotations:</span>
+<span class="ln"><span class="ln-i">66</span>          summary: <span class="tok-str">"Мало места на {{ $labels.instance }}:{{ $labels.mountpoint }} ({{ $value | humanizePercentage }})"</span></span>
+<span class="ln"><span class="ln-i">67</span></span>
+<span class="ln"><span class="ln-i">68</span>      - alert: GuestInodesLow</span>
+<span class="ln"><span class="ln-i">69</span>        expr: |</span>
+<span class="ln"><span class="ln-i">70</span>          (node_filesystem_files_free / node_filesystem_files) &lt; <span class="tok-n">0.10</span></span>
+<span class="ln"><span class="ln-i">71</span>          and node_filesystem_files &gt; <span class="tok-n">100000</span></span>
+<span class="ln"><span class="ln-i">72</span>        for: 15m</span>
+<span class="ln"><span class="ln-i">73</span>        labels: {severity: warning, layer: guest}</span>
+<span class="ln"><span class="ln-i">74</span>        annotations:</span>
+<span class="ln"><span class="ln-i">75</span>          summary: <span class="tok-str">"Кончились иноды на {{ $labels.instance }}:{{ $labels.mountpoint }} ({{ $value | humanizePercentage }})"</span></span>
+<span class="ln"><span class="ln-i">76</span>          description: <span class="tok-str">"Свободны файловые дескрипторы, а место есть. Ищи миллионы мелких файлов."</span></span>
+<span class="ln"><span class="ln-i">77</span></span>
+<span class="ln"><span class="ln-i">78</span>  - name: ad</span>
+<span class="ln"><span class="ln-i">79</span>    rules:</span>
+<span class="ln"><span class="ln-i">80</span>      - alert: ADControllerDown</span>
+<span class="ln"><span class="ln-i">81</span>        expr: up{job=<span class="tok-str">"windows-ad"</span>} == <span class="tok-n">0</span> or windows_service_state{name=<span class="tok-str">"NTDS"</span>,state!=<span class="tok-str">"running"</span>} == <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">82</span>        for: 2m</span>
+<span class="ln"><span class="ln-i">83</span>        labels: {severity: critical, layer: ad}</span>
+<span class="ln"><span class="ln-i">84</span>        annotations:</span>
+<span class="ln"><span class="ln-i">85</span>          summary: <span class="tok-str">"Контроллер домена недоступен или NTDS не запущена"</span></span>
+<span class="ln"><span class="ln-i">86</span></span>
+<span class="ln"><span class="ln-i">87</span>      - alert: NTDSDatabaseTooBig</span>
+<span class="ln"><span class="ln-i">88</span>        expr: ad_ntds_dit_size_bytes &gt; <span class="tok-n">30e9</span></span>
+<span class="ln"><span class="ln-i">89</span>        for: 1h</span>
+<span class="ln"><span class="ln-i">90</span>        labels: {severity: warning, layer: ad}</span>
+<span class="ln"><span class="ln-i">91</span>        annotations:</span>
+<span class="ln"><span class="ln-i">92</span>          summary: <span class="tok-str">"NTDS.dit больше 30 ГБ ({{ $value | humanize1024 }})"</span></span>
+<span class="ln"><span class="ln-i">93</span>          description: <span class="tok-str">"База не помещается в кэш — вход в домен будет медленным. Планируй расширение ОЗУ DC."</span></span>
+<span class="ln"><span class="ln-i">94</span></span>
+<span class="ln"><span class="ln-i">95</span>      - alert: ADClockSkew</span>
+<span class="ln"><span class="ln-i">96</span>        expr: <span class="tok-fn">abs</span>(windows_time_offset_seconds) &gt; <span class="tok-n">60</span></span>
+<span class="ln"><span class="ln-i">97</span>        for: 5m</span>
+<span class="ln"><span class="ln-i">98</span>        labels: {severity: critical, layer: ad}</span>
+<span class="ln"><span class="ln-i">99</span>        annotations:</span>
+<span class="ln"><span class="ln-i">100</span>          summary: <span class="tok-str">"Рассинхрон времени на DC: {{ $value }} с"</span></span>
+<span class="ln"><span class="ln-i">101</span>          description: <span class="tok-str">"Kerberos отклонит вход при расхождении больше 5 минут."</span></span>
+<span class="ln"><span class="ln-i">102</span></span>
+<span class="ln"><span class="ln-i">103</span>      - alert: ADReplicationBehind</span>
+<span class="ln"><span class="ln-i">104</span>        expr: windows_ad_replication_pending_operations &gt; <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">105</span>        for: 30m</span>
+<span class="ln"><span class="ln-i">106</span>        labels: {severity: warning, layer: ad}</span>
+<span class="ln"><span class="ln-i">107</span></span>
+<span class="ln"><span class="ln-i">108</span>      - alert: ADSchemaMismatch</span>
+<span class="ln"><span class="ln-i">109</span>        expr: <span class="tok-fn">increase</span>(windows_ad_replication_sync_requests_schema_mismatch_failure_total[1h]) &gt; <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">110</span>        labels: {severity: warning, layer: ad}</span>
+<span class="ln"><span class="ln-i">111</span>        annotations:</span>
+<span class="ln"><span class="ln-i">112</span>          summary: <span class="tok-str">"Конфликт схемы AD (FSMO-роль нужна на одном DC)"</span></span>
+<span class="ln"><span class="ln-i">113</span></span>
+<span class="ln"><span class="ln-i">114</span>      - alert: ADServiceEvent</span>
+<span class="ln"><span class="ln-i">115</span>        expr: <span class="tok-fn">increase</span>(ad_directory_service_events[15m]) &gt; <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">116</span>        labels: {severity: warning, layer: ad}</span>
+<span class="ln"><span class="ln-i">117</span>        annotations:</span>
+<span class="ln"><span class="ln-i">118</span>          summary: <span class="tok-str">"Событие Directory Service, код {{ $labels.code }} (x{{ $value }})"</span></span>
+<span class="ln"><span class="ln-i">119</span></span>
+<span class="ln"><span class="ln-i">120</span>      - alert: ADFailedLogonSpike</span>
+<span class="ln"><span class="ln-i">121</span>        expr: <span class="tok-fn">increase</span>(ad_failed_logon_total[15m]) &gt; <span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">122</span>        labels: {severity: warning, layer: ad}</span>
+<span class="ln"><span class="ln-i">123</span>        annotations:</span>
+<span class="ln"><span class="ln-i">124</span>          summary: <span class="tok-str">"Много неуспешных входов: {{ $value }} за 15 минут"</span></span>
+</code></pre></div>
+<p>Проверка перед загрузкой — обязательный шаг, он спасает от правил, которые не парсятся:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>promtool check config prometheus.yml</span>
+<span class="ln"><span class="ln-i">2</span>promtool check rules prometheus-rules-lab.yml</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">curl</span> -sG localhost:<span class="tok-n">9090</span>/api/v1/query --data-urlencode <span class="tok-str">'query=pve_qemu_up'</span> | python3 -m json.tool</span>
+</code></pre></div>
+<h2 id="proverka-pod-nagruzkoy-ne-zhdi-avarii">Проверка под нагрузкой: не жди аварии</h2>
+<p>Алерт, который ни разу не срабатывал, не работает. Проверь каждый сценарий дешёвым способом — подставь значения через <code>expr</code>:</p>
+<div class="codeblock" data-lang="promql"><div class="codehead"><span class="code-lang">promql</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># имитация недоступного узла</span></span>
+<span class="ln"><span class="ln-i">2</span>up{job=<span class="tok-str">"pve-node"</span>} == <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-cmt"># имитация диска, заполненного на 92%</span></span>
+<span class="ln"><span class="ln-i">5</span>(node_filesystem_avail_bytes / node_filesystem_size_bytes) &lt; <span class="tok-n">0.15</span></span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-cmt"># реальная проверка порога по подставленному значению</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-fn">vector</span>(<span class="tok-n">1</span>) &gt; bool <span class="tok-n">0.5</span></span>
+</code></pre></div>
+<p>Алгоритм: выбрал правило → выставил метрику в заведомо плохое значение через временный textfile-файл или <code>pushgateway</code> → убедился, что алерт перешёл в <code>firing</code> → убрал. Пока это не сделано, правило считается гипотезой.</p>
+<h2 id="simptom-kuda-smotret">Симптом → куда смотреть</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Симптом</th>
+<th style="text-align:left">Слой</th>
+<th style="text-align:left">Первый запрос</th>
+<th style="text-align:left">Если не он — идём дальше</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Пользователи не могут зайти в домен</td>
+<td style="text-align:left">AD</td>
+<td style="text-align:left"><code>windows_ad_ldap_client_sessions</code>, <code>windows_service_state{name="NTDS"}</code></td>
+<td style="text-align:left">рассинхрон времени → память DC → логи Directory Service</td>
+</tr>
+<tr>
+<td style="text-align:left">Вход долгий, но удаётся</td>
+<td style="text-align:left">AD</td>
+<td style="text-align:left"><code>ad_ntds_dit_size_bytes</code>, <code>windows_ad_atq_outstanding_requests</code></td>
+<td style="text-align:left">память DC, <code>iowait</code> внутри гостя</td>
+</tr>
+<tr>
+<td style="text-align:left">Вход падает с ошибкой времени</td>
+<td style="text-align:left">AD</td>
+<td style="text-align:left"><code>windows_time_offset_seconds</code></td>
+<td style="text-align:left">состояние PDC Emulator, DNS</td>
+</tr>
+<tr>
+<td style="text-align:left">ВМ «зависла», но CPU 0%</td>
+<td style="text-align:left">гипервизор</td>
+<td style="text-align:left"><code>pve_qemu_cpu_ratio</code>, <code>pve_qemu_up</code></td>
+<td style="text-align:left">steal на хосте, состояние ВМ в UI</td>
+</tr>
+<tr>
+<td style="text-align:left">Всё тормозит на одном хосте</td>
+<td style="text-align:left">гипервизор</td>
+<td style="text-align:left"><code>pve_load15 / pve_cpu_cores</code></td>
+<td style="text-align:left">steal, iowait, <code>pve_memory_*</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Растёт задержка чтения на хосте</td>
+<td style="text-align:left">железо</td>
+<td style="text-align:left"><code>smartctl -a</code>, <code>pve_disk_info</code></td>
+<td style="text-align:left">NVMe wearout, замена кабеля/диска</td>
+</tr>
+<tr>
+<td style="text-align:left">Гость медленный, хост спокоен</td>
+<td style="text-align:left">гость</td>
+<td style="text-align:left"><code>node_load15</code> внутри гостя</td>
+<td style="text-align:left"><code>node_filesystem_*</code>, <code>node_memory_MemAvailable_bytes</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Метрики ВМ пустые, а ВМ работает</td>
+<td style="text-align:left">гость</td>
+<td style="text-align:left">не установлен экспортёр</td>
+<td style="text-align:left">файрвол, сетевая доступность, авторизация</td>
+</tr>
+<tr>
+<td style="text-align:left">Резкий рост 4625</td>
+<td style="text-align:left">AD</td>
+<td style="text-align:left"><code>ad_failed_logon_total</code></td>
+<td style="text-align:left">аудит: откуда идут попытки, <code>4624</code> рядом</td>
+</tr>
+</tbody></table></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Токен без <code>--privsep 0</code> и без ACL на сам токен.</strong> Команда <code>pveum user token add</code> падает с невнятной ошибкой про права. Причина — не выданные токену права, а не пользователю.</li><li><strong>Установил smartd, но не настроил <code>-m exec</code>.</strong> По умолчанию отчёты уходят письмом на <code>root</code>, которого никто не читает. Диск с деградирующими секторами живёт месяцами.</li><li><strong>Упёрся в лимит API.</strong> Экспортёр делает по запросу на каждую ВМ плюс список. На 200 ВМ это 200+ запросов каждые 15 секунд, и <code>pveproxy</code> начинает отдавать 429. Смягчается увеличением <code>scrape_interval</code> для этого job и кэшированием инвентаря.</li><li><strong>Текст на русском в имени метрики.</strong> Значения лейблов и подписи в <code>.prom</code> должны быть в UTF-8; проверенные имена — латиницей. Метрика с пробелом в имени молча не импортируется.</li><li><strong>Windows-метрики ищутся на русском.</strong> Имена всегда английские, независимо от локали. Час на потерянный поиск.</li><li><strong>Пароль Prometheus к windows_exporter в конфиге открытым текстом.</strong> Держи <code>password_file</code> — этот файл попадает в бэкап и в Git, а пароль из него — в историю.</li><li><strong>Алерт на <code>avg</code> вместо <code>max_over_time</code>.</strong> Короткие пики, которые ломают вход в домен на минуту, никогда не пересекут порог по среднему.</li><li><strong>Скрипт NTDS.dit запускается, но файл не появляется.</strong> Проверь три вещи: каталог <code>textfile_collector</code> существует, задача реально отработала (<code>Get-ScheduledTaskInfo</code>), имя файла заканчивается на <code>.prom</code>. Плюс — запись должна идти во временный файл с последующим <code>Move-Item</code>, иначе коллектор периодически читает наполовину записанный файл.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать три слоя наблюдаемости и для каждого — что он видит и чего не видит</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я создал токен Proxmox с <code>Sys.Audit,VM.Audit,Datastore.Audit</code> напрямую на токене и отключил <code>--privsep</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, почему steal time нельзя получить из API Proxmox и зачем нужен <code>node_exporter</code> на хосте</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, что <code>node_exporter</code> физически не видит температуру материнки и вентиляторы, выбрал ipmi или <code>lm-sensors</code> осознанно, а <code>smartd</code> у меня шлёт отчёты в метрики, а не на почту</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>На контроллере домена работает <code>windows_exporter</code> с коллекторами <code>ad</code>, <code>time</code>, <code>service</code>, <code>physical_disk</code>, <code>logical_disk</code>, <code>textfile</code></span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я измеряю размер <code>NTDS.dit</code> каждые 10 минут, знаю, при каком размере начнутся тормоза входа, и понимаю, почему журналы Directory Service и Security имеют разные коды и локализацию</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я проверил каждое правило алерта искусственно и по строке таблицы «симптом → куда смотреть» сужаю область поиска за три минуты</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, зачем нужен qemu-guest-agent и почему он не заменяет экспортёр в госте</span></label></li></ul>
+<p>Следующая лекция — про <a href="../../lectures/devops/19-backup-i-dr.html">бэкапы и аварийное восстановление</a>: после того как система наблюдаемости поднята, вторая половина эксплуатации — не потерять данные.</p></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери три слоя метрик (железо, гипервизор, гости), включи smartd-сканирование и textfile-коллектор, поставь windows_exporter на контроллер домена со скриптом NTDS.dit, напиши правила алертов из лекции и добавь все источники в один дашборд Grafana.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=obs"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Наблюдаемость» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="devops/18-lab-proxmox-monitoring">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/devops/17-grafana-loki-alerty.html"><span>← Предыдущая</span><b>Grafana, Loki и алерты</b></a>
+        <a class="nav-next" href="../../lectures/devops/19-backup-i-dr.html"><span>Следующая →</span><b>Бэкапы и аварийное восстановление</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "devops/18-lab-proxmox-monitoring";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

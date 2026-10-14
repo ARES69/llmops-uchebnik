@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Оценка LLM-систем — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">J. LLMOps в продакшне</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Оценка LLM-систем</h1>
+        <p class="lead">Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI</p>
+        <div class="meta"><span class="badge">85 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">evaluation</span><span class="tag">golden set</span><span class="tag">llm-as-judge</span><span class="tag">галлюцинации</span><span class="tag">регрессии качества</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#pochemu-dlya-llm-ne-rabotaet-privychnaya-metodika">Почему для LLM не работает привычная методика</a></li><li class="toc-l2"><a href="#chto-imenno-my-ocenivaem">Что именно мы оцениваем</a></li><li class="toc-l2"><a href="#golden-set-test-nabor-kotoryy-otrazhaet-realnost">Golden set: тест-набор, который отражает реальность</a></li><li class="toc-l3"><a href="#skolko-nuzhno-voprosov">Сколько нужно вопросов</a></li><li class="toc-l3"><a href="#sborka-i-razmetka-skolko-eto-stoit">Сборка и разметка: сколько это стоит</a></li><li class="toc-l2"><a href="#metriki-otveta-ot-pohozhe-na-pravdu-k-chislam">Метрики ответа: от «похоже на правду» к числам</a></li><li class="toc-l2"><a href="#gallyucinacii-kak-ih-izmeryat">Галлюцинации: как их измерять</a></li><li class="toc-l2"><a href="#llm-as-a-judge-kak-ispolzovat-model-kak-arbitra">LLM-as-a-judge: как использовать модель как арбитра</a></li><li class="toc-l3"><a href="#ocenka-samoy-ocenki">Оценка самой оценки</a></li><li class="toc-l2"><a href="#regressii-kachestva-v-ci">Регрессии качества в CI</a></li><li class="toc-l2"><a href="#lovushka-srednego-pochemu-087-nichego-ne-znachit">Ловушка среднего: почему 0.87 ничего не значит</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Вся твоя инфраструктурная наблюдаемость до этого момента работала с одним допущением: <strong>у правильного ответа есть эталон</strong>. Упал сервис — выросли 5xx, процесс съел память — сработал OOM, маршрутизатор потерял пакет — выросли dropped. LLM-система это допущение ломает на корню: HTTP 200, p95 в норме, дашборд зелёный — а пользователю пришло уверенное объяснение несуществующего пункта регламента.</p>
+<p>Предыдущая лекция про <a href="../../lectures/mlops/14-bezopasnost-agentov.html">безопасность агентов</a> закрыла вопрос «как не дать агенту сделать разрушительное действие». Здесь закрывается другой, не менее разрушительный: <strong>как узнать, что качество упало, до того как об этом скажут пользователи</strong>. Это и есть та работа, которую теперь делаешь ты как владелец продукта: не «почини loss-функцию», а построить измеримый контур контроля качества и принимать на его основании решения о релизе.</p>
+<h2 id="pochemu-dlya-llm-ne-rabotaet-privychnaya-metodika">Почему для LLM не работает привычная методика</h2>
+<p>У числовой модели тест — это пара «вход, известный ответ», и точность считается делением. У LLM правильного ответа нет: на один и тот же вопрос есть несколько корректных формулировок, а вопрос «что такое допустимая погрешность ответа юриста» вообще не имеет числового ответа. Отсюда три следствия, которые ломают обычный подход к тестированию.</p>
+<ol><li><strong>Метрика качества не выводится из diff'а.</strong> Нельзя посмотреть и сказать «неправильно» — можно только сверять с контекстом, с эталоном или с человеком.</li><li><strong>Проверка дороже продакшена.</strong> Один и тот же вопрос прогоняется и в проде, и в тесте, и разница в цене может быть кратной.</li><li><strong>Деградация непрерывна.</strong> Между «работает отлично» и «выдумывает» нет красной кнопки. Промежуточное состояние — худшее: качество уже просело, но ещё не заметно.</li></ol>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Золотое правило всей отрасли: <strong>качество LLM-системы нельзя улучшить, не зафиксировав его числом</strong>. Пока у тебя нет golden set и порога, любой разговор о качестве — это мнение самого сильного человека в комнате. А он обычно разработчик, у которого только что потратил два дня на промпт.</p></div></div>
+<h2 id="chto-imenno-my-ocenivaem">Что именно мы оцениваем</h2>
+<p>«Качество» — слово без ручек. Разложи его на пять независимых срезов, у каждого из которых своя цифра, свой владелец и свой порог. Этот набор срезов потом войдёт и в <a href="../../lectures/mlops/16-nablyudaemost-llm.html">наблюдаемость</a>, и в <a href="../../lectures/mlops/17-llmops-pipeliney.html">пайплайны</a>, поэтому держи его как канон.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Срез</th>
+<th style="text-align:left">Метрика</th>
+<th style="text-align:left">Порог-пример</th>
+<th style="text-align:left">Кто отвечает</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Содержательное качество</td>
+<td style="text-align:left">groundedness, answer relevancy, полнота</td>
+<td style="text-align:left">groundedness ≥ 0.85</td>
+<td style="text-align:left">ML-команда</td>
+</tr>
+<tr>
+<td style="text-align:left">Надёжность</td>
+<td style="text-align:left">доля отказов вместо выдумки, частота падений, таймауты</td>
+<td style="text-align:left">отказ вместо выдумки ≥ 0.9</td>
+<td style="text-align:left">ML + платформа</td>
+</tr>
+<tr>
+<td style="text-align:left">Стоимость</td>
+<td style="text-align:left">средняя стоимость запроса, токены на запрос</td>
+<td style="text-align:left">≤ 0.004 $</td>
+<td style="text-align:left">ты как владелец</td>
+</tr>
+<tr>
+<td style="text-align:left">Задержка</td>
+<td style="text-align:left">p50/p95 времени до первого токена, полное время</td>
+<td style="text-align:left">p95 ≤ 6 с</td>
+<td style="text-align:left">платформа</td>
+</tr>
+<tr>
+<td style="text-align:left">Безопасность</td>
+<td style="text-align:left">доля ответов с утечкой инструкции, доля вредных ответов</td>
+<td style="text-align:left">утечек = 0</td>
+<td style="text-align:left">безопасность</td>
+</tr>
+</tbody></table></div>
+<p>Разделение принципиальное, потому что у этих метрик <strong>разная скорость изменения и разный уровень повреждения</strong>. Качество может упасть на 3% и никто не заметит месяц. Утечка системного промпта — инцидент в тот же день. Поэтому их нельзя усреднять в один «индекс качества»: такой индекс всегда выглядит хорошо и не реагирует ни на что полезное.</p>
+<h2 id="golden-set-test-nabor-kotoryy-otrazhaet-realnost">Golden set: тест-набор, который отражает реальность</h2>
+<p>Golden set — это зафиксированный список вопросов с ожидаемым поведением системы. Не «тесты на модель», а <strong>репрезентативная выборка из реального трафика</strong>. Три правила, которые отличают рабочий набор от декоративного:</p>
+<ol><li><strong>Источник — логи, а не выдумка.</strong> Бери вопросы из реальных обращений пользователей (см. <a href="../../lectures/mlops/16-nablyudaemost-llm.html">наблюдаемость</a>: трассы пишут prompt целиком). Выдуманные вопросы всегда проще и всегда с «красивыми» формулировками — на них система выглядит лучше, чем в бою.</li><li><strong>Категория обязательна.</strong> Каждому вопросу присваивается категория: <code>договор</code>, <code>сроки</code>, <code>отпуск</code>, <code>зарплата</code>, <code>технический сбой</code>, <code>вопрос вне базы знаний</code>. Без категорий набор бесполезен: см. ниже про ловушку среднего.</li><li><strong>Фиксируй, чего система НЕ должна отвечать.</strong> Вопросы вне базы знаний — обязательная часть набора. Правильный ответ на них: «не знаю, вот куда спросить», а не правдоподобная выдумка.</li></ol>
+<h3 id="skolko-nuzhno-voprosov">Сколько нужно вопросов</h3>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Назначение</th>
+<th style="text-align:left">Размер</th>
+<th style="text-align:left">Что смотреть</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Первый запуск в CI, «чтобы было»</td>
+<td style="text-align:left">50–100</td>
+<td style="text-align:left">не развалилось совсем</td>
+</tr>
+<tr>
+<td style="text-align:left">Рабочий регрессионный набор</td>
+<td style="text-align:left">150–300</td>
+<td style="text-align:left">динамика от коммита к коммиту</td>
+</tr>
+<tr>
+<td style="text-align:left">Полный аудит перед релизом</td>
+<td style="text-align:left">300–1000</td>
+<td style="text-align:left">разбивка по категориям и по сложности</td>
+</tr>
+<tr>
+<td style="text-align:left">Вечерняя продуктовая метрика</td>
+<td style="text-align:left">вся выборка трафика, не сэмпл</td>
+<td style="text-align:left">доля ответов без цитаты, доля отказов</td>
+</tr>
+</tbody></table></div>
+<p>50–300 — это не магия чисел, а компромисс. Ниже 50 каждая отдельная ошибка даёт скачок в среднем на 2 процентных пункта и любое сравнение бессмысленно. Выше 300 прогон в CI становится дорогим по времени и деньгам, и команда начинает запускать его реже. Практика: <strong>в CI гоняй ядро из 100, раз в сутки гоняй полный набор, вручную — перед релизом</strong>.</p>
+<h3 id="sborka-i-razmetka-skolko-eto-stoit">Сборка и разметка: сколько это стоит</h3>
+<p>Реалистичная оценка: один эксперт, 4–6 часов на первые 100 вопросов с разметкой, потом 15–30 минут в неделю на пополнение. Разметка — это три поля, и все три обязательны.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># scripts/build_golden_set.py — сборка ядра набора из продакшн-логов</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Вход: JSONL с трассами (prompt + категория из intent-классификатора), выход: golden.jsonl</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> json, hashlib, random, re, collections</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">from</span> pathlib <span class="tok-k">import</span> Path</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>TRACE_LOG = <span class="tok-fn">Path</span>(<span class="tok-str">"data/prod_traces_7d.jsonl"</span>)</span>
+<span class="ln"><span class="ln-i">7</span>OUT = <span class="tok-fn">Path</span>(<span class="tok-str">"data/golden.jsonl"</span>)</span>
+<span class="ln"><span class="ln-i">8</span>TARGET_PER_CATEGORY = <span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">9</span>random.<span class="tok-fn">seed</span>(<span class="tok-n">42</span>)                      <span class="tok-cmt"># воспроизводимость отбора — обязательна</span></span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span>STOP = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"^(привет|здравствуй|спасибо|ок|а|как дела)\b"</span>, re.I)</span>
+<span class="ln"><span class="ln-i">12</span></span>
+<span class="ln"><span class="ln-i">13</span><span class="tok-k">def</span> <span class="tok-fn">norm</span>(q: str) -&gt; str:</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-k">return</span> re.<span class="tok-fn">sub</span>(r<span class="tok-str">"\s+"</span>, <span class="tok-str">" "</span>, q.<span class="tok-fn">strip</span>().<span class="tok-fn">lower</span>())</span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span>by_cat = collections.<span class="tok-fn">defaultdict</span>(dict)      <span class="tok-cmt"># категория -&gt; хеш вопроса -&gt; пример</span></span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-k">for</span> line <span class="tok-k">in</span> TRACE_LOG.<span class="tok-fn">open</span>(encoding=<span class="tok-str">"utf-8"</span>):</span>
+<span class="ln"><span class="ln-i">19</span>    ev = json.<span class="tok-fn">loads</span>(line)</span>
+<span class="ln"><span class="ln-i">20</span>    q = ev.<span class="tok-fn">get</span>(<span class="tok-str">"input"</span>, {}).<span class="tok-fn">get</span>(<span class="tok-str">"query"</span>, <span class="tok-str">""</span>)</span>
+<span class="ln"><span class="ln-i">21</span>    cat = ev.<span class="tok-fn">get</span>(<span class="tok-str">"metadata"</span>, {}).<span class="tok-fn">get</span>(<span class="tok-str">"intent_category"</span>, <span class="tok-str">"unknown"</span>)</span>
+<span class="ln"><span class="ln-i">22</span>    <span class="tok-k">if</span> <span class="tok-k">not</span> q <span class="tok-k">or</span> STOP.<span class="tok-k">match</span>(q):</span>
+<span class="ln"><span class="ln-i">23</span>        <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">24</span>    h = hashlib.<span class="tok-fn">sha1</span>(<span class="tok-fn">norm</span>(q).<span class="tok-fn">encode</span>()).<span class="tok-fn">hexdigest</span>()[:<span class="tok-n">12</span>]</span>
+<span class="ln"><span class="ln-i">25</span>    by_cat[cat].<span class="tok-fn">setdefault</span>(h, {<span class="tok-str">"query"</span>: q, <span class="tok-str">"category"</span>: cat,</span>
+<span class="ln"><span class="ln-i">26</span>                               <span class="tok-str">"trace_ids"</span>: [], <span class="tok-str">"first_seen"</span>: ev[<span class="tok-str">"timestamp"</span>]})</span>
+<span class="ln"><span class="ln-i">27</span>    by_cat[cat][h][<span class="tok-str">"trace_ids"</span>].<span class="tok-fn">append</span>(ev[<span class="tok-str">"trace_id"</span>])   <span class="tok-cmt"># сколько раз спрашивали</span></span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span>rows = []</span>
+<span class="ln"><span class="ln-i">30</span><span class="tok-k">for</span> cat, pool <span class="tok-k">in</span> by_cat.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">31</span>    <span class="tok-cmt"># Отбор по частоте, а не случайно: частые вопросы = 70% реальной нагрузки,</span></span>
+<span class="ln"><span class="ln-i">32</span>    <span class="tok-cmt"># редкие забытые. Редкие добираем отдельно — они бьёт по качеству сильнее всего.</span></span>
+<span class="ln"><span class="ln-i">33</span>    ranked = <span class="tok-fn">sorted</span>(pool.<span class="tok-fn">values</span>(), key=<span class="tok-k">lambda</span> r: -<span class="tok-fn">len</span>(r[<span class="tok-str">"trace_ids"</span>]))</span>
+<span class="ln"><span class="ln-i">34</span>    head = ranked[: <span class="tok-fn">int</span>(TARGET_PER_CATEGORY * <span class="tok-n">0.7</span>)]</span>
+<span class="ln"><span class="ln-i">35</span>    tail = random.<span class="tok-fn">sample</span>(ranked[<span class="tok-fn">int</span>(TARGET_PER_CATEGORY * <span class="tok-n">0.7</span>):],</span>
+<span class="ln"><span class="ln-i">36</span>                         <span class="tok-fn">min</span>(<span class="tok-fn">len</span>(ranked) - <span class="tok-fn">len</span>(head), TARGET_PER_CATEGORY - <span class="tok-fn">len</span>(head)))</span>
+<span class="ln"><span class="ln-i">37</span>    <span class="tok-k">for</span> r <span class="tok-k">in</span> head + tail:</span>
+<span class="ln"><span class="ln-i">38</span>        r[<span class="tok-str">"frequency"</span>] = <span class="tok-fn">len</span>(r[<span class="tok-str">"trace_ids"</span>])</span>
+<span class="ln"><span class="ln-i">39</span>        rows.<span class="tok-fn">append</span>(r)</span>
+<span class="ln"><span class="ln-i">40</span></span>
+<span class="ln"><span class="ln-i">41</span>OUT.parent.<span class="tok-fn">mkdir</span>(parents=True, exist_ok=True)</span>
+<span class="ln"><span class="ln-i">42</span><span class="tok-k">with</span> OUT.<span class="tok-fn">open</span>(<span class="tok-str">"w"</span>, encoding=<span class="tok-str">"utf-8"</span>) <span class="tok-k">as</span> f:</span>
+<span class="ln"><span class="ln-i">43</span>    <span class="tok-k">for</span> r <span class="tok-k">in</span> rows:</span>
+<span class="ln"><span class="ln-i">44</span>        f.<span class="tok-fn">write</span>(json.<span class="tok-fn">dumps</span>(r, ensure_ascii=False) + <span class="tok-str">"\n"</span>)</span>
+<span class="ln"><span class="ln-i">45</span></span>
+<span class="ln"><span class="ln-i">46</span><span class="tok-fn">print</span>(f<span class="tok-str">"golden: {len(rows)} вопросов, категорий: {len(by_cat)}"</span>)</span>
+<span class="ln"><span class="ln-i">47</span><span class="tok-fn">print</span>(collections.<span class="tok-fn">Counter</span>(r[<span class="tok-str">"category"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> rows).<span class="tok-fn">most_common</span>())</span>
+</code></pre></div>
+<p>После этого эксперт размечает <code>expected_facts</code> (список фактов, которые обязаны быть), <code>must_cite</code> (нужна ли ссылка на источник) и <code>should_refuse</code> (ожидается отказ). Отметим важное: <strong>разметка фактов, а не ответов</strong>. Заставлять эксперта писать «эталонный ответ» — ловушка: система начнёт оптимизироваться под одну формулировку и просядет на всех остальных. Факты — это контракт, устойчивый к перефразированию.</p>
+<h2 id="metriki-otveta-ot-pohozhe-na-pravdu-k-chislam">Метрики ответа: от «похоже на правду» к числам</h2>
+<p>Разберём метрики в порядке, в котором их реально смотрят. Все они считаются на одном прогоне golden set и складываются в одну строку отчёта.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метрика</th>
+<th style="text-align:left">Что измеряет</th>
+<th style="text-align:left">Метод</th>
+<th style="text-align:left">Типичное значение</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Groundedness / faithfulness</strong></td>
+<td style="text-align:left">каждое утверждение ответа опирается на переданный контекст</td>
+<td style="text-align:left">проверка каждого утверждения против чанков</td>
+<td style="text-align:left">0.80–0.95</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Answer relevancy</strong></td>
+<td style="text-align:left">отвечает ли на заданный вопрос, а не на соседний</td>
+<td style="text-align:left">LLM-судья по паре (вопрос, ответ)</td>
+<td style="text-align:left">0.85–0.98</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Полнота</strong></td>
+<td style="text-align:left">покрыты ли все части многосоставного вопроса</td>
+<td style="text-align:left">декомпозиция на подпункты, проверка покрытия</td>
+<td style="text-align:left">0.70–0.90</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Формальное соответствие</strong></td>
+<td style="text-align:left">валиден ли JSON, соблюдена ли схема и длина</td>
+<td style="text-align:left">парсинг + JSON Schema, детерминированно</td>
+<td style="text-align:left">0.98–1.00</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Цитируемость</strong></td>
+<td style="text-align:left">есть ли ссылка и релевантен ли источник</td>
+<td style="text-align:left">доля ответов с валидной ссылкой на контекст</td>
+<td style="text-align:left">0.85–0.99</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Отказ от ответа</strong></td>
+<td style="text-align:left">«я не знаю» там, где данных нет</td>
+<td style="text-align:left">доля <code>should_refuse</code>-вопросов с корректным отказом</td>
+<td style="text-align:left">0.90–1.00</td>
+</tr>
+</tbody></table></div>
+<p>Отдельно про два последних, потому что их постоянно путают.</p>
+<p><strong>Отказ — это хорошо.</strong> Метрика <code>should_refuse</code> — самая недооценённая в проектах. Если 40% вопросов не имеют ответа в базе, а система отказывает в 5% случаев — она галлюцинирует на остальных 35%, и никакой groundedness на RAG-пайплайне это не покажет, потому что она подтверждает только явно выдуманное, а модель уверенно пересказывает соседний документ. Отказ надо <strong>просить и вознаграждать в промпте</strong>, а не наказывать.</p>
+<p><strong>Формальное соответствие — единственная метрика без LLM.</strong> JSON валиден или нет, длина в лимите или нет, поле присутствует или нет. Её можно и нужно считать детерминированно в том же прогоне, и она же роняет сборку при первом же нарушении: это дешёвый и абсолютный сигнал, в отличие от «оценки 0.87».</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/metrics.py — детерминированные метрики + сборка в одну строку отчёта</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> json, re</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">from</span> jsonschema <span class="tok-k">import</span> Draft202012Validator</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>RESPONSE_SCHEMA = {</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-str">"type"</span>: <span class="tok-str">"object"</span>,</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-str">"required"</span>: [<span class="tok-str">"answer"</span>, <span class="tok-str">"sources"</span>],</span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-str">"properties"</span>: {</span>
+<span class="ln"><span class="ln-i">9</span>        <span class="tok-str">"answer"</span>: {<span class="tok-str">"type"</span>: <span class="tok-str">"string"</span>, <span class="tok-str">"minLength"</span>: <span class="tok-n">1</span>, <span class="tok-str">"maxLength"</span>: <span class="tok-n">4000</span>},</span>
+<span class="ln"><span class="ln-i">10</span>        <span class="tok-str">"sources"</span>: {<span class="tok-str">"type"</span>: <span class="tok-str">"array"</span>, <span class="tok-str">"minItems"</span>: <span class="tok-n">1</span>,</span>
+<span class="ln"><span class="ln-i">11</span>                    <span class="tok-str">"items"</span>: {<span class="tok-str">"type"</span>: <span class="tok-str">"object"</span>,</span>
+<span class="ln"><span class="ln-i">12</span>                              <span class="tok-str">"required"</span>: [<span class="tok-str">"doc_id"</span>, <span class="tok-str">"chunk_id"</span>],</span>
+<span class="ln"><span class="ln-i">13</span>                              <span class="tok-str">"properties"</span>: {<span class="tok-str">"doc_id"</span>: {<span class="tok-str">"type"</span>: <span class="tok-str">"string"</span>},</span>
+<span class="ln"><span class="ln-i">14</span>                                             <span class="tok-str">"chunk_id"</span>: {<span class="tok-str">"type"</span>: <span class="tok-str">"string"</span>}}}},</span>
+<span class="ln"><span class="ln-i">15</span>    },</span>
+<span class="ln"><span class="ln-i">16</span>}</span>
+<span class="ln"><span class="ln-i">17</span>_validator = <span class="tok-fn">Draft202012Validator</span>(RESPONSE_SCHEMA)</span>
+<span class="ln"><span class="ln-i">18</span></span>
+<span class="ln"><span class="ln-i">19</span><span class="tok-k">def</span> <span class="tok-fn">check_format</span>(raw: str, allowed_chunk_ids: set[str]) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-str">"""Возвращает под-метрики формальной корректности. Без LLM — детерминированно."""</span></span>
+<span class="ln"><span class="ln-i">21</span>    out = {<span class="tok-str">"format_valid"</span>: False, <span class="tok-str">"parsed"</span>: False, <span class="tok-str">"citation_valid"</span>: False, <span class="tok-str">"n_sources"</span>: <span class="tok-n">0</span>}</span>
+<span class="ln"><span class="ln-i">22</span>    <span class="tok-k">try</span>:</span>
+<span class="ln"><span class="ln-i">23</span>        data = json.<span class="tok-fn">loads</span>(raw)</span>
+<span class="ln"><span class="ln-i">24</span>    <span class="tok-k">except</span> json.JSONDecodeError:</span>
+<span class="ln"><span class="ln-i">25</span>        <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">26</span>    out[<span class="tok-str">"parsed"</span>] = True</span>
+<span class="ln"><span class="ln-i">27</span>    errors = <span class="tok-fn">sorted</span>(_validator.<span class="tok-fn">iter_errors</span>(data), key=<span class="tok-k">lambda</span> e: e.path)</span>
+<span class="ln"><span class="ln-i">28</span>    out[<span class="tok-str">"format_valid"</span>] = <span class="tok-k">not</span> errors</span>
+<span class="ln"><span class="ln-i">29</span>    out[<span class="tok-str">"errors"</span>] = [f<span class="tok-str">"{list(e.path)}: {e.message}"</span> <span class="tok-k">for</span> e <span class="tok-k">in</span> errors[:<span class="tok-n">3</span>]]</span>
+<span class="ln"><span class="ln-i">30</span>    srcs = data.<span class="tok-fn">get</span>(<span class="tok-str">"sources"</span>) <span class="tok-k">or</span> []</span>
+<span class="ln"><span class="ln-i">31</span>    out[<span class="tok-str">"n_sources"</span>] = <span class="tok-fn">len</span>(srcs)</span>
+<span class="ln"><span class="ln-i">32</span>    <span class="tok-cmt"># Цитируемость: все указанные источники реально были в контексте</span></span>
+<span class="ln"><span class="ln-i">33</span>    out[<span class="tok-str">"citation_valid"</span>] = <span class="tok-fn">bool</span>(srcs) <span class="tok-k">and</span> <span class="tok-fn">all</span>(</span>
+<span class="ln"><span class="ln-i">34</span>        s.<span class="tok-fn">get</span>(<span class="tok-str">"chunk_id"</span>) <span class="tok-k">in</span> allowed_chunk_ids <span class="tok-k">for</span> s <span class="tok-k">in</span> srcs</span>
+<span class="ln"><span class="ln-i">35</span>    )</span>
+<span class="ln"><span class="ln-i">36</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">37</span></span>
+<span class="ln"><span class="ln-i">38</span><span class="tok-k">def</span> <span class="tok-fn">refusal_detected</span>(answer: str, should_refuse: bool) -&gt; bool:</span>
+<span class="ln"><span class="ln-i">39</span>    pat = re.<span class="tok-fn">compile</span>(r<span class="tok-str">"(не наш(ел|ла|и)|нет (информации|данных|информации в базе)|"</span></span>
+<span class="ln"><span class="ln-i">40</span>                     r<span class="tok-str">"не могу найти|уточните|обратитесь)"</span>, re.I)</span>
+<span class="ln"><span class="ln-i">41</span>    said = <span class="tok-fn">bool</span>(pat.<span class="tok-fn">search</span>(answer))</span>
+<span class="ln"><span class="ln-i">42</span>    <span class="tok-k">return</span> said == should_refuse          <span class="tok-cmt"># TP, если поведение совпало с ожиданием</span></span>
+<span class="ln"><span class="ln-i">43</span></span>
+<span class="ln"><span class="ln-i">44</span><span class="tok-k">def</span> <span class="tok-fn">score_row</span>(row: dict, raw: str, allowed_chunk_ids: set[str]) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">45</span>    fmt = <span class="tok-fn">check_format</span>(raw, allowed_chunk_ids)</span>
+<span class="ln"><span class="ln-i">46</span>    <span class="tok-k">return</span> {</span>
+<span class="ln"><span class="ln-i">47</span>        <span class="tok-str">"id"</span>: row[<span class="tok-str">"id"</span>],</span>
+<span class="ln"><span class="ln-i">48</span>        <span class="tok-str">"category"</span>: row[<span class="tok-str">"category"</span>],</span>
+<span class="ln"><span class="ln-i">49</span>        <span class="tok-str">"expected_facts"</span>: row.<span class="tok-fn">get</span>(<span class="tok-str">"expected_facts"</span>, []),</span>
+<span class="ln"><span class="ln-i">50</span>        <span class="tok-str">"should_refuse"</span>: row.<span class="tok-fn">get</span>(<span class="tok-str">"should_refuse"</span>, False),</span>
+<span class="ln"><span class="ln-i">51</span>        <span class="tok-str">"refusal_ok"</span>: <span class="tok-fn">refusal_detected</span>(raw <span class="tok-k">if</span> fmt[<span class="tok-str">"parsed"</span>] <span class="tok-k">else</span> <span class="tok-str">""</span>, row.<span class="tok-fn">get</span>(<span class="tok-str">"should_refuse"</span>, False)),</span>
+<span class="ln"><span class="ln-i">52</span>        **fmt,</span>
+<span class="ln"><span class="ln-i">53</span>    }</span>
+</code></pre></div>
+<h2 id="gallyucinacii-kak-ih-izmeryat">Галлюцинации: как их измерять</h2>
+<p>Галлюцинация — утверждение, которого нет в источниках. Измерить её в общем виде нельзя: «сравнить текст с фактами» без списка фактов — это операция без определения. Работающих способов ровно три, и у каждого своя цена.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Метод</th>
+<th style="text-align:left">Как работает</th>
+<th style="text-align:left">Стоимость</th>
+<th style="text-align:left">Что ловит</th>
+<th style="text-align:left">Чего не ловит</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Fact-check против контекста</strong></td>
+<td style="text-align:left">каждое утверждение → «подтверждается ли контекстом?»</td>
+<td style="text-align:left">1 LLM-вызов на ответ</td>
+<td style="text-align:left">прямые выдумки цифр, имён, сроков</td>
+<td style="text-align:left">выводы, которые контекст не содержит, но они верны</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Факт-чекинг по внешнему миру</strong></td>
+<td style="text-align:left">сверка с отраслевыми фактами через отдельный поиск</td>
+<td style="text-align:left">5–20 LLM-вызовов на ответ</td>
+<td style="text-align:left">галлюцинации в части «из мира», а не из базы</td>
+<td style="text-align:left">не применимо к внутренним регламентам</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Атрибуция к источнику</strong></td>
+<td style="text-align:left">цитата есть и чанк действительно про это</td>
+<td style="text-align:left">~0 (детерминированно)</td>
+<td style="text-align:left">ответы «без опоры»</td>
+<td style="text-align:left">наглость приписывания неверного чанка</td>
+</tr>
+</tbody></table></div>
+<p>Практический выбор для команды разработки — первый плюс третий: <strong>fact-check по утверждениям + строгая проверка цитат</strong>. Второй метод оставь для аудита раз в квартал силами эксперта.</p>
+<p>От чего зависит rate галлюцинаций — таблица, которую стоит повесить в описании системы, потому что на неё ссылаются при спорах «мы же ничего не меняли»:</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Настройка</th>
+<th style="text-align:left">Влияние на галлюцинации</th>
+<th style="text-align:left">Почему</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>temperature</code> 0.0–0.2 против 0.8</td>
+<td style="text-align:left">сильно вниз</td>
+<td style="text-align:left">высокая температура — это выборочный сэмплинг, а не «креативность»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>top_k</code> 20 против 5</td>
+<td style="text-align:left">вниз в 2–3 раза</td>
+<td style="text-align:left">шумный контекст заставляет модель «компенсировать» отсутствие факта догадкой</td>
+</tr>
+<tr>
+<td style="text-align:left">reranker перед генерацией</td>
+<td style="text-align:left">вниз в 1.5–2 раза</td>
+<td style="text-align:left">убирает формально похожие, но нерелевантные чанки — главный источник путаницы</td>
+</tr>
+<tr>
+<td style="text-align:left">max_tokens слишком большой</td>
+<td style="text-align:left">вверх</td>
+<td style="text-align:left">модель «дописывает» структуру там, где данных нет</td>
+</tr>
+<tr>
+<td style="text-align:left">контекст &gt; половины окна</td>
+<td style="text-align:left">вверх резко</td>
+<td style="text-align:left">начало и середина страдают сильнее конца — attention к краям</td>
+</tr>
+<tr>
+<td style="text-align:left">fine-tune на узком домене</td>
+<td style="text-align:left">вниз</td>
+<td style="text-align:left">модель знает формулировки и не выдумывает термины</td>
+</tr>
+<tr>
+<td style="text-align:left">инструкция «если данных нет — скажи прямо»</td>
+<td style="text-align:left">вниз</td>
+<td style="text-align:left">но полностью убрать галлюцинации не может</td>
+</tr>
+</tbody></table></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Таблица выше описывает <strong>средние тенденции</strong>, а не гарантии. Любой, кто скажет «мы подняли top_k до 20 и выдумки исчезли», продаёт вам несбыточное обещание. Галлюцинации у LLM не устраняются настройкой — они только уменьшаются в частоте. Единственный способ получить жёсткую границу — сделать так, чтобы у системы <strong>физически не было</strong> данных, откуда она может выдумать ответ: цитата обязательна, без цитаты ответ не отдаётся.</p></div></div>
+<h2 id="llm-as-a-judge-kak-ispolzovat-model-kak-arbitra">LLM-as-a-judge: как использовать модель как арбитра</h2>
+<p>Прямых правильных ответов нет, людей мало, а размечать надо много. Решение — модель-судья: та же LLM, но с другой задачей — не ответить, а оценить. Механика простая, а грабли в ней много.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/judge.py — судья как версионируемый артефакт</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> os, json, hashlib</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">from</span> openai <span class="tok-k">import</span> OpenAI</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>client = <span class="tok-fn">OpenAI</span>(api_key=os.environ[<span class="tok-str">"LLM_API_KEY"</span>],</span>
+<span class="ln"><span class="ln-i">6</span>                base_url=os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"LLM_BASE_URL"</span>, <span class="tok-str">"https://api.openai.com/v1"</span>))</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>CANDIDATE_MODEL = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"CANDIDATE_MODEL"</span>, <span class="tok-str">"gpt-4o-mini"</span>)</span>
+<span class="ln"><span class="ln-i">9</span>JUDGE_MODEL     = os.environ.<span class="tok-fn">get</span>(<span class="tok-str">"JUDGE_MODEL"</span>,     <span class="tok-str">"gpt-4o-2024-08-06"</span>)</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># Промпт судьи лежит в том же репозитории, что и промпты продукта.</span></span>
+<span class="ln"><span class="ln-i">12</span>JUDGE_PROMPT = <span class="tok-str">""</span>"Ты — строгий эксперт по внутренним регламентам компании.</span>
+<span class="ln"><span class="ln-i">13</span>Оцени ответ ассистента ТОЛЬКО по переданному контексту. Внешними знаниями не пользуйся.</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>КОНТЕКСТ:</span>
+<span class="ln"><span class="ln-i">16</span>{context}</span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span>ВОПРОС: {question}</span>
+<span class="ln"><span class="ln-i">19</span>ОТВЕТ: {answer}</span>
+<span class="ln"><span class="ln-i">20</span></span>
+<span class="ln"><span class="ln-i">21</span>Верни ТОЛЬКО JSON без пояснений:</span>
+<span class="ln"><span class="ln-i">22</span>{{</span>
+<span class="ln"><span class="ln-i">23</span>  <span class="tok-str">"groundedness"</span>: <span class="tok-n">0.0</span>-<span class="tok-n">1.0</span>,   // каждое утверждение ответа подтверждается контекстом</span>
+<span class="ln"><span class="ln-i">24</span>  <span class="tok-str">"relevancy"</span>: <span class="tok-n">0.0</span>-<span class="tok-n">1.0</span>,      // ответ именно на этот вопрос</span>
+<span class="ln"><span class="ln-i">25</span>  <span class="tok-str">"fact_coverage"</span>: <span class="tok-n">0.0</span>-<span class="tok-n">1.0</span>,  // из expected_facts сколько раскрыто</span>
+<span class="ln"><span class="ln-i">26</span>  <span class="tok-str">"citation_ok"</span>: true|false, // указан ли источник и соответствует ли он ответу</span>
+<span class="ln"><span class="ln-i">27</span>  <span class="tok-str">"refused_correctly"</span>: true|false,</span>
+<span class="ln"><span class="ln-i">28</span>  <span class="tok-str">"unsupported_claims"</span>: [<span class="tok-str">"дословные фрагменты ответов, которых нет в контексте"</span>]</span>
+<span class="ln"><span class="ln-i">29</span>}}<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">30</span></span>
+<span class="ln"><span class="ln-i">31</span><span class="tok-k">def</span> <span class="tok-fn">judge</span>(row: dict, raw_answer: str, context: str, seed: int = <span class="tok-n">7</span>) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">32</span>    p = JUDGE_PROMPT.<span class="tok-fn">format</span>(context=context, question=row[<span class="tok-str">"query"</span>],</span>
+<span class="ln"><span class="ln-i">33</span>                             answer=raw_answer[:<span class="tok-n">12000</span>])</span>
+<span class="ln"><span class="ln-i">34</span>    r = client.chat.completions.<span class="tok-fn">create</span>(</span>
+<span class="ln"><span class="ln-i">35</span>        model=JUDGE_MODEL,</span>
+<span class="ln"><span class="ln-i">36</span>        messages=[{<span class="tok-str">"role"</span>: <span class="tok-str">"user"</span>, <span class="tok-str">"content"</span>: p}],</span>
+<span class="ln"><span class="ln-i">37</span>        temperature=<span class="tok-n">0.0</span>,</span>
+<span class="ln"><span class="ln-i">38</span>        max_tokens=<span class="tok-n">600</span>,</span>
+<span class="ln"><span class="ln-i">39</span>        response_format={<span class="tok-str">"type"</span>: <span class="tok-str">"json_object"</span>},</span>
+<span class="ln"><span class="ln-i">40</span>        <span class="tok-cmt"># seed фиксируется, если провайдер его поддерживает: без него</span></span>
+<span class="ln"><span class="ln-i">41</span>        <span class="tok-cmt"># два одинаковых прогона дают разные баллы и регрессия неотличима от шума</span></span>
+<span class="ln"><span class="ln-i">42</span>        extra_body={<span class="tok-str">"seed"</span>: seed},</span>
+<span class="ln"><span class="ln-i">43</span>    )</span>
+<span class="ln"><span class="ln-i">44</span>    d = json.<span class="tok-fn">loads</span>(r.choices[<span class="tok-n">0</span>].message.content)</span>
+<span class="ln"><span class="ln-i">45</span>    d[<span class="tok-str">"usage"</span>] = r.usage.<span class="tok-fn">model_dump</span>()</span>
+<span class="ln"><span class="ln-i">46</span>    d[<span class="tok-str">"judge_model"</span>] = JUDGE_MODEL</span>
+<span class="ln"><span class="ln-i">47</span>    d[<span class="tok-str">"judge_prompt_sha"</span>] = hashlib.<span class="tok-fn">sha256</span>(JUDGE_PROMPT.<span class="tok-fn">encode</span>()).<span class="tok-fn">hexdigest</span>()[:<span class="tok-n">12</span>]</span>
+<span class="ln"><span class="ln-i">48</span>    <span class="tok-k">return</span> d</span>
+</code></pre></div>
+<p>Четыре правила, без которых механизм не работает:</p>
+<ol><li><strong>Судья не слабее тестируемой.</strong> Слабая модель не «немного ошибается» — она систематически завышает оценки красивых, но неверных ответов. Судья <code>mini</code>, а тестируемая <code>gpt-4o</code> — вы получите идеальный бесполезный скрипт. Практическое правило: класс ёмкости судьи  класса тестируемой; если это слишком дорого — сузьте тест-набор, а не ослабляйте судью.</li><li><strong>Промпт судьи — артефакт с версией.</strong> Он меняет результаты сильнее, чем смена модели-судьи. Хранится рядом с промптами продукта, версионируется в git, его хеш пишется в каждый результат (как в коде выше).</li><li><strong>Воспроизводимость фиксируется полностью:</strong> seed, версия судьи, хеш промпта судьи, версия контекста. Без этого нельзя отличить «промпт продукта стал хуже» от «судья сегодня по-другому настроена».</li><li><strong>Судью калибруют на человеке.</strong> Раз в 2–4 недели человек размечает 50–100 примеров, и ты считаешь согласованность. Судья с согласованностью ниже порога — не инструмент.</li></ol>
+<h3 id="ocenka-samoy-ocenki">Оценка самой оценки</h3>
+<p>Согласованность судьи с человеком считается не на «в среднем», а двумя числами, и они отвечают на разные вопросы.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/agreement.py — проверяем, что судья вообще меряет то же, что человек</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">from</span> sklearn.metrics <span class="tok-k">import</span> cohen_kappa_score, roc_auc_score</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> numpy <span class="tok-k">as</span> np</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">def</span> <span class="tok-fn">agreement</span>(human_bin, judge_bin, human_score=None, judge_score=None):</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-str">""</span>"human_bin/judge_bin: <span class="tok-n">1</span> = «ответ хорош», <span class="tok-n">0</span> = «плох». — пороговое сравнение.</span>
+<span class="ln"><span class="ln-i">7</span>       *_score: непрерывные оценки <span class="tok-n">0</span>..<span class="tok-n">1</span> для проверки ранжирования.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">8</span>    out = {</span>
+<span class="ln"><span class="ln-i">9</span>        <span class="tok-str">"raw_agreement"</span>: <span class="tok-fn">float</span>(np.<span class="tok-fn">mean</span>(np.<span class="tok-fn">array</span>(human_bin) == np.<span class="tok-fn">array</span>(judge_bin))),</span>
+<span class="ln"><span class="ln-i">10</span>        <span class="tok-str">"kappa"</span>: <span class="tok-fn">float</span>(<span class="tok-fn">cohen_kappa_score</span>(human_bin, judge_bin)),</span>
+<span class="ln"><span class="ln-i">11</span>    }</span>
+<span class="ln"><span class="ln-i">12</span>    <span class="tok-k">if</span> human_score <span class="tok-k">is</span> <span class="tok-k">not</span> None:</span>
+<span class="ln"><span class="ln-i">13</span>        out[<span class="tok-str">"pearson"</span>] = <span class="tok-fn">float</span>(np.<span class="tok-fn">corrcoef</span>(human_score, judge_score)[<span class="tok-n">0</span>, <span class="tok-n">1</span>])</span>
+<span class="ln"><span class="ln-i">14</span>        <span class="tok-cmt"># AUC: «случайный плохой ответ судья оценивает ниже хорошего?»</span></span>
+<span class="ln"><span class="ln-i">15</span>        labels = np.<span class="tok-fn">array</span>(human_bin)</span>
+<span class="ln"><span class="ln-i">16</span>        <span class="tok-k">if</span> <span class="tok-fn">len</span>(<span class="tok-fn">set</span>(labels)) == <span class="tok-n">2</span>:</span>
+<span class="ln"><span class="ln-i">17</span>            out[<span class="tok-str">"auc"</span>] = <span class="tok-fn">float</span>(<span class="tok-fn">roc_auc_score</span>(labels, np.<span class="tok-fn">array</span>(judge_score)))</span>
+<span class="ln"><span class="ln-i">18</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">19</span></span>
+<span class="ln"><span class="ln-i">20</span>THRESHOLDS = {<span class="tok-str">"kappa"</span>: <span class="tok-n">0.6</span>, <span class="tok-str">"auc"</span>: <span class="tok-n">0.85</span>}</span>
+<span class="ln"><span class="ln-i">21</span><span class="tok-cmt"># kappa ниже 0.4 — судью пора менять или переобучать промпт.</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-cmt"># kappa 0.4..0.6 — годится для отслеживания тренда, не для решений о релизе.</span></span>
+<span class="ln"><span class="ln-i">23</span><span class="tok-cmt"># kappa &gt; 0.6 и AUC &gt; 0.85 — можно принимать решения автоматически.</span></span>
+</code></pre></div>
+<p>Кривая Коэна здесь принципиально важнее «процент совпадений». Если 95% ответов хорошие, то и случайный судья, всегда говорящий «хорошо», получит 95% совпадений. Каппа это отсекает: она показывает, совпадают ли судья и человек <strong>с точностью до случайности</strong>.</p>
+<h2 id="regressii-kachestva-v-ci">Регрессии качества в CI</h2>
+<p>Здесь всё вышесказанное превращается в механику: golden set прогоняется на каждом изменении, которое способно повлиять на ответ — смена промпта, модели, чанкинга, эмбеддингов, reranker'а, параметров сэмплирования. Ниже — джоба GitLab CI, которая валит пайплайн.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># .gitlab-ci.yml — фрагмент, который добавляется к любому MR</span></span>
+<span class="ln"><span class="ln-i">2</span>stages: [quality, build]</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>default:</span>
+<span class="ln"><span class="ln-i">5</span>  image: python:<span class="tok-n">3.12</span>-slim</span>
+<span class="ln"><span class="ln-i">6</span>  before_script:</span>
+<span class="ln"><span class="ln-i">7</span>    - pip install --quiet openai jsonschema pandas pyyaml scikit-learn</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>variables:</span>
+<span class="ln"><span class="ln-i">10</span>  CANDIDATE_MODEL: <span class="tok-str">"gpt-4o-mini"</span></span>
+<span class="ln"><span class="ln-i">11</span>  JUDGE_MODEL: <span class="tok-str">"gpt-4o-2024-08-06"</span></span>
+<span class="ln"><span class="ln-i">12</span>  GOLDEN_URL: <span class="tok-str">"$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/golden/$(cat data/golden.version)/golden.jsonl"</span></span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>eval:golden:</span>
+<span class="ln"><span class="ln-i">15</span>  stage: quality</span>
+<span class="ln"><span class="ln-i">16</span>  script:</span>
+<span class="ln"><span class="ln-i">17</span>    - pip install --quiet requests</span>
+<span class="ln"><span class="ln-i">18</span>    - curl -fsSL --header <span class="tok-str">"PRIVATE-TOKEN: $CI_JOB_TOKEN"</span> <span class="tok-str">"$GOLDEN_URL"</span> -o golden.jsonl</span>
+<span class="ln"><span class="ln-i">19</span>    - test -s golden.jsonl || { echo <span class="tok-str">"golden set не скачался"</span>; exit <span class="tok-n">1</span>; }</span>
+<span class="ln"><span class="ln-i">20</span>    - python eval/run_eval.py --golden golden.jsonl --out report.json --seed <span class="tok-n">7</span></span>
+<span class="ln"><span class="ln-i">21</span>    - python eval/check_gates.py --report report.json --gates eval/gates.yaml</span>
+<span class="ln"><span class="ln-i">22</span>  artifacts:</span>
+<span class="ln"><span class="ln-i">23</span>    when: always</span>
+<span class="ln"><span class="ln-i">24</span>    paths: [report.json, report.html]</span>
+<span class="ln"><span class="ln-i">25</span>    expire_in: <span class="tok-n">90</span> days</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>eval:golden-nightly:</span>
+<span class="ln"><span class="ln-i">28</span>  stage: quality</span>
+<span class="ln"><span class="ln-i">29</span>  rules:</span>
+<span class="ln"><span class="ln-i">30</span>    - if: <span class="tok-var">$CI_PIPELINE_SOURCE</span> == <span class="tok-str">"schedule"</span></span>
+<span class="ln"><span class="ln-i">31</span>  script:</span>
+<span class="ln"><span class="ln-i">32</span>    - python eval/run_eval.py --golden golden.jsonl --full --out report_full.json</span>
+<span class="ln"><span class="ln-i">33</span>  allow_failure: <span class="tok-k">false</span>        <span class="tok-cmt"># ночной прогон падает — это уже инцидент</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/gates.yaml — пороги, ниже которых MR не проходит. Версионируются вместе с кодом.</span></span>
+<span class="ln"><span class="ln-i">2</span>version: <span class="tok-n">3</span></span>
+<span class="ln"><span class="ln-i">3</span>gates:</span>
+<span class="ln"><span class="ln-i">4</span>  - metric: format_valid</span>
+<span class="ln"><span class="ln-i">5</span>    scope: overall</span>
+<span class="ln"><span class="ln-i">6</span>    min: <span class="tok-n">0.99</span></span>
+<span class="ln"><span class="ln-i">7</span>  - metric: citation_valid</span>
+<span class="ln"><span class="ln-i">8</span>    scope: overall</span>
+<span class="ln"><span class="ln-i">9</span>    min: <span class="tok-n">0.90</span></span>
+<span class="ln"><span class="ln-i">10</span>  - metric: groundedness</span>
+<span class="ln"><span class="ln-i">11</span>    source: judge</span>
+<span class="ln"><span class="ln-i">12</span>    scope: overall</span>
+<span class="ln"><span class="ln-i">13</span>    min: <span class="tok-n">0.85</span></span>
+<span class="ln"><span class="ln-i">14</span>  - metric: groundedness</span>
+<span class="ln"><span class="ln-i">15</span>    source: judge</span>
+<span class="ln"><span class="ln-i">16</span>    scope: category:договор     <span class="tok-cmt"># важные категории — отдельно, см. следующий раздел</span></span>
+<span class="ln"><span class="ln-i">17</span>    min: <span class="tok-n">0.88</span></span>
+<span class="ln"><span class="ln-i">18</span>  - metric: refusal_ok</span>
+<span class="ln"><span class="ln-i">19</span>    scope: group:should_refuse</span>
+<span class="ln"><span class="ln-i">20</span>    min: <span class="tok-n">0.90</span></span>
+<span class="ln"><span class="ln-i">21</span>  - metric: regression_vs_baseline   <span class="tok-cmt"># падение относительно main</span></span>
+<span class="ln"><span class="ln-i">22</span>    max_drop: <span class="tok-n">0.03</span></span>
+<span class="ln"><span class="ln-i">23</span>fail_on:</span>
+<span class="ln"><span class="ln-i">24</span>  missing_judge_agreement: <span class="tok-k">true</span>      <span class="tok-cmt"># нет свежей калибровки — тоже провал</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/check_gates.py — сама логика проверки порогов, читается как ТЗ</span></span>
+<span class="ln"><span class="ln-i">2</span>python eval/run_eval.py --golden data/golden.jsonl --out report.json --seed <span class="tok-n">7</span></span>
+<span class="ln"><span class="ln-i">3</span>python eval/check_gates.py --report report.json --gates eval/gates.yaml</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">echo</span> <span class="tok-str">"exit=$?"</span>      <span class="tok-cmt"># 0 — можно мержить, 1 — MR заблокирован</span></span>
+</code></pre></div>
+<p>Ключевые решения в этой конструкции, которые надо проговорить отдельно:</p>
+<ul><li><strong>Seed и версии фиксированы переменными CI.</strong> Сравнивать два прогона с разными судьями — значит измерять шум.</li><li><strong>Отчёт — артефакт джобы, даже при провале</strong> (<code>when: always</code>). Без этого инцидент расследовать нечем, и команда будет бояться чинить.</li><li><strong>Ночной прогон без <code>--full</code> и с <code>allow_failure: false</code></strong> ловит то, что не поймал дневной: дрейф данных, деградацию внешней модели, размножение мусорных вопросов.</li><li><strong>Провал агрегата по категориям важнее провала среднего.</strong> См. ниже.</li></ul>
+<h2 id="lovushka-srednego-pochemu-087-nichego-ne-znachit">Ловушка среднего: почему 0.87 ничего не значит</h2>
+<p>Самая дорогая ошибка в оценке LLM-систем — смотреть на одно среднее число. Пример из реального проекта: средний groundedness упал с 0.91 до 0.89, «это в пределах шума», релиз раскатили. Через две недели юристы принесли претензию: система неправильно отвечает на вопросы про <strong>расторжение договора</strong> — их в трафике 2%, и на них groundedness упал с 0.94 до 0.55. Среднее почти не сдвинулось: 98% остальных категорий спасли показатель.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># eval/report.py — разбивка по категориям + автоматическое выделение «тихих» регрессий</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> json, collections, statistics</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">def</span> <span class="tok-fn">breakdown</span>(rows: list[dict], key: str = <span class="tok-str">"category"</span>) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">5</span>    buckets = collections.<span class="tok-fn">defaultdict</span>(list)</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-k">for</span> r <span class="tok-k">in</span> rows:</span>
+<span class="ln"><span class="ln-i">7</span>        buckets[r.<span class="tok-fn">get</span>(key, <span class="tok-str">"unknown"</span>)].<span class="tok-fn">append</span>(r)</span>
+<span class="ln"><span class="ln-i">8</span>    out = {}</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-k">for</span> k, rs <span class="tok-k">in</span> buckets.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">10</span>        out[k] = {</span>
+<span class="ln"><span class="ln-i">11</span>            <span class="tok-str">"n"</span>: <span class="tok-fn">len</span>(rs),</span>
+<span class="ln"><span class="ln-i">12</span>            <span class="tok-str">"groundedness"</span>: <span class="tok-fn">round</span>(statistics.<span class="tok-fn">fmean</span>(r[<span class="tok-str">"groundedness"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> rs), <span class="tok-n">3</span>),</span>
+<span class="ln"><span class="ln-i">13</span>            <span class="tok-str">"citation_valid"</span>: <span class="tok-fn">round</span>(statistics.<span class="tok-fn">fmean</span>(r[<span class="tok-str">"citation_valid"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> rs), <span class="tok-n">3</span>),</span>
+<span class="ln"><span class="ln-i">14</span>            <span class="tok-str">"format_valid"</span>: <span class="tok-fn">round</span>(statistics.<span class="tok-fn">fmean</span>(r[<span class="tok-str">"format_valid"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> rs), <span class="tok-n">3</span>),</span>
+<span class="ln"><span class="ln-i">15</span>        }</span>
+<span class="ln"><span class="ln-i">16</span>    out[<span class="tok-str">"_overall"</span>] = {</span>
+<span class="ln"><span class="ln-i">17</span>        <span class="tok-str">"n"</span>: <span class="tok-fn">len</span>(rows),</span>
+<span class="ln"><span class="ln-i">18</span>        <span class="tok-str">"groundedness"</span>: <span class="tok-fn">round</span>(statistics.<span class="tok-fn">fmean</span>(r[<span class="tok-str">"groundedness"</span>] <span class="tok-k">for</span> r <span class="tok-k">in</span> rows), <span class="tok-n">3</span>),</span>
+<span class="ln"><span class="ln-i">19</span>    }</span>
+<span class="ln"><span class="ln-i">20</span>    <span class="tok-k">return</span> out</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span><span class="tok-k">def</span> <span class="tok-fn">find_silent_regressions</span>(new: dict, base: dict, min_n: int = <span class="tok-n">5</span>,</span>
+<span class="ln"><span class="ln-i">23</span>                            drop: float = <span class="tok-n">0.05</span>) -&gt; list[dict]:</span>
+<span class="ln"><span class="ln-i">24</span>    <span class="tok-str">""</span>"Категории, где среднее НЕ упало, но конкретная метрика упала сильно.</span>
+<span class="ln"><span class="ln-i">25</span>    Это ровно тот случай, который невозможно увидеть в среднем.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">26</span>    alerts = []</span>
+<span class="ln"><span class="ln-i">27</span>    <span class="tok-k">for</span> cat, cur <span class="tok-k">in</span> new.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">28</span>        <span class="tok-k">if</span> cat.<span class="tok-fn">startswith</span>(<span class="tok-str">"_"</span>) <span class="tok-k">or</span> cur[<span class="tok-str">"n"</span>] &lt; min_n:</span>
+<span class="ln"><span class="ln-i">29</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">30</span>        old = base.<span class="tok-fn">get</span>(cat)</span>
+<span class="ln"><span class="ln-i">31</span>        <span class="tok-k">if</span> <span class="tok-k">not</span> old:</span>
+<span class="ln"><span class="ln-i">32</span>            <span class="tok-k">continue</span></span>
+<span class="ln"><span class="ln-i">33</span>        <span class="tok-k">for</span> metric <span class="tok-k">in</span> (<span class="tok-str">"groundedness"</span>, <span class="tok-str">"citation_valid"</span>, <span class="tok-str">"format_valid"</span>):</span>
+<span class="ln"><span class="ln-i">34</span>            delta = cur[metric] - old.<span class="tok-fn">get</span>(metric, <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">35</span>            <span class="tok-k">if</span> delta &lt;= -drop:</span>
+<span class="ln"><span class="ln-i">36</span>                alerts.<span class="tok-fn">append</span>({<span class="tok-str">"category"</span>: cat, <span class="tok-str">"metric"</span>: metric,</span>
+<span class="ln"><span class="ln-i">37</span>                               <span class="tok-str">"delta"</span>: <span class="tok-fn">round</span>(delta, <span class="tok-n">3</span>), <span class="tok-str">"n"</span>: cur[<span class="tok-str">"n"</span>]})</span>
+<span class="ln"><span class="ln-i">38</span>    <span class="tok-k">return</span> <span class="tok-fn">sorted</span>(alerts, key=<span class="tok-k">lambda</span> a: a[<span class="tok-str">"delta"</span>])</span>
+</code></pre></div>
+<p>Практические правила, которые из этого следуют:</p>
+<ul><li><strong>всегда смотри минимум три разреза</strong>: по категории вопроса, по длине ответа (короткие и длинные ведут себя по-разному) и по версии промпта/модели;</li><li><strong>редкие, но важные категории защищай отдельным порогом</strong>, иначе их ухудшение всегда тонет;</li><li><strong>минимальный размер категории</strong>: если в категории 4 примера, метрика для неё — шум, и порог ставить бессмысленно; такие категории помечай как <code>low_confidence</code> и не используй для автоматических решений;</li><li><strong>заведи таблицу «категория → бизнес-риск»</strong> (договор = критично, отпуск = средне, «привет» = никак). Без неё приоритет споров будет определяться тем, кто громче кричит.</li></ul>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Отчёт об оценке должен читаться за 30 секунд без погружения в цифры. Три строки: доля верных ответов по категориям, доля ответов с галлюцинациями, стоимость прогна. Руководство покупает не метрики, а уверенность, что метрики вообще считаются правильно. Всё остальное — детали для команды.</p></div></div>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Golden set протухает за квартал.</strong> Данные и регламенты меняются, а набор — нет. Симптом: оценка стабильно зелёная, а пользователи жалуются. Лечение: 10–15% новых вопросов в набор каждый месяц, автоматически из продакшн-логов, с ручной проверкой только спорных.</li><li><strong>Судью меняют без перекалибровки.</strong> Смена версии модели-судьи сдвигает все числа на 3–5%, и команда два месяца «чинит» промпт, который не менялся. Фиксируй <code>judge_prompt_sha</code> и <code>judge_model</code> в каждом артефакте и показывай их в отчёте.</li><li><strong>Формальная метрика маскируется за качественную.</strong> JSON валиден, ответ бесполезен — и всё зелёное. Никогда не отчитывайся одним числом: всегда минимум формальное + groundedness + цитируемость.</li><li><strong>Оценивают на dev-промпте с подсмотренными ответами.</strong> Классика: инженер покрутил <code>temperature</code>, посмотрел 5 ответов, решил, что «лучше», и влил. Golden set нужен именно потому, что 5 ответов выбирают то, что нравится, а не то, что правильно.</li><li><strong>Порог слишком жёсткий → команда выключает проверку.</strong> Если джоба падает в 40% MR, её первым делом сделают <code>allow_failure: true</code>. Держи порог на уровне, который проходит 90% честных изменений, а ухудшения лови сравнением с baseline.</li><li><strong>Публичные бенчмарки вместо своих данных.</strong> MMLU и аналоги не имеют отношения к твоим регламентам. Зелёный лидерборд и неработающий чат-бот в проде — одно и то же состояние.</li><li><strong>Оценка съедает бюджет.</strong> Прогон 300 вопросов  3 вызова = заметная сумма. Считай её наравне с продовым трафиком и вынеси в статью бюджета из <a href="../../lectures/mlops/18-masshtabirovanie-i-cena.html">лекции про стоимость</a>.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я могу объяснить, почему LLM-системе нужен golden set, а не набор юнит-тестов с эталонами, и что именно размечает эксперт (факты, а не готовые ответы).</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, сколько вопросов нужно для CI, для ночного прогона и для аудита, и почему выборка берётся из продакшн-логов.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я отличаю groundedness от релевантности, полноты и формальной валидности, и знаю, какая из них считается без LLM.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, почему судья должен быть не слабее тестируемой модели и почему промпт судьи версионируется в репозитории.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею посчитать каппу и AUC между судьёй и человеком и знаю порог, ниже которого судью нельзя использовать для решений о релизе.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие изменения обязаны запускать golden set в CI, и умею объяснить, почему джоба сохраняет артефакты даже при провале.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу показать на примере, как ухудшение в редкой категории полностью скрывается в среднем, и какой инструмент это ловит.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я отличаю «система ответила» от «система ответила правильно» и знаю, что делать, если ни то, ни другое не измеряется.</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери golden set из 60 реальных вопросов пользователей, разметь их по категориям и ожидаемым фактам, напиши скрипт оценки с LLM-as-a-judge и поставь в CI порог по groundedness, ниже которого сборка падает.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=inference"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Инференс» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/15-ocenka-llm">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/14-bezopasnost-agentov.html"><span>← Предыдущая</span><b>Безопасность агентов</b></a>
+        <a class="nav-next" href="../../lectures/mlops/16-nablyudaemost-llm.html"><span>Следующая →</span><b>Наблюдаемость LLM-систем</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/15-ocenka-llm";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

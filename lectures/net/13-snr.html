@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SNR: российское оборудование доступа — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">Сетевое оборудование</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">D. SNR и Eltex</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>SNR: российское оборудование доступа</h1>
+        <p class="lead">Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.</p>
+        <div class="meta"><span class="badge">65 мин</span><span class="badge lvl-middle">Продвинутый</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">snr</span><span class="tag">коммутатор</span><span class="tag">маршрутизатор</span><span class="tag">wifi</span><span class="tag">cli</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#pozicionirovanie-za-chto-vybirayut-snr">Позиционирование: за что выбирают SNR</a></li><li class="toc-l3"><a href="#chto-ty-poluchaesh-sverh-ceny">Что ты получаешь сверх цены</a></li><li class="toc-l3"><a href="#chego-ty-ne-poluchaesh">Чего ты не получаешь</a></li><li class="toc-l2"><a href="#upravlenie-veb-plyus-cli">Управление: веб плюс CLI</a></li><li class="toc-l2"><a href="#chto-perenositsya-s-cisco-a-chto-net">Что переносится с Cisco, а что нет</a></li><li class="toc-l2"><a href="#bazovyy-nabor-funkciy-urovnya-dostupa">Базовый набор функций уровня доступа</a></li><li class="toc-l2"><a href="#cli-kommutator-dostupa-s-nulya">CLI: коммутатор доступа с нуля</a></li><li class="toc-l3"><a href="#opisanie-portov-besplatnaya-strahovka">Описание портов — бесплатная страховка</a></li><li class="toc-l3"><a href="#sohranenie-konfiguracii">Сохранение конфигурации</a></li><li class="toc-l2"><a href="#agregaciya-i-stp-dva-mesta-gde-ekonomyat-i-platyat">Агрегация и STP: два места, где экономят и платят</a></li><li class="toc-l2"><a href="#marshrutizaciya-dhcp-acl-aaa-korotko">Маршрутизация, DHCP, ACL, AAA: коротко</a></li><li class="toc-l2"><a href="#praktika-tipovoy-ofis">Практика: типовой офис</a></li><li class="toc-l2"><a href="#monitoring-snmp-ntp-i-prometheus">Мониторинг: SNMP, NTP и Prometheus</a></li><li class="toc-l2"><a href="#rabota-v-steke">Работа в стеке</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Ты знаешь RouterOS и Cisco IOS. Когда в тендере или в бюджетной организации
+встречается «российский коммутатор», возникает ощущение, что начинается новая
+профессия: другой синтаксис, другая логика, другие грабли. На самом деле
+основная часть знаний переносится напрямую, если понимать, какие вещи у
+российских вендоров сделаны в расчёте на инженера с Cisco-бэкграундом, а какие
+остались уделом конкретной модели. Эта лекция — про то, где проходит граница.</p>
+<p>SNR (Новосибирск) позиционируется в доступном ценовом сегменте и чаще всего
+встречается в сетях небольшого и среднего размера: филиал, офис на 40 человек,
+школа, бюджетное учреждение. Задача этой лекции — не реклама, а трезвая
+оценка того, что ты получаешь и чего не получаешь, чтобы решение принималось
+по характеристикам, а не по надписи на коробке.</p>
+<div class="callout callout-note"><div class="callout-title"><span class="callout-icon">i</span>Заметка</div><div class="callout-body"><p>Линейки оборудования у российских вендоров меняются чаще, чем у Cisco:
+серии приходят и уходят, артикулы переименовываются. Всё, что ниже, написано
+про устойчивые архитектурные вещи — состав функций, форму CLI, принципы
+диагностики. Конкретные модели и точный синтаксис команд всегда сверяй с
+документацией вендора и с подсказкой <code>?</code> в самом CLI. Привычка проверять
+синтаксис на устройстве экономит больше времени, чем чтение любого PDF.</p></div></div>
+<h2 id="pozicionirovanie-za-chto-vybirayut-snr">Позиционирование: за что выбирают SNR</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Критерий</th>
+<th style="text-align:left">MikroTik</th>
+<th style="text-align:left">Cisco</th>
+<th style="text-align:left">Eltex</th>
+<th style="text-align:left">SNR</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Цена за порт</td>
+<td style="text-align:left">низкая</td>
+<td style="text-align:left">высокая</td>
+<td style="text-align:left">средняя</td>
+<td style="text-align:left">низкая</td>
+</tr>
+<tr>
+<td style="text-align:left">Порядок величины цены</td>
+<td style="text-align:left">самый дешёвый класс</td>
+<td style="text-align:left">премиум</td>
+<td style="text-align:left">средний класс</td>
+<td style="text-align:left">близко к MikroTik</td>
+</tr>
+<tr>
+<td style="text-align:left">Перенос знаний с Cisco</td>
+<td style="text-align:left">почти нулевой</td>
+<td style="text-align:left">нулевой, эталон</td>
+<td style="text-align:left">высокий, CLI в стиле IOS</td>
+<td style="text-align:left">высокий, CLI в стиле IOS</td>
+</tr>
+<tr>
+<td style="text-align:left">Порог входа</td>
+<td style="text-align:left">средний (дерево конфигурации)</td>
+<td style="text-align:left">высокий</td>
+<td style="text-align:left">средний</td>
+<td style="text-align:left">средний</td>
+</tr>
+<tr>
+<td style="text-align:left">Глубина маршрутизации и VPN</td>
+<td style="text-align:left">широкая, включая WireGuard</td>
+<td style="text-align:left">эталон</td>
+<td style="text-align:left">широкая</td>
+<td style="text-align:left">скромнее, зависит от серии</td>
+</tr>
+<tr>
+<td style="text-align:left">Бесшовный Wi-Fi</td>
+<td style="text-align:left">есть, CAPsMAN</td>
+<td style="text-align:left">есть</td>
+<td style="text-align:left">есть, свой контроллер</td>
+<td style="text-align:left">ограниченно, зависит от серии</td>
+</tr>
+<tr>
+<td style="text-align:left">ЛИЦЕНЗИИ и поддержка</td>
+<td style="text-align:left">покупается железо</td>
+<td style="text-align:left">подписка на софт</td>
+<td style="text-align:left">в основном железо</td>
+<td style="text-align:left">в основном железо</td>
+</tr>
+<tr>
+<td style="text-align:left">Документация</td>
+<td style="text-align:left">огромная, местами разрозненная</td>
+<td style="text-align:left">огромная и структурированная</td>
+<td style="text-align:left">средняя</td>
+<td style="text-align:left">средняя, местательно на русском</td>
+</tr>
+<tr>
+<td style="text-align:left">Популярность в российских тендерах</td>
+<td style="text-align:left">высокая</td>
+<td style="text-align:left">падает, но есть</td>
+<td style="text-align:left">высокая</td>
+<td style="text-align:left">высокая в сегменте «дёшево и сердито»</td>
+</tr>
+</tbody></table></div>
+<p>Вывод, который из таблицы следует буквально: <strong>SNR берут не за функции, а за
+счёт</strong>. Это честный позиционный выбор, и он нормален, пока задача укладывается
+в рамки «доступ, VLAN, DHCP, пара VPN-ов, Wi-Fi в одном помещении». Как только
+нужны сложная маршрутизация, тонкое QoS или предсказуемый бесшовный роуминг,
+бюджет либо вырастет до Eltex и Cisco, либо ты получишь работу с тем, что есть.</p>
+<h3 id="chto-ty-poluchaesh-sverh-ceny">Что ты получаешь сверх цены</h3>
+<ul><li><strong>Знакомый CLI.</strong> Если ты настраивал Catalyst, первые полчаса на SNR ты не
+будешь разбираться в синтаксисе — ты будешь работать. Это экономит день
+обучения на каждом новом устройстве и снижает риск ошибки при ночных работах.</li><li><strong>Сертификаты соответствия и заявленное соответствие требованиям,
+предъявляемым к оборудованию в РФ.</strong> Об этом подробно в лекции
+<a href="../../lectures/net/15-rossiyskie-standarty.html">про сертификацию и импортозамещение</a>.</li><li><strong>Наличие в рознице и на складах.</strong> Замена сгоревшего коммутатора в течение
+дня — это про оборудование, а не про бренд. Для филиала это иногда важнее
+всех остальных аргументов.</li></ul>
+<h3 id="chego-ty-ne-poluchaesh">Чего ты не получаешь</h3>
+<ul><li><strong>Широты линеек.</strong> Нет отдельного «маленького» и «среднего» коммутатора с
+разницей в условных два раза по функциям — линейка короче.</li><li><strong>Развитых средств диагностики.</strong> Набор команд <code>show</code> беднее, чем у Catalyst:
+часть привычных <code>show</code>-отчётов может отсутствовать, а часть вывода будет
+отличаться по формату. Это не мешает чинить сеть, но ломает скрипты и шаблоны.</li><li><strong>Гарантированной совместимости прошивок.</strong> Перед сменой версии читай
+release notes: у бюджетных линеек обратная совместимость настроек между
+мажорными версиями гарантируется хуже, чем у Cisco.</li></ul>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Классическая ловушка: «установил прошивку, чтобы была новее». На SNR
+обновление прошивки — это операция, которая может изменить формат вывода,
+сбросить часть настроек и поменять поведение агрегации. Всегда сохраняй
+конфиг перед обновлением, а в рабочей сети делай это в окно обслуживания.</p></div></div>
+<h2 id="upravlenie-veb-plyus-cli">Управление: веб плюс CLI</h2>
+<p>Управляемые модели дают два входа: веб-интерфейс в браузере и CLI по SSH или
+консоли. Веб полезен для первичной настройки и для сбора нескольких показателей,
+CLI — для всего остального. Разница в том, что <strong>веб не является источником
+истины</strong>: конфигурация живёт в устройстве, а веб просто её рисует.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что делать</th>
+<th style="text-align:left">Веб-интерфейс</th>
+<th style="text-align:left">CLI</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Первичная настройка новой коробки</td>
+<td style="text-align:left">удобно, можно не знать синтаксис</td>
+<td style="text-align:left">можно, но дольше</td>
+</tr>
+<tr>
+<td style="text-align:left">Массовые однотипные правки</td>
+<td style="text-align:left">плохо</td>
+<td style="text-align:left">хорошо, скриптом через SSH</td>
+</tr>
+<tr>
+<td style="text-align:left">Точечная правка одного порта</td>
+<td style="text-align:left">удобно</td>
+<td style="text-align:left">удобно, если помнишь синтаксис</td>
+</tr>
+<tr>
+<td style="text-align:left">Чтение больших таблиц (ARP, MAC, VLAN)</td>
+<td style="text-align:left">плохо, упирается в браузер</td>
+<td style="text-align:left">хорошо, можно фильтровать</td>
+</tr>
+<tr>
+<td style="text-align:left">Автоматизация и скрипты</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">да, ssh + command</td>
+</tr>
+<tr>
+<td style="text-align:left">Отладка</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">да</td>
+</tr>
+</tbody></table></div>
+<p>Соотношение в реальной работе: веб — на 10% задач (первичная настройка, разовый
+просмотр), CLI — на остальные 90%. Мотивация простая: всё, что повторяется,
+рано или поздно нужно отдать скрипту, а скрипт по вебу не пишется.</p>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Перед любой правкой через веб сделай снимок конфигурации через CLI. Веб
+применяет изменения сразу и без подтверждения — это ровно тот случай, когда
+«удалил VLAN, который кто-то где-то использовал» обнаруживается по факту
+отключения пользователей.</p></div></div>
+<h2 id="chto-perenositsya-s-cisco-a-chto-net">Что переносится с Cisco, а что нет</h2>
+<p>Ключевой вопрос практикующего инженера. Разложим по функциям.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Функция</th>
+<th style="text-align:left">Переносится ли с Cisco</th>
+<th style="text-align:left">Что проверить на месте</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Режимы <code>enable</code> / <code>configure terminal</code> / <code>config-if</code></td>
+<td style="text-align:left">да, как правило</td>
+<td style="text-align:left">промпт может отличаться, но структура та же</td>
+</tr>
+<tr>
+<td style="text-align:left">Префикс <code>no</code> для отмены</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">не на всех командах он работает одинаково</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>interface gi X/Y/Z</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">нумерация портов своя, уточняй через <code>show interfaces</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>description</code> на порту</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">всегда ставь</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>switchport mode access</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">проверь через <code>?</code>, название может отличаться</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>switchport access vlan N</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">без него порт останется в VLAN 1 — та же ловушка</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>switchport mode trunk</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">как и на Cisco, проверь итоговый список VLAN</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>spanning-tree portfast</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">имя команды может быть короче или иначе</td>
+</tr>
+<tr>
+<td style="text-align:left">Защита от петель (BPDU Guard)</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">поддержка есть не на всех моделях</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>show running-config</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">формат вывода может отличаться, не ломай парсеры</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>write memory</code> / сохранение конфигурации</td>
+<td style="text-align:left">да, синтаксис может отличаться</td>
+<td style="text-align:left">выясни правильную команду один раз и зафиксируй</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>show interfaces status</code></td>
+<td style="text-align:left">частично</td>
+<td style="text-align:left">названия команд отличаются чаще, чем кажется</td>
+</tr>
+<tr>
+<td style="text-align:left">Суб-интерфейсы <code>encapsulation dot1Q</code></td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">встречается на маршрутизаторах серии</td>
+</tr>
+<tr>
+<td style="text-align:left">EtherChannel / агрегация</td>
+<td style="text-align:left">да, но реализация своя</td>
+<td style="text-align:left">проверь LACP и режим по умолчанию</td>
+</tr>
+<tr>
+<td style="text-align:left">SNMP</td>
+<td style="text-align:left">да, синтаксис Cisco-совместимый</td>
+<td style="text-align:left">community, версии, доступность MIB</td>
+</tr>
+<tr>
+<td style="text-align:left">NTP</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">есть ли поддержка, сколько серверов задаётся</td>
+</tr>
+</tbody></table></div>
+<p>Общий вывод: <strong>на уровне «сделать VLAN на порту» перенос почти полный, на
+уровне «написать скрипт развёртывания на 50 устройств» — примерно наполовину</strong>.
+Половина непереносимого — это не особенность платформы, а особенность
+экосистемы: у Cisco за девять лет появились готовые модули для Ansible и
+pyATS, у российских вендоров в лучшем случае есть текстовая выгрузка конфигурации
+и SSH. Поэтому автоматизацию здесь строят иначе — так, как разбирали в
+<a href="../../lectures/net/05-avtomatizaciya-routeros.html">лекции про автоматизацию RouterOS</a>: выгрузка
+конфига в файл, правка шаблоном, заливка обратно.</p>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Первое, что стоит сделать на новом устройстве: напечатать <code>?</code> и посмотреть, как
+называется каждая команда, которой ты пользуешься. Десять минут на старте
+экономит час на первой неделе эксплуатации. Потом сохрани себе этот список
+как внутреннюю шпаргалку — она же пригодится в следующий тендер.</p></div></div>
+<h2 id="bazovyy-nabor-funkciy-urovnya-dostupa">Базовый набор функций уровня доступа</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Функция</th>
+<th style="text-align:left">Есть ли в типовой управляемой модели</th>
+<th style="text-align:left">На что смотреть</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">VLAN 802.1Q, access и trunk</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">поддержка на всех портах или только части</td>
+</tr>
+<tr>
+<td style="text-align:left">STP / RSTP</td>
+<td style="text-align:left">да, почти всегда</td>
+<td style="text-align:left">какой режим по умолчанию</td>
+</tr>
+<tr>
+<td style="text-align:left">Защита от петель (BPDU Guard)</td>
+<td style="text-align:left">обычно да</td>
+<td style="text-align:left">не на всех бюджетных моделях</td>
+</tr>
+<tr>
+<td style="text-align:left">Агрегация каналов (LAG/LACP)</td>
+<td style="text-align:left">зависит от серии</td>
+<td style="text-align:left">LACP против статического режима</td>
+</tr>
+<tr>
+<td style="text-align:left">Маршрутизация между VLAN</td>
+<td style="text-align:left">зависит от серии</td>
+<td style="text-align:left">хватает ли для «роутер в стеке»</td>
+</tr>
+<tr>
+<td style="text-align:left">DHCP-сервер</td>
+<td style="text-align:left">зависит от серии</td>
+<td style="text-align:left">для какого объёма пула</td>
+</tr>
+<tr>
+<td style="text-align:left">ACL</td>
+<td style="text-align:left">обычно да</td>
+<td style="text-align:left">IPv4 и IPv6, порядок применения</td>
+</tr>
+<tr>
+<td style="text-align:left">AAA / RADIUS / TACACS+</td>
+<td style="text-align:left">зависит от серии</td>
+<td style="text-align:left">нужно ли для офиса</td>
+</tr>
+<tr>
+<td style="text-align:left">SNMP v2c / v3</td>
+<td style="text-align:left">обычно да</td>
+<td style="text-align:left">какие версии, есть ли v3</td>
+</tr>
+<tr>
+<td style="text-align:left">NTP</td>
+<td style="text-align:left">обычно да</td>
+<td style="text-align:left">синхронизация времени для логов</td>
+</tr>
+<tr>
+<td style="text-align:left">PoE</td>
+<td style="text-align:left">на отдельных моделях</td>
+<td style="text-align:left">бюджет PoE, а не только число портов</td>
+</tr>
+</tbody></table></div>
+<p>Ключевой момент: <strong>у SNR функциональность неоднородна внутри линейки</strong>. Две
+модели с одинаковым числом портов и одинаковой ценой могут отличаться
+поддержкой маршрутизации, LACP или AAA. Поэтому спецификация закупочной
+единицы должна описывать не «коммутатор 24 порта», а список функций: какие
+VLAN, какой STP, есть ли агрегация, есть ли SNMP v3, какой бюджет PoE.</p>
+<h2 id="cli-kommutator-dostupa-s-nulya">CLI: коммутатор доступа с нуля</h2>
+<p>Цель: коммутатор на 24 порта, VLAN 99 управление, VLAN 10 пользователи,
+VLAN 20 серверы, trunk на 24-м порту к ядру, неиспользуемые порты выключены.
+Команды записаны в логике Cisco IOS; точные сокращения и состав команд
+сверяются в самом устройстве через <code>?</code>.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>enable</span>
+<span class="ln"><span class="ln-i">2</span>configure terminal</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>! --- идентификация ---</span>
+<span class="ln"><span class="ln-i">5</span>hostname SNR-ACCESS-<span class="tok-n">01</span></span>
+<span class="ln"><span class="ln-i">6</span>! --- проверь, как на этой платформе включается SSH, до того как закроешь telnet ---</span>
+<span class="ln"><span class="ln-i">7</span>! --- имя команд и синтаксис: ввести <span class="tok-str">"?"</span> в глобальном режиме ---</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>! --- VLAN управления ---</span>
+<span class="ln"><span class="ln-i">10</span>vlan <span class="tok-n">99</span></span>
+<span class="ln"><span class="ln-i">11</span> name MGMT</span>
+<span class="ln"><span class="ln-i">12</span>exit</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>! --- пользовательский и серверный VLAN ---</span>
+<span class="ln"><span class="ln-i">15</span>vlan <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">16</span> name USERS</span>
+<span class="ln"><span class="ln-i">17</span>exit</span>
+<span class="ln"><span class="ln-i">18</span>vlan <span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">19</span> name SERVERS</span>
+<span class="ln"><span class="ln-i">20</span>exit</span>
+<span class="ln"><span class="ln-i">21</span></span>
+<span class="ln"><span class="ln-i">22</span>! --- интерфейс управления ---</span>
+<span class="ln"><span class="ln-i">23</span>interface vlan <span class="tok-n">99</span></span>
+<span class="ln"><span class="ln-i">24</span> ip address <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> <span class="tok-n">255.255</span>.<span class="tok-n">255.0</span></span>
+<span class="ln"><span class="ln-i">25</span>exit</span>
+<span class="ln"><span class="ln-i">26</span></span>
+<span class="ln"><span class="ln-i">27</span>! --- рабочие места <span class="tok-n">1</span>-<span class="tok-n">12</span> ---</span>
+<span class="ln"><span class="ln-i">28</span>interface range gi <span class="tok-n">1</span>/<span class="tok-n">0</span>/<span class="tok-n">1</span>-<span class="tok-n">12</span></span>
+<span class="ln"><span class="ln-i">29</span> description user-zone</span>
+<span class="ln"><span class="ln-i">30</span> switchport mode access</span>
+<span class="ln"><span class="ln-i">31</span> switchport access vlan <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">32</span> spanning-tree portfast</span>
+<span class="ln"><span class="ln-i">33</span> no shutdown</span>
+<span class="ln"><span class="ln-i">34</span>exit</span>
+<span class="ln"><span class="ln-i">35</span></span>
+<span class="ln"><span class="ln-i">36</span>! --- серверный порт <span class="tok-n">13</span>: виртуалка в Proxmox с двумя адаптерами ---</span>
+<span class="ln"><span class="ln-i">37</span>interface gi <span class="tok-n">1</span>/<span class="tok-n">0</span>/<span class="tok-n">13</span></span>
+<span class="ln"><span class="ln-i">38</span> description srv-proxmox-nic1</span>
+<span class="ln"><span class="ln-i">39</span> switchport mode access</span>
+<span class="ln"><span class="ln-i">40</span> switchport access vlan <span class="tok-n">20</span></span>
+<span class="ln"><span class="ln-i">41</span> spanning-tree portfast</span>
+<span class="ln"><span class="ln-i">42</span> no shutdown</span>
+<span class="ln"><span class="ln-i">43</span>exit</span>
+<span class="ln"><span class="ln-i">44</span></span>
+<span class="ln"><span class="ln-i">45</span>! --- аплинк к ядру ---</span>
+<span class="ln"><span class="ln-i">46</span>interface gi <span class="tok-n">1</span>/<span class="tok-n">0</span>/<span class="tok-n">24</span></span>
+<span class="ln"><span class="ln-i">47</span> description UPLINK-to-core</span>
+<span class="ln"><span class="ln-i">48</span> switchport mode trunk</span>
+<span class="ln"><span class="ln-i">49</span> exit</span>
+<span class="ln"><span class="ln-i">50</span></span>
+<span class="ln"><span class="ln-i">51</span>! --- неиспользуемые порты ---</span>
+<span class="ln"><span class="ln-i">52</span>interface range gi <span class="tok-n">1</span>/<span class="tok-n">0</span>/<span class="tok-n">14</span>-<span class="tok-n">23</span></span>
+<span class="ln"><span class="ln-i">53</span> description UNUSED-port-disabled</span>
+<span class="ln"><span class="ln-i">54</span> shutdown</span>
+<span class="ln"><span class="ln-i">55</span>exit</span>
+<span class="ln"><span class="ln-i">56</span></span>
+<span class="ln"><span class="ln-i">57</span>end</span>
+</code></pre></div>
+<p>Три момента, которые ломаются одинаково на всех платформах с похожим CLI:</p>
+<ul><li><strong>Без <code>switchport access vlan 10</code> порт остаётся в VLAN 1.</strong> Это причина
+«я всё настроил, а трафик идёт не туда», номер один в любой сети.</li><li><strong>Список VLAN на trunk задаётся либо сразу целиком, либо добавляется
+отдельной командой.</strong> Правило с Cisco здесь работает буквально: команда
+«разрешить VLAN» заменяет список, а не дополняет его. После неё обязательно
+смотри результат.</li><li><strong><code>shutdown</code> на пустых портах — одна строка, которая закрывает целый класс
+аварий.</strong> Пустой порт в рабочем VLAN — это дыра, в которую подключают чужой
+коммутатор и ломают остовное дерево.</li></ul>
+<h3 id="opisanie-portov-besplatnaya-strahovka">Описание портов — бесплатная страховка</h3>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>show interfaces description</span>
+<span class="ln"><span class="ln-i">2</span>! на большинстве платформ вывод покажет имя, статус, PVID и описание</span>
+</code></pre></div>
+<p>Через полгода вопрос «что было на порту 14 в марте» будет закрыт. В конфиге,
+в выводе и в мониторинге.</p>
+<h3 id="sohranenie-konfiguracii">Сохранение конфигурации</h3>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>write memory</span>
+<span class="ln"><span class="ln-i">2</span>! если не сработало — попробуй: save, copy running-config startup-config</span>
+</code></pre></div>
+<p>Команда сохранения — единственная, которую нужно выяснить один раз при вводе
+устройства в эксплуатацию и записать. Проверяется так: посмотри время аптайма,
+запомни, измени что-нибудь незначительное, перезагрузи, убедись, что настройка
+на месте. Дешевле один раз, чем искать, почему устройство «само сбросилось».</p>
+<h2 id="agregaciya-i-stp-dva-mesta-gde-ekonomyat-i-platyat">Агрегация и STP: два места, где экономят и платят</h2>
+<p>Агрегация каналов на этих устройствах обычно называется LAG или Aggregate и
+настраивается в три шага: создать группу, включить в неё порты, повесить на
+группу режим порта и VLAN.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>interface range gi <span class="tok-n">1</span>/<span class="tok-n">0</span>/<span class="tok-n">22</span>-<span class="tok-n">23</span></span>
+<span class="ln"><span class="ln-i">2</span> channel-group <span class="tok-n">1</span> mode active</span>
+<span class="ln"><span class="ln-i">3</span>exit</span>
+<span class="ln"><span class="ln-i">4</span>interface port-channel <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">5</span> switchport mode trunk</span>
+<span class="ln"><span class="ln-i">6</span> switchport access vlan <span class="tok-n">99</span></span>
+<span class="ln"><span class="ln-i">7</span>exit</span>
+</code></pre></div>
+<p>Обязательно проверь результат — так же, как на Cisco в
+<a href="../../lectures/net/01-cisco-ios-bazovoe.html">базовой лекции</a>, но с поправкой на возможные
+различия в выводе:</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>show etherchannel summary</span>
+<span class="ln"><span class="ln-i">2</span>show lacp neighbor</span>
+</code></pre></div>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Если в списке один порт вместо двух — это, как правило, не поломка, а
+результат того, что второй порт не согласовался. Иди в <code>show lacp neighbor</code>:
+отсутствие соседа означает, что на дальней стороне агрегация не настроена или
+настроена в другом режиме. Ошибка «канал собрался из одного порта» чаще
+означает проблему на противоположной стороне, чем на твоей.</p></div></div>
+<p>По STP-режимам на этих устройствах обычно есть RSTP как минимум, иногда MSTP.
+Не полагайся на умолчание: после смены режима остовного дерева проходит
+пересчёт топологии, и в этот момент трафик может не идти 30–50 секунд.
+Закладывай это в план технического обслуживания, а не в окно пользователя.</p>
+<h2 id="marshrutizaciya-dhcp-acl-aaa-korotko">Маршрутизация, DHCP, ACL, AAA: коротко</h2>
+<p>На коммутаторах доступа эти функции обычно есть в урезанном виде, и решение
+«повесить маршрутизацию между VLAN на коммутаторе» стоит проговорить отдельно:
+коммутатор справится, пока не понадобится NAT, сложные политики QoS или
+несколько WAN. Как только это нужно — это маршрутизатор.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Задача</th>
+<th style="text-align:left">Где обычно решают на SNR</th>
+<th style="text-align:left">Комментарий</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">DHCP для пользователей</td>
+<td style="text-align:left">коммутатор или маршрутизатор серии</td>
+<td style="text-align:left">уточняй размер пула и время аренды</td>
+</tr>
+<tr>
+<td style="text-align:left">Маршрутизация между VLAN</td>
+<td style="text-align:left">коммутатор с функцией L3</td>
+<td style="text-align:left">проверь по документации модели</td>
+</tr>
+<tr>
+<td style="text-align:left">NAT и выход в интернет</td>
+<td style="text-align:left">маршрутизатор серии</td>
+<td style="text-align:left">на коммутаторе доступа его обычно нет</td>
+</tr>
+<tr>
+<td style="text-align:left">ACL между сегментами</td>
+<td style="text-align:left">коммутатор</td>
+<td style="text-align:left">порядок правил важен, первое совпадение выигрывает</td>
+</tr>
+<tr>
+<td style="text-align:left">AAA / RADIUS</td>
+<td style="text-align:left">маршрутизатор</td>
+<td style="text-align:left">для офиса обычно избыточно</td>
+</tr>
+</tbody></table></div>
+<p>AAA в корпоративной сети — отдельная тема: если сервер аутентификации лежит в
+том же сегменте, который защищают ACL, то отказ сервера превращается в отказ
+доступа. Управление выноси в отдельный VLAN и делай так, чтобы при недоступности
+сервера в сеть попадал только доступ к сети управления. Подробнее — в
+<a href="../../lectures/net/03-bezopasnost-cisco.html">лекции про безопасность на Cisco</a>, логика на
+российских вендорах такая же.</p>
+<h2 id="praktika-tipovoy-ofis">Практика: типовой офис</h2>
+<p>Схема: один коммутатор, ядро — маршрутизатор серии, к нему же серверы.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>        +-------------------+</span>
+<span class="ln"><span class="ln-i">2</span>        |  Маршрутизатор    |  Gi0/1 - trunk - Gi1/0/24</span>
+<span class="ln"><span class="ln-i">3</span>        |  DHCP, NAT, VPN  |</span>
+<span class="ln"><span class="ln-i">4</span>        +-------------------+</span>
+<span class="ln"><span class="ln-i">5</span>                  |</span>
+<span class="ln"><span class="ln-i">6</span>   Gi1/0/1-12 Gi1/0/22-23   Gi1/0/13   Gi1/0/14-23</span>
+<span class="ln"><span class="ln-i">7</span>   VLAN 10      LAG 1        VLAN 20   shutdown</span>
+<span class="ln"><span class="ln-i">8</span>   пользователи  аплинк      серверы   неиспользуемые</span>
+</code></pre></div>
+<p>Порядок, который работает и который стоит записать в регламент:</p>
+<ol><li>Подключись по консоли. Не по SSH — на новом устройстве с неизвестными
+учётными данными консоль единственный способ не потерять доступ.</li><li>Задай имя, пароль, адрес управления в VLAN 99. Сохрани конфиг.</li><li>Создай VLAN, проверь <code>show vlan</code>.</li><li>Настрой access-порты и trunk, проверь список VLAN на trunk с обеих сторон.</li><li>Подними агрегацию, проверь <code>show etherchannel summary</code> — в канале должно
+быть два порта, а не один.</li><li>Выключи неиспользуемые порты.</li><li>Сохрани конфиг. Выключи питание и включи обратно. Убедись, что всё на месте.</li></ol>
+<p>Последний шаг — обязательный и самый дешёвый тест в сети. Раз в год кто-то
+забывает сохранить конфиг, и «забывшаяся» настройка всплывает через год в виде
+погасшего этажа.</p>
+<h2 id="monitoring-snmp-ntp-i-prometheus">Мониторинг: SNMP, NTP и Prometheus</h2>
+<p>Бюджетное оборудование редко блещет SNMP, но базовый набор для сбора метрик
+почти всегда есть. Версии протокола и состав MIB — то, что надо проверить
+конкретно на своей модели.</p>
+<div class="codeblock" data-lang="bash"><div class="codehead"><span class="code-lang">bash</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># проверка с рабочей машины: отвечает ли устройство по SNMP</span></span>
+<span class="ln"><span class="ln-i">2</span>snmpwalk -v2c -c public <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> system</span>
+<span class="ln"><span class="ln-i">3</span>snmpwalk -v2c -c public <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> interfaces</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-cmt"># 64-битные счётчики трафика — они и нужны для графиков</span></span>
+<span class="ln"><span class="ln-i">6</span>snmpwalk -v2c -c public <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> <span class="tok-n">1.3</span>.<span class="tok-n">6.1</span>.<span class="tok-n">2.1</span>.<span class="tok-n">31.1</span>.<span class="tok-n">1.1</span>.<span class="tok-n">6</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-cmt"># время на устройстве: расхождение с минут больше разрушает корреляцию логов</span></span>
+<span class="ln"><span class="ln-i">9</span>snmpwalk -v2c -c public <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> <span class="tok-n">1.3</span>.<span class="tok-n">6.1</span>.<span class="tok-n">2.1</span>.<span class="tok-n">25.1</span>.<span class="tok-n">2.0</span></span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span><span class="tok-cmt"># попробовать v3, если планируешь его использовать</span></span>
+<span class="ln"><span class="ln-i">12</span>snmpwalk -v3 -u snmpro -l authPriv -a SHA -A &lt;auth&gt; -x AES -X &lt;priv&gt; <span class="tok-n">10.10</span>.<span class="tok-n">99.2</span> system</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Что проверяешь</th>
+<th style="text-align:left">Что может выясниться</th>
+<th style="text-align:left">Почему это важно</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><code>system</code></td>
+<td style="text-align:left">имя, аптайм, контакт, где купили</td>
+<td style="text-align:left">аптайм — основа алерта «устройство перезагрузилось»</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>interfaces</code></td>
+<td style="text-align:left">состояние портов, скорость</td>
+<td style="text-align:left">карта сети строится отсюда</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ifHCIn/OutOctets</code></td>
+<td style="text-align:left">трафик по портам</td>
+<td style="text-align:left">графики загрузки</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ifTable</code> / <code>ifXTable</code></td>
+<td style="text-align:left">описание порта, состояние</td>
+<td style="text-align:left">привязка порта к месту и устройству</td>
+</tr>
+<tr>
+<td style="text-align:left">таблица MAC-адресов</td>
+<td style="text-align:left">кто где подключён</td>
+<td style="text-align:left">расследование инцидентов</td>
+</tr>
+<tr>
+<td style="text-align:left">NTP-сервер</td>
+<td style="text-align:left">смещение времени</td>
+<td style="text-align:left">логи и корреляция событий</td>
+</tr>
+</tbody></table></div>
+<p>Подводные камни, которые встречаются чаще всего:</p>
+<ul><li><strong>community по умолчанию.</strong> Если устройство отвечает на <code>public</code>, оно
+отвечает на него всем, кто дотянется. Первое действие после установки —
+сменить community и ограничить ACL по адресу источника.</li><li><strong>Отсутствие 64-битных счётчиков.</strong> На части моделей есть только 32-битные
+<code>ifInOctets</code>. На быстром порту они переполняются за несколько часов, метрика
+прыгает вниз — и график показывает отрицательный трафик. Для длинной истории
+это непригодно, и об этом надо знать до того, как историю испортили.</li><li><strong>Счётчики обнуляются при пересборке агрегированного канала.</strong> График
+трафика по LAG рвётся в момент, когда порт выпал и вернулся. Это нормальное
+поведение, а не сбой мониторинга.</li><li><strong>Состав MIB беднее, чем на Cisco.</strong> Часто нет OID с описанием порта или с
+номером VLAN. Тогда связь «счётчик — порт — розетка в кабинете» строится
+вручную, по таблице соответствия в твоей документации.</li></ul>
+<p>Привязка к Prometheus идёт через SNMP-экспортёр, и весь фокус в том, чтобы
+поля <code>ifAlias</code>, <code>ifDescr</code> и <code>ifName</code> были заполнены осмысленно — именно по ним
+Grafana различает порты.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>scrape_configs:</span>
+<span class="ln"><span class="ln-i">2</span>  - job_name: <span class="tok-str">'snmp_network'</span></span>
+<span class="ln"><span class="ln-i">3</span>    scrape_interval: 30s</span>
+<span class="ln"><span class="ln-i">4</span>    static_configs:</span>
+<span class="ln"><span class="ln-i">5</span>      - targets: [<span class="tok-str">'10.10.99.2'</span>]</span>
+<span class="ln"><span class="ln-i">6</span>    metrics_path: /snmp</span>
+<span class="ln"><span class="ln-i">7</span>    params:</span>
+<span class="ln"><span class="ln-i">8</span>      auth_module: [auth_v2c_public]</span>
+<span class="ln"><span class="ln-i">9</span>    relabel_configs:</span>
+<span class="ln"><span class="ln-i">10</span>      - source_labels: [__address__]</span>
+<span class="ln"><span class="ln-i">11</span>        target_label: __param_target</span>
+<span class="ln"><span class="ln-i">12</span>      - source_labels: [__param_target]</span>
+<span class="ln"><span class="ln-i">13</span>        target_label: instance</span>
+<span class="ln"><span class="ln-i">14</span>      - target_label: __address__</span>
+<span class="ln"><span class="ln-i">15</span>        replacement: snmp-exporter:<span class="tok-n">9115</span></span>
+</code></pre></div>
+<div class="callout callout-tip"><div class="callout-title"><span class="callout-icon">✨</span>Подсказка</div><div class="callout-body"><p>Опиши SNMP-аутентификацию в отдельном модуле экспортёра, а не в конфиге
+Prometheus. Тогда community живёт в одном месте, у Prometheus остаётся
+только адрес, и при смене community на всём парке ты правишь одну строку,
+а не десять job-ов. Подробнее про сбор метрик с сетевого оборудования — в
+<a href="../../lectures/net/16-monitoring-seti.html">лекции про мониторинг сети</a>.</p></div></div>
+<h2 id="rabota-v-steke">Работа в стеке</h2>
+<p>Стек на части управляемых моделей заявляется вендором. До того как строить на
+нём продакшн-этаж, проверь три вещи, и все три — через документацию и
+поддержку, а не через объявление на сайте:</p>
+<ol><li><strong>Сколько юнитов в стеке и как они соединяются.</strong> Соединение бывает
+кабелем, оптическим модулем или через выделенные стековые порты. От этого
+зависит, сколько ты теряешь портов на сами связи.</li><li><strong>Требования к версиям прошивок всех юнитов.</strong> Стек со смешанными версиями —
+главный источник тихих проблем: единая настройка применяется, а часть
+функций работает не у всех.</li><li><strong>Что происходит при разрыве связи между юнитами.</strong> Если нет отдельного
+механизма отказоустойчивости, потеря линка делит стек на два независимых
+коммутатора с двумя копиями MAC-адресов. Это хуже, чем просто два отдельных
+коммутатора: администратор думает, что у него один, а сеть ведёт себя как
+два, плюс дублируются broadcast.</li></ol>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Свойство</th>
+<th style="text-align:left">Cisco StackWise</th>
+<th style="text-align:left">Стек на бюджетном оборудовании</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Единая конфигурация</td>
+<td style="text-align:left">да, полноценно</td>
+<td style="text-align:left">заявлено, состав функций уточняй</td>
+</tr>
+<tr>
+<td style="text-align:left">Отказоустойчивость</td>
+<td style="text-align:left">отдельный канал управления</td>
+<td style="text-align:left">зависит от реализации, проверяй</td>
+</tr>
+<tr>
+<td style="text-align:left">Агрегация между юнитами</td>
+<td style="text-align:left">да</td>
+<td style="text-align:left">обычно да, но с оговорками по скорости</td>
+</tr>
+<tr>
+<td style="text-align:left">Обновление прошивок</td>
+<td style="text-align:left">согласованное, по расписанию</td>
+<td style="text-align:left">чаще ручное, по юнитам</td>
+</tr>
+<tr>
+<td style="text-align:left">Документация по отказам</td>
+<td style="text-align:left">подробная</td>
+<td style="text-align:left">скудная, готовься разбираться сам</td>
+</tr>
+<tr>
+<td style="text-align:left">Время на восстановление</td>
+<td style="text-align:left">предсказуемое</td>
+<td style="text-align:left">непредсказуемое</td>
+</tr>
+</tbody></table></div>
+<p>Практический совет: <strong>стек оправдан там, где отказ одного коммутатора означает
+остановку работы</strong>. Если этаж может простоять пять минут и никто не заметит,
+два отдельных коммутатора дешевле, предсказуемее и чинятся независимо. Сравни
+этот вывод с тем, как устроен стек у Eltex и что он даёт — в следующей лекции
+<a href="../../lectures/net/14-eltex.html">про Eltex</a>: там разговор про стек пойдёт подробнее, потому что
+возможностей заметно больше.</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Веб-интерфейс как источник истины.</strong> Правка через браузер применяется
+сразу, без журнала и без возможности отмены. Снимок конфигурации через CLI
+перед каждой правкой в вебе — не формальность.</li><li><strong>Забытая команда сохранения.</strong> Самая частая причина «устройство само
+сбросилось». Проверяй аптайм: если он больше времени твоей последней правки,
+конфиг не сохранён.</li><li><strong>Несовпадение native VLAN на двух концах trunk.</strong> Трафик течёт, «всё
+работает», но изолированные сегменты видят друг друга. Проверяй с двух сторон.</li><li><strong>Замена списка VLAN вместо дополнения.</strong> Команда «разрешить VLAN» пишет
+список заново. После неё — только просмотр, без исключений.</li><li><strong>Пересборка агрегированного канала рвёт историю трафика и сбрасывает
+счётчики.</strong> График показывает провал, который не является аварией. Не
+отлаживай мониторинг по этому событию.</li><li><strong>Пустые порты в рабочем VLAN.</strong> Чужой коммутатор, подключённый «на пять
+минут», роняет остовное дерево. <code>shutdown</code> на неиспользуемых портах.</li><li><strong>Разные версии прошивок в стеке.</strong> Настройка применится, поведение —
+нет. Обновляй весь стек согласованно и проверяй результат, а не только то,
+что прошивка залилась.</li><li><strong>Отсутствие 32-битных или 64-битных счётчиков.</strong> Если есть только 32-битные,
+длинная история трафика будет непригодна, и это надо узнать в первый день,
+а не через месяц, когда понадобится отчёт.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю позиционирование SNR: берут за счёт и знакомый CLI, а не за
+широту функций</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу назвать минимум три функции, которые с Cisco переносятся напрямую,
+и три, где придётся сверяться с документацией</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я настраиваю VLAN, access- и trunk-порт в стиле Cisco и понимаю, почему
+без явного VLAN порт остаётся в VLAN 1</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я всегда проверяю список VLAN на trunk и агрегацию после настройки, а не
+доверяю вводу команд</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я выключаю неиспользуемые порты и объясняю, какую аварию это предотвращает</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я проверяю, есть ли на устройстве 64-битные счётчики, до того как строить
+на них долгую историю трафика</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, чем стек отличается от двух независимых коммутаторов и в каких
+случаях стек не нужен</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею настроить сбор SNMP-метрик через Prometheus и понимаю, зачем
+описания портов попадают в вывод</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Собери типовую схему офиса на управляемом коммутаторе или тренажёре: VLAN 99 управление, VLAN 10 пользователи, VLAN 20 серверы, VLAN 30 гости, trunk на аплинк и LAG из двух портов. Загрузи конфиг, сохрани его, потом намеренно сломай native VLAN на одном конце и разбери симптом по таблице диагностики.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=netdev"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Сеть · оборудование» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="net/13-snr">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/net/03-beshevnyy-wifi.html"><span>← Предыдущая</span><b>Бесшовный Wi-Fi и его диагностика</b></a>
+        <a class="nav-next" href="../../lectures/net/14-eltex.html"><span>Следующая →</span><b>Eltex: ESR, MES и бесшовный Wi-Fi</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "net/13-snr";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

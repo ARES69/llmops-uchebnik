@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Масштабирование и стоимость — Учебник DevOps &amp; MLOps</title>
+<meta name="description" content="Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9670;</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="../../index.html">
+    <span class="logo-mark">&#9670;</span>
+    <span class="logo-text">DevOps <b>&amp;</b> MLOps<em>учебник</em></span>
+  </a>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу…" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="progress-mini" title="Прогресс курса">
+      <div class="pm-ring"><svg viewBox="0 0 36 36"><circle class="pm-bg" cx="18" cy="18" r="15.5"/><circle class="pm-fg" cx="18" cy="18" r="15.5" id="pmFg"/></svg><span id="pmPct">0%</span></div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Сменить тему">
+      <svg viewBox="0 0 24 24" class="ico-moon"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      <svg viewBox="0 0 24 24" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="curriculum" id="curriculum"></nav>
+    <div class="side-foot">
+      <div class="prog-bar"><div id="progFill"></div></div>
+      <div class="prog-text" id="progText">0 из 0 пройдено</div>
+      <div class="side-links">
+        <button class="link-btn" id="resetProgress">Сбросить прогресс</button>
+        <a href="../../index.html">Главная</a>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="crumbs">
+      <a href="../../index.html">Учебник</a>
+      <span class="sep">/</span>
+      <a href="../../lectures/index.html">MLOps</a>
+      <span class="sep">/</span>
+      <span class="crumb-mod">J. LLMOps в продакшне</span>
+    </div>
+
+    
+    <article class="content">
+      <div class="lesson-head">
+        <h1>Масштабирование и стоимость</h1>
+        <p class="lead">Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался</p>
+        <div class="meta"><span class="badge">80 мин</span><span class="badge lvl-senior">Профи</span><span class="badge practice">Практика</span></div>
+        <div class="tags"><span class="tag">масштабирование</span><span class="tag">стоимость</span><span class="tag">токены</span><span class="tag">hpa</span><span class="tag">кэш</span><span class="tag">бюджет</span></div>
+      </div>
+
+      <nav class="toc"><div class="toc-title">На этой странице</div><ul><li class="toc-l2"><a href="#iz-chego-skladyvaetsya-schet-za-llm">Из чего складывается счёт за LLM</a></li><li class="toc-l2"><a href="#tri-sposoba-vladeniya-modelyu">Три способа владения моделью</a></li><li class="toc-l3"><a href="#raschet-tochki-okupaemosti">Расчёт точки окупаемости</a></li><li class="toc-l2"><a href="#kalkulyator-stoimosti-zaprosa">Калькулятор стоимости запроса</a></li><li class="toc-l2"><a href="#glavnyy-rychag-skolko-chankov-ty-kormish-modeli">Главный рычаг: сколько чанков ты кормишь модели</a></li><li class="toc-l2"><a href="#keshirovanie-chetyre-raznyh-kesha-s-raznymi-pravilami">Кэширование: четыре разных кэша с разными правилами</a></li><li class="toc-l2"><a href="#agentnyy-cikl-glavnyy-mnozhitel-rashodov">Агентный цикл: главный множитель расходов</a></li><li class="toc-l2"><a href="#rate-limiting-kvoty-i-zaschita-byudzheta">Rate limiting, квоты и защита бюджета</a></li><li class="toc-l2"><a href="#prognoz-byudzheta-formula-dlya-prezentacii">Прогноз бюджета: формула для презентации</a></li><li class="toc-l2"><a href="#poryadok-optimizaciy-ot-deshevyh-k-dorogim">Порядок оптимизаций: от дешёвых к дорогим</a></li><li class="toc-l2"><a href="#avtoskeyling-gpu-v-kubernetes">Автоскейлинг GPU в Kubernetes</a></li><li class="toc-l2"><a href="#masshtabirovanie-rag-indeksa">Масштабирование RAG-индекса</a></li><li class="toc-l2"><a href="#chto-pokazyvaesh-rukovodstvu">Что показываешь руководству</a></li><li class="toc-l2"><a href="#gde-eto-lomaetsya">Где это ломается</a></li><li class="toc-l2"><a href="#chek-list-ponimaniya">Чек-лист понимания</a></li></ul></nav>
+
+      <div class="prose" id="prose"><p>Три предыдущие лекции дали тебе контроль качества, видимость и воспроизводимость. Осталась лекция, ради которой ты пришёл: <strong>сколько это стоит и что будет, когда пользователей станет в десять раз больше</strong>. Именно её содержание ляжет в слайд для руководства, потому что вопрос «сколько будем платить и когда это станет неприемлемо» тебе зададут в любом случае — лучше отвечать с цифрами и моделью, чем с улыбкой.</p>
+<p>Роль здесь меняется: ты больше не инженер, который внедряет, а человек, который выбирает между «арендовать», «купить» и «сэкономить», и отвечает за результат перед финансовым директором. Эта лекция — про экономику решения, а не про строчку конфига.</p>
+<h2 id="iz-chego-skladyvaetsya-schet-za-llm">Из чего складывается счёт за LLM</h2>
+<p>Счёт приходит одной строкой, а состоит из шести слагаемых, и они растут по разным законам. Это первое, что надо объяснить финансистам: нельзя сократить счёт, увеличив «бюджет на API» — надо понять, какое именно слагаемое выросло.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Компонент</th>
+<th style="text-align:left">Как считается</th>
+<th style="text-align:center">Типичная доля</th>
+<th style="text-align:left">Что с ним делать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Входные токены</strong></td>
+<td style="text-align:left">(системный промпт + вопрос + <strong>контекст RAG</strong>) × цена входа</td>
+<td style="text-align:center"><strong>50–80%</strong></td>
+<td style="text-align:left">главный рычаг: резать контекст</td>
+</tr>
+<tr>
+<td style="text-align:left">Выходные токены</td>
+<td style="text-align:left">длина ответа × цена выхода</td>
+<td style="text-align:center">10–25%</td>
+<td style="text-align:left">ограничить <code>max_tokens</code>, просить кратко</td>
+</tr>
+<tr>
+<td style="text-align:left">Число вызовов модели</td>
+<td style="text-align:left">умножается на шаги агентного цикла</td>
+<td style="text-align:center">множитель 2…15</td>
+<td style="text-align:left">ограничить <code>max_steps</code>, кэш</td>
+</tr>
+<tr>
+<td style="text-align:left">Эмбеддинги</td>
+<td style="text-align:left">тексты запроса и документов × цена</td>
+<td style="text-align:center">1–5%</td>
+<td style="text-align:left">кэш эмбеддингов, батчинг</td>
+</tr>
+<tr>
+<td style="text-align:left">Reranker</td>
+<td style="text-align:left">пары (запрос, чанк) × цена</td>
+<td style="text-align:center">3–15%</td>
+<td style="text-align:left">кэш скоров, резать кандидатов</td>
+</tr>
+<tr>
+<td style="text-align:left">Инфраструктура</td>
+<td style="text-align:left">GPU-часы, VRAM, трафик, хранилище снапшотов</td>
+<td style="text-align:center">постоянная</td>
+<td style="text-align:left">автоскейлинг в ноль</td>
+</tr>
+</tbody></table></div>
+<p>Главный вывод таблицы: <strong>входные токены контекста — это обычно две трети счёта</strong>, и именно на них смотрят в последнюю очередь. Инженеры оптимизируют промпт, модель, батчинг, а контекст из 20 чанков никто не трогает, потому что «больше контекста — лучше ответ». Это не так, и ниже будет расчёт.</p>
+<h2 id="tri-sposoba-vladeniya-modelyu">Три способа владения моделью</h2>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Критерий</th>
+<th style="text-align:left">Подписка на API</th>
+<th style="text-align:left">Своё железо</th>
+<th style="text-align:left">Аренда GPU</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Стартовые затраты</td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">20 000–150 000 $ (сервер + GPU)</td>
+<td style="text-align:left">0</td>
+</tr>
+<tr>
+<td style="text-align:left">Порог входа</td>
+<td style="text-align:left">нет</td>
+<td style="text-align:left">высокий</td>
+<td style="text-align:left">нет, но платишь за простой</td>
+</tr>
+<tr>
+<td style="text-align:left">Предсказуемость счёта</td>
+<td style="text-align:left">средняя: цены вендор меняет</td>
+<td style="text-align:left">высокая после окупаемости</td>
+<td style="text-align:left">средняя, зависит от загрузки</td>
+</tr>
+<tr>
+<td style="text-align:left">Где проходит граница объёма</td>
+<td style="text-align:left">до ~100 млн токенов/мес</td>
+<td style="text-align:left">от ~500 млн</td>
+<td style="text-align:left">между ними, для пиков</td>
+</tr>
+<tr>
+<td style="text-align:left">Что происходит с простоем</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">платишь амортизацией и электричеством</td>
+<td style="text-align:left">платишь полной ставкой за час</td>
+</tr>
+<tr>
+<td style="text-align:left">Данные</td>
+<td style="text-align:left">уходят вендору</td>
+<td style="text-align:left">остаются у тебя</td>
+<td style="text-align:left">у провайдера, но меньше</td>
+</tr>
+<tr>
+<td style="text-align:left">Кто следит за качеством железа</td>
+<td style="text-align:left">вендор</td>
+<td style="text-align:left">ты и вендор серверов</td>
+<td style="text-align:left">провайдер</td>
+</tr>
+<tr>
+<td style="text-align:left">Латентность</td>
+<td style="text-align:left">зависит от региона и очередей</td>
+<td style="text-align:left">предсказуемая</td>
+<td style="text-align:left">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Что ломается</td>
+<td style="text-align:left">лимиты rate, деградация под нагрузкой</td>
+<td style="text-align:left">перегрев, износ GPU</td>
+<td style="text-align:left">лимиты, дефицит мощностей</td>
+</tr>
+<tr>
+<td style="text-align:left">Кому отвечаешь ты</td>
+<td style="text-align:left">вендору SLA</td>
+<td style="text-align:left">себе</td>
+<td style="text-align:left">себе и провайдеру</td>
+</tr>
+</tbody></table></div>
+<p>Правило выбора, которое работает почти всегда: <strong>объём определяет, а не любовь к технологиям</strong>. Низкий и нестабильный объём — подписка. Высокий стабильный объём плюс требования к данным — своё железо. Всё между ними — аренда GPU, особенно когда нужен переезд с дешёвой модели на дорогую «на месяц-другой», чтобы проверить гипотезу.</p>
+<h3 id="raschet-tochki-okupaemosti">Расчёт точки окупаемости</h3>
+<p>Расчёт на конкретном сервере под 8B–14B моделей, 30 дней, 24/7. Все цифры подставляешь свои, структура остаётся.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>СВОЁ ЖЕЛЕЗО (1 сервер, 2 L40S 48 ГБ)</span>
+<span class="ln"><span class="ln-i">2</span>  CAPEX                     26 000 $      (сервер + 2 GPU + RAM/SSD)</span>
+<span class="ln"><span class="ln-i">3</span>  срок амортизации          48 мес</span>
+<span class="ln"><span class="ln-i">4</span>  амортизация               26 000 / 48        = 542 $ / мес</span>
+<span class="ln"><span class="ln-i">5</span>  электричество             1.6 кВт × 720 ч × 0.09 $ = 104 $ / мес</span>
+<span class="ln"><span class="ln-i">6</span>  место, сеть, запчасти                       = 150 $ / мес</span>
+<span class="ln"><span class="ln-i">7</span>  ИТОГО полная стоимость                        796 $ / мес</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>АРЕНДА GPU (L40S, on-demand 1.10 $ / ч)</span>
+<span class="ln"><span class="ln-i">10</span>  при загрузке 100 %        1.10 × 720       = 792 $ / мес</span>
+<span class="ln"><span class="ln-i">11</span>  при загрузке 30 %         0.30 × 720 × 1.10 = 238 $ / мес</span>
+<span class="ln"><span class="ln-i">12</span>  spot с автоскейлом в ноль   0 в простое, но холодный старт 3–6 мин</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>ПОДПИСКА API (Llama-3.1-8B, 0.18 $ / 1M вход, 0.18 $ / 1M выход)</span>
+<span class="ln"><span class="ln-i">15</span>  1 млн запросов/мес:  800 токенов входа + 200 выхода на запрос</span>
+<span class="ln"><span class="ln-i">16</span>  вход   800 млн × 0.18 / 1e6  = 144 $</span>
+<span class="ln"><span class="ln-i">17</span>  выход  200 млн × 0.18 / 1e6  =  36 $</span>
+<span class="ln"><span class="ln-i">18</span>  ИТОГО                                180 $ / мес</span>
+</code></pre></div>
+<p>Сводим и ищем точку, где железо становится дешевле подписки.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># finance/break_even.py — точка окупаемости собственного железа против подписки</span></span>
+<span class="ln"><span class="ln-i">2</span>CAPEX = 26_000</span>
+<span class="ln"><span class="ln-i">3</span>LIFE_MONTHS = <span class="tok-n">48</span></span>
+<span class="ln"><span class="ln-i">4</span>POWER_KW = <span class="tok-n">1.6</span></span>
+<span class="ln"><span class="ln-i">5</span>POWER_PRICE_KWH = <span class="tok-n">0.09</span></span>
+<span class="ln"><span class="ln-i">6</span>HOURS = <span class="tok-n">720</span></span>
+<span class="ln"><span class="ln-i">7</span>FIXED_OPS = <span class="tok-n">150</span>                      <span class="tok-cmt"># место в стойке, сеть, запчасти, труд</span></span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>RENT_FULL = <span class="tok-n">1.10</span> * HOURS             <span class="tok-cmt"># аренда L40S 24/7</span></span>
+<span class="ln"><span class="ln-i">10</span>ON_PREM_MONTHLY = CAPEX / LIFE_MONTHS + POWER_KW * HOURS * POWER_PRICE_KWH + FIXED_OPS</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span><span class="tok-k">def</span> <span class="tok-fn">api_monthly</span>(tokens_in_m: float, tokens_out_m: float, price_in: float,</span>
+<span class="ln"><span class="ln-i">13</span>                price_out: float) -&gt; float:</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-k">return</span> tokens_in_m * price_in / <span class="tok-n">1e6</span> + tokens_out_m * price_out / <span class="tok-n">1e6</span></span>
+<span class="ln"><span class="ln-i">15</span></span>
+<span class="ln"><span class="ln-i">16</span><span class="tok-k">def</span> <span class="tok-fn">api_for_budget</span>(budget: float, price_in: float, price_out: float,</span>
+<span class="ln"><span class="ln-i">17</span>                   ratio_out: float = <span class="tok-n">0.25</span>) -&gt; tuple[float, float]:</span>
+<span class="ln"><span class="ln-i">18</span>    <span class="tok-str">"""Сколько токенов в месяц прожжёт данный бюджет и сколько это запросов."""</span></span>
+<span class="ln"><span class="ln-i">19</span>    per_token = (ratio_out * price_out + (<span class="tok-n">1</span> - ratio_out) * price_in)</span>
+<span class="ln"><span class="ln-i">20</span>    total_tokens = budget / per_token * <span class="tok-n">1e6</span></span>
+<span class="ln"><span class="ln-i">21</span>    <span class="tok-k">return</span> total_tokens, total_tokens / (<span class="tok-n">1</span> - ratio_out)</span>
+<span class="ln"><span class="ln-i">22</span></span>
+<span class="ln"><span class="ln-i">23</span>break_even_tokens, break_even_requests = <span class="tok-fn">api_for_budget</span>(ON_PREM_MONTHLY, <span class="tok-n">0.18</span>, <span class="tok-n">0.18</span>)</span>
+<span class="ln"><span class="ln-i">24</span><span class="tok-fn">print</span>(f<span class="tok-str">"Полная стоимость своего железа : {ON_PREM_MONTHLY:8.0f} $/мес"</span>)</span>
+<span class="ln"><span class="ln-i">25</span><span class="tok-fn">print</span>(f<span class="tok-str">"Аренда 24/7                    : {RENT_FULL:8.0f} $/мес"</span>)</span>
+<span class="ln"><span class="ln-i">26</span><span class="tok-fn">print</span>(f<span class="tok-str">"Точка безразличия (железо = API): {break_even_tokens/1e9:.2f} млрд токенов/мес"</span>)</span>
+<span class="ln"><span class="ln-i">27</span><span class="tok-fn">print</span>(f<span class="tok-str">"                              : {break_even_requests/1e6:.2f} млн запросов/мес"</span>)</span>
+<span class="ln"><span class="ln-i">28</span></span>
+<span class="ln"><span class="ln-i">29</span><span class="tok-cmt"># Для 70B логика другая: облачная 70B дороже в разы, а железо то же самое,</span></span>
+<span class="ln"><span class="ln-i">30</span><span class="tok-cmt"># поэтому точка окупаемости смещается влево в 5-8 раз.</span></span>
+</code></pre></div>
+<p>Числа, которые нужно вынести из этого расчёта:</p>
+<ul><li>при <strong>8B-модели</strong> своё железо окупается примерно при <strong>4+ млрд токенов в месяц</strong> — это крупный корпоративный проект, не пилот;</li><li>при <strong>70B-модели</strong> та же коробка окупается в <strong>5–8 раз раньше</strong>, потому что облачный 70B стоит кратно дороже при той же цене железа. <strong>Чем дороже модель, тем сильнее аргумент за своё железо</strong> — это контринтуитивный, но самый полезный вывод всего расчёта;</li><li><strong>аренда выигрывает у покупки почти всегда при загрузке ниже 50%</strong>, а проигрывает при стабильной высокой: ты платишь за каждый час, а не за каждый токен.</li></ul>
+<h2 id="kalkulyator-stoimosti-zaprosa">Калькулятор стоимости запроса</h2>
+<p>Инструмент, который должен лежать в репозитории проекта и использоваться в каждом PR, где меняется промпт, <code>top_k</code> или модель.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># finance/cost.py — калькулятор стоимости запроса по компонентам</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">from</span> dataclasses <span class="tok-k">import</span> dataclass, field</span>
+<span class="ln"><span class="ln-i">3</span></span>
+<span class="ln"><span class="ln-i">4</span>PRICES = {   <span class="tok-cmt"># $ за 1M токенов, зафиксированы на дату в CONFIG_DATE</span></span>
+<span class="ln"><span class="ln-i">5</span>    <span class="tok-str">"CONFIG_DATE"</span>: <span class="tok-str">"2025-06-01"</span>,</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-str">"gpt-4o"</span>:            {<span class="tok-str">"in"</span>: <span class="tok-n">2.50</span>, <span class="tok-str">"out"</span>: <span class="tok-n">10.00</span>},</span>
+<span class="ln"><span class="ln-i">7</span>    <span class="tok-str">"gpt-4o-mini"</span>:       {<span class="tok-str">"in"</span>: <span class="tok-n">0.15</span>, <span class="tok-str">"out"</span>: <span class="tok-n">0.60</span>},</span>
+<span class="ln"><span class="ln-i">8</span>    <span class="tok-str">"llama-3.1-8b"</span>:      {<span class="tok-str">"in"</span>: <span class="tok-n">0.18</span>, <span class="tok-str">"out"</span>: <span class="tok-n">0.18</span>},</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-str">"llama-3.1-70b"</span>:     {<span class="tok-str">"in"</span>: <span class="tok-n">0.72</span>, <span class="tok-str">"out"</span>: <span class="tok-n">0.72</span>},</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-str">"bge-m3-embed"</span>:      {<span class="tok-str">"in"</span>: <span class="tok-n">0.02</span>, <span class="tok-str">"out"</span>: <span class="tok-n">0.0</span>},</span>
+<span class="ln"><span class="ln-i">11</span>    <span class="tok-str">"bge-reranker-m3"</span>:   {<span class="tok-str">"in"</span>: <span class="tok-n">0.03</span>, <span class="tok-str">"out"</span>: <span class="tok-n">0.0</span>},</span>
+<span class="ln"><span class="ln-i">12</span>}</span>
+<span class="ln"><span class="ln-i">13</span></span>
+<span class="ln"><span class="ln-i">14</span>@dataclass</span>
+<span class="ln"><span class="ln-i">15</span><span class="tok-k">class</span> Request:</span>
+<span class="ln"><span class="ln-i">16</span>    system_prompt_tokens: int = <span class="tok-n">350</span></span>
+<span class="ln"><span class="ln-i">17</span>    question_tokens: int = <span class="tok-n">40</span></span>
+<span class="ln"><span class="ln-i">18</span>    context_tokens: int = <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">19</span>    output_tokens: int = <span class="tok-n">250</span></span>
+<span class="ln"><span class="ln-i">20</span>    model: str = <span class="tok-str">"gpt-4o-mini"</span></span>
+<span class="ln"><span class="ln-i">21</span>    embed_calls: int = <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">22</span>    rerank_pairs: int = <span class="tok-n">0</span></span>
+<span class="ln"><span class="ln-i">23</span>    agent_steps: int = <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">24</span>    cache_hit_rate: float = <span class="tok-n">0.0</span></span>
+<span class="ln"><span class="ln-i">25</span></span>
+<span class="ln"><span class="ln-i">26</span>    <span class="tok-k">def</span> <span class="tok-fn">cost</span>(self) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">27</span>        p = PRICES</span>
+<span class="ln"><span class="ln-i">28</span>        gen_in = (self.system_prompt_tokens + self.question_tokens + self.context_tokens) \</span>
+<span class="ln"><span class="ln-i">29</span>                 * self.agent_steps</span>
+<span class="ln"><span class="ln-i">30</span>        gen_out = self.output_tokens * self.agent_steps</span>
+<span class="ln"><span class="ln-i">31</span>        parts = {</span>
+<span class="ln"><span class="ln-i">32</span>            <span class="tok-str">"generation_input"</span>:  gen_in  * p[self.model][<span class="tok-str">"in"</span>]  / <span class="tok-n">1e6</span>,</span>
+<span class="ln"><span class="ln-i">33</span>            <span class="tok-str">"generation_output"</span>: gen_out * p[self.model][<span class="tok-str">"out"</span>] / <span class="tok-n">1e6</span>,</span>
+<span class="ln"><span class="ln-i">34</span>            <span class="tok-str">"embeddings"</span>:        self.embed_calls * p[<span class="tok-str">"bge-m3-embed"</span>][<span class="tok-str">"in"</span>] / <span class="tok-n">1e6</span>,</span>
+<span class="ln"><span class="ln-i">35</span>            <span class="tok-str">"reranker"</span>:          self.rerank_pairs * p[<span class="tok-str">"bge-reranker-m3"</span>][<span class="tok-str">"in"</span>] / <span class="tok-n">1e6</span>,</span>
+<span class="ln"><span class="ln-i">36</span>        }</span>
+<span class="ln"><span class="ln-i">37</span>        total = <span class="tok-fn">sum</span>(parts.<span class="tok-fn">values</span>())</span>
+<span class="ln"><span class="ln-i">38</span>        <span class="tok-k">return</span> {**parts,</span>
+<span class="ln"><span class="ln-i">39</span>                <span class="tok-str">"total"</span>: total,</span>
+<span class="ln"><span class="ln-i">40</span>                <span class="tok-str">"effective"</span>: total * (<span class="tok-n">1</span> - self.cache_hit_rate),</span>
+<span class="ln"><span class="ln-i">41</span>                <span class="tok-str">"input_tokens"</span>: gen_in}</span>
+<span class="ln"><span class="ln-i">42</span></span>
+<span class="ln"><span class="ln-i">43</span><span class="tok-k">def</span> <span class="tok-fn">report</span>(**kw) -&gt; dict:</span>
+<span class="ln"><span class="ln-i">44</span>    r = <span class="tok-fn">Request</span>(**kw)</span>
+<span class="ln"><span class="ln-i">45</span>    c = r.<span class="tok-fn">cost</span>()</span>
+<span class="ln"><span class="ln-i">46</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"модель={r.model} шагов={r.agent_steps} контекст={r.context_tokens} токенов"</span>)</span>
+<span class="ln"><span class="ln-i">47</span>    <span class="tok-k">for</span> k, v <span class="tok-k">in</span> c.<span class="tok-fn">items</span>():</span>
+<span class="ln"><span class="ln-i">48</span>        <span class="tok-k">if</span> k.<span class="tok-fn">endswith</span>(<span class="tok-str">"tokens"</span>):</span>
+<span class="ln"><span class="ln-i">49</span>            <span class="tok-fn">print</span>(f<span class="tok-str">"  {k:&lt;20} {v:&gt;10,}"</span>)</span>
+<span class="ln"><span class="ln-i">50</span>        <span class="tok-k">else</span>:</span>
+<span class="ln"><span class="ln-i">51</span>            <span class="tok-fn">print</span>(f<span class="tok-str">"  {k:&lt;20} {v:&gt;10.6f} $  ({v / c['total'] * 100:4.1f} %)"</span>)</span>
+<span class="ln"><span class="ln-i">52</span>    <span class="tok-k">return</span> c</span>
+</code></pre></div>
+<h2 id="glavnyy-rychag-skolko-chankov-ty-kormish-modeli">Главный рычаг: сколько чанков ты кормишь модели</h2>
+<p>Разбор на цифрах, которые стоит положить в презентацию. Один и тот же RAG-вопрос, два варианта конфигурации.</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>ЗАПРОС: «Сколько дней отпуск у сотрудника, отработавшего 4 месяца?»</span>
+<span class="ln"><span class="ln-i">2</span>  системный промпт           350 токенов</span>
+<span class="ln"><span class="ln-i">3</span>  вопрос                       40 токенов</span>
+<span class="ln"><span class="ln-i">4</span>  чанк регламента            ~300 токенов</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>ВАРИАНТ A: top_k = 5 (после rerank)</span>
+<span class="ln"><span class="ln-i">7</span>  контекст  5 × 300 = 1 500 токенов</span>
+<span class="ln"><span class="ln-i">8</span>  вход всего 1 890, выход 250</span>
+<span class="ln"><span class="ln-i">9</span></span>
+<span class="ln"><span class="ln-i">10</span>ВАРИАНТ B: top_k = 20 (без rerank)</span>
+<span class="ln"><span class="ln-i">11</span>  контекст 20 × 300 = 6 000 токенов</span>
+<span class="ln"><span class="ln-i">12</span>  вход всего 6 390, выход 250</span>
+</code></pre></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># finance/context_roi.py — во сколько раз контекст съедает бюджет</span></span>
+<span class="ln"><span class="ln-i">2</span>a = <span class="tok-fn">report</span>(model=<span class="tok-str">"gpt-4o-mini"</span>, context_tokens=<span class="tok-n">1500</span>, rerank_pairs=<span class="tok-n">20</span>)</span>
+<span class="ln"><span class="ln-i">3</span>b = <span class="tok-fn">report</span>(model=<span class="tok-str">"gpt-4o-mini"</span>, context_tokens=<span class="tok-n">6000</span>, rerank_pairs=<span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-fn">print</span>(f<span class="tok-str">"\nразница по стоимости: {b['total'] / a['total']:.2f}x"</span>)</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>MONTHLY_REQUESTS = 1_000_000</span>
+<span class="ln"><span class="ln-i">7</span><span class="tok-k">for</span> model <span class="tok-k">in</span> (<span class="tok-str">"gpt-4o-mini"</span>, <span class="tok-str">"gpt-4o"</span>):</span>
+<span class="ln"><span class="ln-i">8</span>    ca = <span class="tok-fn">Request</span>(model=model, context_tokens=<span class="tok-n">1500</span>, rerank_pairs=<span class="tok-n">20</span>).<span class="tok-fn">cost</span>()[<span class="tok-str">"total"</span>]</span>
+<span class="ln"><span class="ln-i">9</span>    cb = <span class="tok-fn">Request</span>(model=model, context_tokens=<span class="tok-n">6000</span>).<span class="tok-fn">cost</span>()[<span class="tok-str">"total"</span>]</span>
+<span class="ln"><span class="ln-i">10</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"{model:&lt;14} A: {ca * MONTHLY_REQUESTS:&gt;9,.0f} $/мес   "</span></span>
+<span class="ln"><span class="ln-i">11</span>          f<span class="tok-str">"B: {cb * MONTHLY_REQUESTS:&gt;9,.0f} $/мес   "</span></span>
+<span class="ln"><span class="ln-i">12</span>          f<span class="tok-str">"разница: {(cb - ca) * MONTHLY_REQUESTS:&gt;9,.0f} $/мес"</span>)</span>
+</code></pre></div>
+<p>Считаем в уме по таблице выше: на <code>gpt-4o-mini</code> разница — <strong>$0,68 на запрос</strong>, на <code>gpt-4o</code> — <strong>$0,011 на запрос</strong>. При миллионе запросов в месяц это <strong>$11 250 в месяц</strong> только из-за лишних 15 чанков. А качество при этом не выше, а ниже: 15 лишних документов — это 15 лишних возможностей сослаться не на тот, и groundedness падает.</p>
+<div class="callout callout-caution"><div class="callout-title"><span class="callout-icon">⚡</span>Осторожно</div><div class="callout-body"><p>Ровно этот расчёт — самая частая находка аудита расходов на LLM-проектах. В 8 случаях из 10 «неожиданно дорогой счёт» — это <code>top_k: 20</code>, поставленный месяц назад «на всякий случай», плюс агентный цикл без ограничения шагов. И то и другое лечится одной строкой конфигурации, а не торгом с вендором.</p></div></div>
+<h2 id="keshirovanie-chetyre-raznyh-kesha-s-raznymi-pravilami">Кэширование: четыре разных кэша с разными правилами</h2>
+<p>Кэш в LLM-системе — это не один механизм, а четыре разных, и путать их дорого: часть из них нарушает права доступа.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Вид кэша</th>
+<th style="text-align:left">Ключ</th>
+<th style="text-align:left">Что даёт</th>
+<th style="text-align:left">Экономит</th>
+<th style="text-align:center">Безопасно ли кэшировать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>Ответов (exact)</strong></td>
+<td style="text-align:left">хеш (запрос + версия промпта + id пользователя + права)</td>
+<td style="text-align:left">мгновенный ответ на повтор</td>
+<td style="text-align:left">100% генерации</td>
+<td style="text-align:center"><strong>да, если в ключ входит id и права</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Семантический</strong></td>
+<td style="text-align:left">эмбеддинг запроса + порог сходства</td>
+<td style="text-align:left">ответ на переформулированный вопрос</td>
+<td style="text-align:left">30–60% генерации</td>
+<td style="text-align:center"><strong>условно</strong>: «кто такой отпускной день»  «что такое выходной»</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Префиксов (KV)</strong></td>
+<td style="text-align:left">системный промпт + начало контекста</td>
+<td style="text-align:left">генерация не пересчитывает префикс</td>
+<td style="text-align:left">20–50% входа на длинном стабильном префиксе</td>
+<td style="text-align:center"><strong>да</strong>, содержимое не меняется</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Эмбеддингов</strong></td>
+<td style="text-align:left">хеш текста</td>
+<td style="text-align:left">вектор для документа/запроса</td>
+<td style="text-align:left">почти 100% эмбеддингов</td>
+<td style="text-align:center"><strong>да</strong>, если модель эмбеддингов зафиксирована</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Скоров reranker'а</strong></td>
+<td style="text-align:left">хеш (запрос, doc_id, версия reranker)</td>
+<td style="text-align:left">переупорядочивание</td>
+<td style="text-align:left">40–80% reranker'а</td>
+<td style="text-align:center"><strong>да</strong></td>
+</tr>
+</tbody></table></div>
+<p>Что кэшировать <strong>нельзя</strong>, и это не паранойя:</p>
+<ul><li><strong>запросы с разными правами доступа под общим ключом</strong> — самая опасная ошибка. Если ключ кэша ответа не включает tenant/user и набор ACL, пользователь получит чужой документ. Это утечка, и она будет найдена аудитом;</li><li><strong>данные, которые меняются в течение суток</strong> — курсы валют, остатки товара, статус заявки. TTL здесь не «страховка», а способ регулярно отдавать неверные данные;</li><li><strong>персональные данные в открытом виде в ключе кэша</strong> — сам ключ утекает в логи и дампы. Ключ должен быть хешем;</li><li><strong>ответы для потенциально опасных запросов</strong> — суицид, здоровье, юридические последствия. Здесь экономия не стоит риска.</li></ul>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># app/cache.py — безопасный кэш ответов: ключ включает права и версии</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-k">import</span> hashlib, json, time</span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">from</span> typing <span class="tok-k">import</span> Any</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span><span class="tok-k">class</span> AnswerCache:</span>
+<span class="ln"><span class="ln-i">6</span>    <span class="tok-k">def</span> <span class="tok-fn">__init__</span>(self, redis, ttl_s: int = <span class="tok-n">3600</span>):</span>
+<span class="ln"><span class="ln-i">7</span>        self.redis, self.ttl = redis, ttl_s</span>
+<span class="ln"><span class="ln-i">8</span></span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-k">def</span> <span class="tok-fn">key</span>(self, *, query: str, tenant_id: str, user_acl_hash: str,</span>
+<span class="ln"><span class="ln-i">10</span>            prompt_version: str, index_snapshot: str, model_ref: str) -&gt; str:</span>
+<span class="ln"><span class="ln-i">11</span>        <span class="tok-str">""</span>"Обязательные поля: кто спрашивает, что он имеет право видеть,</span>
+<span class="ln"><span class="ln-i">12</span>           и какая конфигурация отвечает. Без user_acl_hash будет утечка.<span class="tok-str">""</span>"</span>
+<span class="ln"><span class="ln-i">13</span>        payload = json.<span class="tok-fn">dumps</span>([query.<span class="tok-fn">strip</span>().<span class="tok-fn">lower</span>(), tenant_id, user_acl_hash,</span>
+<span class="ln"><span class="ln-i">14</span>                              prompt_version, index_snapshot, model_ref],</span>
+<span class="ln"><span class="ln-i">15</span>                             ensure_ascii=False)</span>
+<span class="ln"><span class="ln-i">16</span>        <span class="tok-k">return</span> <span class="tok-str">"ans:"</span> + hashlib.<span class="tok-fn">sha256</span>(payload.<span class="tok-fn">encode</span>()).<span class="tok-fn">hexdigest</span>()</span>
+<span class="ln"><span class="ln-i">17</span></span>
+<span class="ln"><span class="ln-i">18</span>    <span class="tok-k">def</span> <span class="tok-fn">get_or_set</span>(self, k: str, producer) -&gt; Any:</span>
+<span class="ln"><span class="ln-i">19</span>        <span class="tok-k">if</span> (hit := self.redis.<span class="tok-fn">get</span>(k)) <span class="tok-k">is</span> <span class="tok-k">not</span> None:</span>
+<span class="ln"><span class="ln-i">20</span>            self.redis.<span class="tok-fn">incr</span>(f<span class="tok-str">"stat:hit:{k[:12]}"</span>)</span>
+<span class="ln"><span class="ln-i">21</span>            <span class="tok-k">return</span> json.<span class="tok-fn">loads</span>(hit)</span>
+<span class="ln"><span class="ln-i">22</span>        value = <span class="tok-fn">producer</span>()</span>
+<span class="ln"><span class="ln-i">23</span>        self.redis.<span class="tok-fn">setex</span>(k, self.ttl, json.<span class="tok-fn">dumps</span>(value, ensure_ascii=False))</span>
+<span class="ln"><span class="ln-i">24</span>        self.redis.<span class="tok-fn">incr</span>(f<span class="tok-str">"stat:miss:{k[:12]}"</span>)</span>
+<span class="ln"><span class="ln-i">25</span>        <span class="tok-k">return</span> value</span>
+</code></pre></div>
+<p>Для prefix caching есть и серверный режим: во многих API можно передать несколько запросов одной «партией», и общий префикс считается один раз. Это же касается батчинга — см. ниже.</p>
+<h2 id="agentnyy-cikl-glavnyy-mnozhitel-rashodov">Агентный цикл: главный множитель расходов</h2>
+<p>Если RAG-запрос стоит <code>$0,0004</code>, то агент с 10 шагами стоит <code>$0,004</code> — и это <strong>при том же качестве</strong>, если агент не нужен. Три практических правила, которые надо закрепить в коде:</p>
+<ol><li><strong>жёсткий <code>max_steps</code></strong>, а не «пока не выполнится задача». Каждый шаг — отдельный вызов модели с полным контекстом;</li><li><strong>детектор повторов</strong>: если агент дважды вызвал один и тот же инструмент с одним и тем же аргументом — стоп, это 100% потерянные токены;</li><li><strong>дешёвая модель на простых шагах</strong>: классификация намерения, выбор инструмента, суммаризация короткого текста — всё это 8B-модель справляется, а 70B стоит в разы дороже. Проверяется это оценкой: запусти маленький golden set на планировщик и сравни с большой.</li></ol>
+<h2 id="rate-limiting-kvoty-i-zaschita-byudzheta">Rate limiting, квоты и защита бюджета</h2>
+<p>Проблема не в том, что дорого. Проблема в том, что <strong>один пользователь или один зациклившийся скрипт съедает месячный бюджет за ночь</strong>. Поэтому ограничения нужны на трёх уровнях.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Уровень</th>
+<th style="text-align:left">Что ограничиваем</th>
+<th style="text-align:left">Механизм</th>
+<th style="text-align:left">Значение по умолчанию</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Пользователь</td>
+<td style="text-align:left">запросов в минуту</td>
+<td style="text-align:left">rate limit в шлюзе</td>
+<td style="text-align:left">20/мин, всплеск 3</td>
+</tr>
+<tr>
+<td style="text-align:left">Команда (tenant)</td>
+<td style="text-align:left">токенов в сутки</td>
+<td style="text-align:left">квота в БД/Redis + подсчёт в middleware</td>
+<td style="text-align:left">по плану тарифа</td>
+</tr>
+<tr>
+<td style="text-align:left">Система</td>
+<td style="text-align:left">доля бюджета месяца</td>
+<td style="text-align:left">дневной лимит = месячный / 30</td>
+<td style="text-align:left">алерт на 80%</td>
+</tr>
+<tr>
+<td style="text-align:left">Модель</td>
+<td style="text-align:left">concurrent requests</td>
+<td style="text-align:left">лимит инференс-сервера</td>
+<td style="text-align:left">по VRAM: 1 реплика  N параллельных запросов</td>
+</tr>
+</tbody></table></div>
+<div class="codeblock" data-lang="nginx"><div class="codehead"><span class="code-lang">nginx</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># deploy/nginx/ratelimit.conf — защита шлюза по пользователю и по адресу</span></span>
+<span class="ln"><span class="ln-i">2</span>limit_req_zone $binary_remote_addr zone=per_ip:10m   rate=20r/m;</span>
+<span class="ln"><span class="ln-i">3</span>limit_req_zone $http_x_tenant_id      zone=per_team:10m rate=600r/m;</span>
+<span class="ln"><span class="ln-i">4</span>limit_req_status <span class="tok-n">429</span>;</span>
+<span class="ln"><span class="ln-i">5</span>limit_req_log_level warn;</span>
+<span class="ln"><span class="ln-i">6</span></span>
+<span class="ln"><span class="ln-i">7</span>location /v1/answer {</span>
+<span class="ln"><span class="ln-i">8</span>    limit_req zone=per_ip   burst=<span class="tok-n">3</span>  nodelay;</span>
+<span class="ln"><span class="ln-i">9</span>    limit_req zone=per_team burst=<span class="tok-n">100</span> nodelay;</span>
+<span class="ln"><span class="ln-i">10</span></span>
+<span class="ln"><span class="ln-i">11</span>    <span class="tok-cmt"># дорогой агентный эндпоинт — отдельный, жёсткий лимит</span></span>
+<span class="ln"><span class="ln-i">12</span>    location /v1/agent {</span>
+<span class="ln"><span class="ln-i">13</span>        limit_req zone=per_ip burst=<span class="tok-n">1</span> nodelay;</span>
+<span class="ln"><span class="ln-i">14</span>    }</span>
+<span class="ln"><span class="ln-i">15</span>}</span>
+</code></pre></div>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># app/budget.py — дневной бюджетный ограничитель поверх rate limit.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Rate limit защищает от лавины, бюджет — от ровного, но дорогого расхода.</span></span>
+<span class="ln"><span class="ln-i">3</span><span class="tok-k">import</span> os, time</span>
+<span class="ln"><span class="ln-i">4</span><span class="tok-k">from</span> redis <span class="tok-k">import</span> Redis</span>
+<span class="ln"><span class="ln-i">5</span></span>
+<span class="ln"><span class="ln-i">6</span>r = <span class="tok-fn">Redis</span>(os.environ[<span class="tok-str">"REDIS_URL"</span>], decode_responses=True)</span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span><span class="tok-k">class</span> BudgetGuard:</span>
+<span class="ln"><span class="ln-i">9</span>    <span class="tok-k">def</span> <span class="tok-fn">__init__</span>(self, monthly_usd: float, step_multiplier: float = <span class="tok-n">1.0</span>):</span>
+<span class="ln"><span class="ln-i">10</span>        self.monthly = monthly_usd</span>
+<span class="ln"><span class="ln-i">11</span>        <span class="tok-cmt"># 30 дней → 1/30 в день; запас 0.9 на непредвиденное</span></span>
+<span class="ln"><span class="ln-i">12</span>        self.daily = monthly_usd / <span class="tok-n">30</span> * <span class="tok-n">0.9</span></span>
+<span class="ln"><span class="ln-i">13</span>        self.day = time.<span class="tok-fn">strftime</span>(<span class="tok-str">"%Y-%m-%d"</span>)</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>    <span class="tok-k">def</span> <span class="tok-fn">check_and_add</span>(self, cost_usd: float, tenant: str) -&gt; tuple[bool, str]:</span>
+<span class="ln"><span class="ln-i">16</span>        dkey = f<span class="tok-str">"budget:{self.day}:{tenant}"</span></span>
+<span class="ln"><span class="ln-i">17</span>        spent = <span class="tok-fn">float</span>(r.<span class="tok-fn">get</span>(dkey) <span class="tok-k">or</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">18</span>        <span class="tok-k">if</span> spent + cost_usd &gt; self.daily:</span>
+<span class="ln"><span class="ln-i">19</span>            <span class="tok-k">return</span> False, (f<span class="tok-str">"Дневной лимит исчерпан: {spent:.2f} из {self.daily:.2f} $. "</span></span>
+<span class="ln"><span class="ln-i">20</span>                           f<span class="tok-str">"Обратитесь к администратору или попробуйте завтра."</span>)</span>
+<span class="ln"><span class="ln-i">21</span>        pipe = r.<span class="tok-fn">pipeline</span>()</span>
+<span class="ln"><span class="ln-i">22</span>        pipe.<span class="tok-fn">incrbyfloat</span>(dkey, cost_usd)</span>
+<span class="ln"><span class="ln-i">23</span>        pipe.<span class="tok-fn">expire</span>(dkey, <span class="tok-n">60</span> * <span class="tok-n">60</span> * <span class="tok-n">48</span>)</span>
+<span class="ln"><span class="ln-i">24</span>        pipe.<span class="tok-fn">hincrbyfloat</span>(f<span class="tok-str">"budget:month:{time.strftime('%Y-%m')}:{tenant}"</span>,</span>
+<span class="ln"><span class="ln-i">25</span>                          <span class="tok-str">"spent"</span>, cost_usd)</span>
+<span class="ln"><span class="ln-i">26</span>        pipe.<span class="tok-fn">execute</span>()</span>
+<span class="ln"><span class="ln-i">27</span></span>
+<span class="ln"><span class="ln-i">28</span>        month_spent = <span class="tok-fn">float</span>(r.<span class="tok-fn">hget</span>(f<span class="tok-str">"budget:month:{time.strftime('%Y-%m')}:{tenant}"</span>,</span>
+<span class="ln"><span class="ln-i">29</span>                                   <span class="tok-str">"spent"</span>) <span class="tok-k">or</span> <span class="tok-n">0</span>)</span>
+<span class="ln"><span class="ln-i">30</span>        <span class="tok-k">if</span> month_spent &gt; self.monthly * <span class="tok-n">0.8</span>:</span>
+<span class="ln"><span class="ln-i">31</span>            ops.<span class="tok-fn">alert</span>(f<span class="tok-str">"Бюджет LLM: израсходовано {month_spent / self.monthly:.0%} "</span></span>
+<span class="ln"><span class="ln-i">32</span>                      f<span class="tok-str">"месячной квоты команды {tenant}"</span>)</span>
+<span class="ln"><span class="ln-i">33</span>        <span class="tok-k">return</span> True, <span class="tok-str">""</span></span>
+</code></pre></div>
+<div class="callout callout-important"><div class="callout-title"><span class="callout-icon">⚠</span>Важно</div><div class="callout-body"><p>Квота без алерта бесполезна: ограничение срабатывает в момент, когда пользователь уже не может работать, и первое, что он сделает, — пойдёт жаловаться, а не проверит твой график. Алерт на 80% должен приходить тебе заранее, в рабочее время, когда можно принять решение: поднять квоту, отключить дорогую фичу или договориться о росте бюджета.</p></div></div>
+<h2 id="prognoz-byudzheta-formula-dlya-prezentacii">Прогноз бюджета: формула для презентации</h2>
+<p>Формула, которую имеет смысл вставить в слайд целиком, потому что она читается как «мы понимаем, куда это идёт».</p>
+<div class="codeblock" data-lang="text"><div class="codehead"><span class="code-lang">text</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span>ФОРМУЛА:</span>
+<span class="ln"><span class="ln-i">2</span></span>
+<span class="ln"><span class="ln-i">3</span>  Бюджет(месяц) = QPS_средний × 2 592 000 × C_средняя × S_шагов × (1 - cache_hit)</span>
+<span class="ln"><span class="ln-i">4</span></span>
+<span class="ln"><span class="ln-i">5</span>  где:</span>
+<span class="ln"><span class="ln-i">6</span>    2 592 000      — секунд в 30-дневном месяце</span>
+<span class="ln"><span class="ln-i">7</span>    QPS_средний    — средний запросов в секунду за день (не пиковый!)</span>
+<span class="ln"><span class="ln-i">8</span>    C_средняя      — средняя стоимость одного запроса в $ (считает finance/cost.py)</span>
+<span class="ln"><span class="ln-i">9</span>    S_шагов        — среднее число вызовов модели на запрос (для RAG = 1)</span>
+<span class="ln"><span class="ln-i">10</span>    cache_hit      — доля запросов, закрытых кэшем</span>
+<span class="ln"><span class="ln-i">11</span></span>
+<span class="ln"><span class="ln-i">12</span>  с ростом нагрузки:</span>
+<span class="ln"><span class="ln-i">13</span>    QPS(t) = QPS(0) × (1 + g)^t,  g — месячный темп роста</span>
+<span class="ln"><span class="ln-i">14</span></span>
+<span class="ln"><span class="ln-i">15</span>  год 1:  QPS × 2 592 000 × C</span>
+<span class="ln"><span class="ln-i">16</span>  год 2:  QPS × (1+g) × 2 592 000 × C</span>
+<span class="ln"><span class="ln-i">17</span>  год 3:  QPS × (1+g)^2 × 2 592 000 × C</span>
+</code></pre></div>
+<p>Подставляем и получаем сценарии на год. Ключ в том, что <strong>последний множитель — рычаг, который в твоей власти</strong>: <code>cache_hit</code> и <code>S_шагов</code> ты контролируешь, <code>QPS</code> — вопрос продаж.</p>
+<div class="codeblock" data-lang="python"><div class="codehead"><span class="code-lang">python</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># finance/forecast.py — прогноз на 12 месяцев с ростом и кэшем</span></span>
+<span class="ln"><span class="ln-i">2</span>SECONDS_PER_MONTH = 2_592_000</span>
+<span class="ln"><span class="ln-i">3</span>MONTHLY_GROWTH = <span class="tok-n">0.35</span>          <span class="tok-cmt"># +35% пользователей в месяц — агрессивно, но честно</span></span>
+<span class="ln"><span class="ln-i">4</span>BASE_QPS = <span class="tok-n">0.08</span>                <span class="tok-cmt"># 80 запросов в минуту в среднем</span></span>
+<span class="ln"><span class="ln-i">5</span>C_PER_REQUEST = <span class="tok-n">0.0004335</span>      <span class="tok-cmt"># из finance/cost.py, вариант top_k=5</span></span>
+<span class="ln"><span class="ln-i">6</span>CACHE_HIT = <span class="tok-n">0.25</span></span>
+<span class="ln"><span class="ln-i">7</span></span>
+<span class="ln"><span class="ln-i">8</span>rows = []</span>
+<span class="ln"><span class="ln-i">9</span>qps = BASE_QPS</span>
+<span class="ln"><span class="ln-i">10</span><span class="tok-k">for</span> month <span class="tok-k">in</span> <span class="tok-fn">range</span>(<span class="tok-n">1</span>, <span class="tok-n">13</span>):</span>
+<span class="ln"><span class="ln-i">11</span>    qps *= (<span class="tok-n">1</span> + MONTHLY_GROWTH)</span>
+<span class="ln"><span class="ln-i">12</span>    monthly_usd = qps * SECONDS_PER_MONTH * C_PER_REQUEST * (<span class="tok-n">1</span> - CACHE_HIT)</span>
+<span class="ln"><span class="ln-i">13</span>    rows.<span class="tok-fn">append</span>((month, qps, monthly_usd, monthly_usd * <span class="tok-n">12</span> / <span class="tok-n">12</span>))</span>
+<span class="ln"><span class="ln-i">14</span>    <span class="tok-fn">print</span>(f<span class="tok-str">"месяц {month:&gt;2}  QPS={qps:7.2f}  ${monthly_usd:&gt;10,.0f}/мес  "</span></span>
+<span class="ln"><span class="ln-i">15</span>          f<span class="tok-str">"${monthly_usd * 12:&gt;11,.0f}/год"</span>)</span>
+<span class="ln"><span class="ln-i">16</span></span>
+<span class="ln"><span class="ln-i">17</span><span class="tok-fn">print</span>(f<span class="tok-str">"\nИТОГО за 12 месяцев: ${sum(r[2] for r in rows):,.0f}"</span>)</span>
+<span class="ln"><span class="ln-i">18</span><span class="tok-fn">print</span>(f<span class="tok-str">"Пиковый месяц (12-й):  ${rows[-1][2]:,.0f} — это и есть то, "</span></span>
+<span class="ln"><span class="ln-i">19</span>      f<span class="tok-str">"что надо согласовать как потолок"</span>)</span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Сценарий</th>
+<th style="text-align:left">QPS на 12-й месяц</th>
+<th style="text-align:left">$/мес</th>
+<th style="text-align:left">Что меняется</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Базовый, без роста</td>
+<td style="text-align:left">0.08</td>
+<td style="text-align:left">90</td>
+<td style="text-align:left">стабильная нагрузка, можно своё железо</td>
+</tr>
+<tr>
+<td style="text-align:left">Рост 35%/мес, без кэша</td>
+<td style="text-align:left">3.4</td>
+<td style="text-align:left">3 800</td>
+<td style="text-align:left">счёт растёт быстрее пользователей</td>
+</tr>
+<tr>
+<td style="text-align:left">Рост 35%/мес, кэш 25%</td>
+<td style="text-align:left">3.4</td>
+<td style="text-align:left">2 850</td>
+<td style="text-align:left">экономия без потери качества</td>
+</tr>
+<tr>
+<td style="text-align:left">Рост 35%/мес, кэш 25%, top_k=5</td>
+<td style="text-align:left">3.4</td>
+<td style="text-align:left">2 400</td>
+<td style="text-align:left">главный рычаг</td>
+</tr>
+<tr>
+<td style="text-align:left">Тот же объём на 70B вместо 8B</td>
+<td style="text-align:left">3.4</td>
+<td style="text-align:left">9 600</td>
+<td style="text-align:left">качество выше, экономика другая</td>
+</tr>
+</tbody></table></div>
+<h2 id="poryadok-optimizaciy-ot-deshevyh-k-dorogim">Порядок оптимизаций: от дешёвых к дорогим</h2>
+<p>Не оптимизируй в случайном порядке. Порядок ниже — по соотношению «эффект / стоимость внедрения», и он почти всегда одинаков.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Шаг</th>
+<th style="text-align:left">Оптимизация</th>
+<th style="text-align:center">Типичный эффект</th>
+<th style="text-align:center">Сложность</th>
+<th style="text-align:left">Срок</th>
+<th style="text-align:center">Риск для качества</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left"><code>top_k</code> 20 → 5 с reranker'ом</td>
+<td style="text-align:center"><strong>снижение стоимости в 2–3 раза</strong></td>
+<td style="text-align:center">низкая</td>
+<td style="text-align:left">1 день</td>
+<td style="text-align:center">нет, часто растёт</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">кэш ответов и эмбеддингов</td>
+<td style="text-align:center">20–60% запросов</td>
+<td style="text-align:center">низкая</td>
+<td style="text-align:left">2–3 дня</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left"><code>max_tokens</code> и требование краткости</td>
+<td style="text-align:center">10–30% выхода</td>
+<td style="text-align:center">низкая</td>
+<td style="text-align:left">полдня</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">4</td>
+<td style="text-align:left">батчинг на инференс-сервере</td>
+<td style="text-align:center">20–50% пропускной</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">1 неделя</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">5</td>
+<td style="text-align:left">кэш префиксов (KV)</td>
+<td style="text-align:center">20–50% входа</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">1 неделя</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">6</td>
+<td style="text-align:left">смена модели под задачу (8B вместо 70B)</td>
+<td style="text-align:center">3–10 раз</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">2 недели</td>
+<td style="text-align:center"><strong>нужна оценка</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">7</td>
+<td style="text-align:left">prefix caching в провайдере</td>
+<td style="text-align:center">30–60% входа</td>
+<td style="text-align:center">низкая</td>
+<td style="text-align:left">1 день</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">8</td>
+<td style="text-align:left">квантизация (INT8/FP8)</td>
+<td style="text-align:center">1.5–2 раза + больше батчей</td>
+<td style="text-align:center">средняя</td>
+<td style="text-align:left">2 недели</td>
+<td style="text-align:center"><strong>нужна оценка</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">9</td>
+<td style="text-align:left">дообучение под домен</td>
+<td style="text-align:center">меньше токенов, выше точность</td>
+<td style="text-align:center">высокая</td>
+<td style="text-align:left">месяцы</td>
+<td style="text-align:center">нет</td>
+</tr>
+<tr>
+<td style="text-align:left">10</td>
+<td style="text-align:left">своё железо / аренда GPU</td>
+<td style="text-align:center">зависит от загрузки</td>
+<td style="text-align:center">высокая</td>
+<td style="text-align:left">1–3 мес</td>
+<td style="text-align:center">нет</td>
+</tr>
+</tbody></table></div>
+<p>Правило: <strong>шаги 1–5 не требуют согласования с командой разработки и делаются за день</strong>. Их делают первыми всегда. Шаги 6, 8, 9 требуют прогон оценки на golden set, потому что они меняют качество.</p>
+<h2 id="avtoskeyling-gpu-v-kubernetes">Автоскейлинг GPU в Kubernetes</h2>
+<p>Связка с <a href="../../lectures/devops/11-kubernetes-prodvans.html">лекцией про Kubernetes</a>. Главное отличие LLM-инференса от веб-сервиса: <strong>одна реплика — это не «одна обработка», а фиксированный ресурс</strong>, который либо занят, либо простаивает целиком. Масштабировать надо по <strong>длине очереди</strong>, а не по CPU.</p>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># deploy/keda/scaledobject.yaml — масштабирование по длине очереди запросов.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># KEDA + Prometheus scaler: очередь измеряется твоей же метрикой, что и правильно.</span></span>
+<span class="ln"><span class="ln-i">3</span>apiVersion: keda.sh/v1alpha1</span>
+<span class="ln"><span class="ln-i">4</span>kind: ScaledObject</span>
+<span class="ln"><span class="ln-i">5</span>metadata:</span>
+<span class="ln"><span class="ln-i">6</span>  name: llm-inference</span>
+<span class="ln"><span class="ln-i">7</span>  namespace: ai</span>
+<span class="ln"><span class="ln-i">8</span>spec:</span>
+<span class="ln"><span class="ln-i">9</span>  scaleTargetRef:</span>
+<span class="ln"><span class="ln-i">10</span>    name: vllm-gpu</span>
+<span class="ln"><span class="ln-i">11</span>  minReplicaCount: <span class="tok-n">0</span>                  <span class="tok-cmt"># в ноль — ключевая экономия при неравномерной нагрузке</span></span>
+<span class="ln"><span class="ln-i">12</span>  maxReplicaCount: <span class="tok-n">12</span></span>
+<span class="ln"><span class="ln-i">13</span>  cooldownPeriod: <span class="tok-n">300</span>                 <span class="tok-cmt"># не дёргайся из-за одной очереди на 2 запроса</span></span>
+<span class="ln"><span class="ln-i">14</span>  triggers:</span>
+<span class="ln"><span class="ln-i">15</span>    - type: prometheus</span>
+<span class="ln"><span class="ln-i">16</span>      metadata:</span>
+<span class="ln"><span class="ln-i">17</span>        serverAddress: http://prometheus.monitoring.svc:<span class="tok-n">9090</span></span>
+<span class="ln"><span class="ln-i">18</span>        <span class="tok-cmt"># 15 запросов в очереди на реплику — эмпирическое значение, калибруется тестом</span></span>
+<span class="ln"><span class="ln-i">19</span>        query: <span class="tok-str">'sum(ragapi_inference_queue_depth{queue="generation"}) / 15'</span></span>
+<span class="ln"><span class="ln-i">20</span>        threshold: <span class="tok-str">"1"</span></span>
+<span class="ln"><span class="ln-i">21</span>        activationThreshold: <span class="tok-str">"3"</span>       <span class="tok-cmt"># пока очередь &lt; 3, не поднимаемся с нуля</span></span>
+<span class="ln"><span class="ln-i">22</span>    - type: prometheus</span>
+<span class="ln"><span class="ln-i">23</span>      metadata:</span>
+<span class="ln"><span class="ln-i">24</span>        serverAddress: http://prometheus.monitoring.svc:<span class="tok-n">9090</span></span>
+<span class="ln"><span class="ln-i">25</span>        query: <span class="tok-str">'sum(rate(ragapi_inference_queue_wait_seconds_count[2m]))'</span></span>
+<span class="ln"><span class="ln-i">26</span>        threshold: <span class="tok-str">"30"</span>                <span class="tok-cmt"># среднее ожидание в очереди &gt; 30 с — мало реплик</span></span>
+</code></pre></div>
+<div class="codeblock" data-lang="yaml"><div class="codehead"><span class="code-lang">yaml</span><button class="copy-btn" type="button" data-copy>Копировать</button></div><pre class="code"><code><span class="ln"><span class="ln-i">1</span><span class="tok-cmt"># deploy/hpa/gpu-hpa.yaml — запасной вариант: HPA по загрузке GPU через DCGM.</span></span>
+<span class="ln"><span class="ln-i">2</span><span class="tok-cmt"># Работает, только если установлен prometheus-adapter с custom.metrics.k8s.io.</span></span>
+<span class="ln"><span class="ln-i">3</span>apiVersion: autoscaling/v2</span>
+<span class="ln"><span class="ln-i">4</span>kind: HorizontalPodAutoscaler</span>
+<span class="ln"><span class="ln-i">5</span>metadata:</span>
+<span class="ln"><span class="ln-i">6</span>  name: vllm-gpu</span>
+<span class="ln"><span class="ln-i">7</span>  namespace: ai</span>
+<span class="ln"><span class="ln-i">8</span>spec:</span>
+<span class="ln"><span class="ln-i">9</span>  scaleTargetRef:</span>
+<span class="ln"><span class="ln-i">10</span>    apiVersion: apps/v1</span>
+<span class="ln"><span class="ln-i">11</span>    kind: Deployment</span>
+<span class="ln"><span class="ln-i">12</span>    name: vllm-gpu</span>
+<span class="ln"><span class="ln-i">13</span>  minReplicas: <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">14</span>  maxReplicas: <span class="tok-n">10</span></span>
+<span class="ln"><span class="ln-i">15</span>  metrics:</span>
+<span class="ln"><span class="ln-i">16</span>    - type: Resource</span>
+<span class="ln"><span class="ln-i">17</span>      resource:</span>
+<span class="ln"><span class="ln-i">18</span>        name: nvidia.com/gpu</span>
+<span class="ln"><span class="ln-i">19</span>        target: {type: Utilization, averageUtilization: <span class="tok-n">70</span>}</span>
+<span class="ln"><span class="ln-i">20</span>    - type: Pods</span>
+<span class="ln"><span class="ln-i">21</span>      pods:</span>
+<span class="ln"><span class="ln-i">22</span>        metric:</span>
+<span class="ln"><span class="ln-i">23</span>          name: gpu_utilization_percent     <span class="tok-cmt"># из DCGM через prometheus-adapter</span></span>
+<span class="ln"><span class="ln-i">24</span>        target:</span>
+<span class="ln"><span class="ln-i">25</span>          type: AverageValue</span>
+<span class="ln"><span class="ln-i">26</span>          averageValue: <span class="tok-str">"70"</span></span>
+<span class="ln"><span class="ln-i">27</span>  behavior:</span>
+<span class="ln"><span class="ln-i">28</span>    scaleUp:</span>
+<span class="ln"><span class="ln-i">29</span>      stabilizationWindowSeconds: <span class="tok-n">30</span>       <span class="tok-cmt"># расти быстро</span></span>
+<span class="ln"><span class="ln-i">30</span>      policies:</span>
+<span class="ln"><span class="ln-i">31</span>        - type: Pods</span>
+<span class="ln"><span class="ln-i">32</span>          value: <span class="tok-n">4</span></span>
+<span class="ln"><span class="ln-i">33</span>          periodSeconds: <span class="tok-n">60</span></span>
+<span class="ln"><span class="ln-i">34</span>    scaleDown:</span>
+<span class="ln"><span class="ln-i">35</span>      stabilizationWindowSeconds: <span class="tok-n">600</span>      <span class="tok-cmt"># убывать медленно — GPU прогревается</span></span>
+<span class="ln"><span class="ln-i">36</span>      policies:</span>
+<span class="ln"><span class="ln-i">37</span>        - type: Pods</span>
+<span class="ln"><span class="ln-i">38</span>          value: <span class="tok-n">1</span></span>
+<span class="ln"><span class="ln-i">39</span>          periodSeconds: <span class="tok-n">120</span></span>
+</code></pre></div>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Способ</th>
+<th style="text-align:left">На что смотрит</th>
+<th style="text-align:left">Плюс</th>
+<th style="text-align:left">Минус</th>
+<th style="text-align:left">Когда брать</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left"><strong>KEDA по длине очереди</strong></td>
+<td style="text-align:left">задержка перед обработкой</td>
+<td style="text-align:left">прямо отражает боль пользователя, уходит в ноль</td>
+<td style="text-align:left">нужна своя метрика очереди</td>
+<td style="text-align:left"><strong>по умолчанию для LLM</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">HPA по утилизации GPU</td>
+<td style="text-align:left">DCGM <code>GPU_UTIL</code></td>
+<td style="text-align:left">не надо ничего изобретать</td>
+<td style="text-align:left">«80% утилизации»  «80% полезной работы»; батчинг ломает смысл</td>
+<td style="text-align:left">когда KEDA ещё нет</td>
+</tr>
+<tr>
+<td style="text-align:left">HPA по длине очереди через prometheus-adapter</td>
+<td style="text-align:left">своя метрика</td>
+<td style="text-align:left">нативный HPA</td>
+<td style="text-align:left">сложнее в настройке</td>
+<td style="text-align:left">если HPA обязателен по стандарту</td>
+</tr>
+<tr>
+<td style="text-align:left">По расписанию</td>
+<td style="text-align:left">время суток</td>
+<td style="text-align:left">предсказуемо, дёшево</td>
+<td style="text-align:left">не реагирует на всплески</td>
+<td style="text-align:left">офисные часы, дежурный режим</td>
+</tr>
+<tr>
+<td style="text-align:left">Фиксированное число реплик</td>
+<td style="text-align:left">ничего</td>
+<td style="text-align:left">просто</td>
+<td style="text-align:left">переплата в простое</td>
+<td style="text-align:left">пикеты и демо</td>
+</tr>
+</tbody></table></div>
+<p>Чего <strong>не надо</strong> делать: масштабировать по VRAM. Занятая память — это вес модели, а не загрузка; она одинакова при простое и под нагрузкой. Это самая частая ошибка в самодельных решениях, и она приводит к тому, что при росте нагрузки реплики не добавляются.</p>
+<h2 id="masshtabirovanie-rag-indeksa">Масштабирование RAG-индекса</h2>
+<p>Индекс растёт быстрее трафика: переписывание регламента, добавление отдела, новый продукт. Что делать, когда он стал мешать.</p>
+<div class="table-wrap"><table><thead><tr>
+<th style="text-align:left">Проблема</th>
+<th style="text-align:left">Порог, за которым пора действовать</th>
+<th style="text-align:left">Решение</th>
+<th style="text-align:left">Сложность</th>
+</tr></thead><tbody>
+<tr>
+<td style="text-align:left">Индекс не влезает в память поиска</td>
+<td style="text-align:left">&gt; 5–10 млн векторов</td>
+<td style="text-align:left">шардирование по tenant или по отделу</td>
+<td style="text-align:left">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Поиск медленный, p95 растёт</td>
+<td style="text-align:left">p95 векторного поиска &gt; 300 мс</td>
+<td style="text-align:left">HNSW-параметры, IVF-индекс, фильтры</td>
+<td style="text-align:left">низкая</td>
+</tr>
+<tr>
+<td style="text-align:left">Индексация занимает часы</td>
+<td style="text-align:left">корпус меняется часто</td>
+<td style="text-align:left">инкрементальная индексация + снапшот</td>
+<td style="text-align:left">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Один индекс на всех = утечка при ошибке ACL</td>
+<td style="text-align:left">всегда</td>
+<td style="text-align:left">фильтры по метаданным на уровне поиска, <strong>до</strong> генерации</td>
+<td style="text-align:left">средняя</td>
+</tr>
+<tr>
+<td style="text-align:left">Плато качества: чанков много, пользы мало</td>
+<td style="text-align:left">groundedness падает при росте индекса</td>
+<td style="text-align:left">пересечение дедупликация, релевантные чанки, сжатие</td>
+<td style="text-align:left">высокая</td>
+</tr>
+</tbody></table></div>
+<p>Практическое правило: <strong>фильтр по правам и по метаданным применяется до отбора кандидатов, а не после</strong>. Если ты сначала достаёшь 20 чанков и потом отфильтровываешь по ACL, пользователю может прийтись контекст из трёх документов, а качество упадёт вместе с безопасностью. Фильтр — часть запроса в векторную БД.</p>
+<h2 id="chto-pokazyvaesh-rukovodstvu">Что показываешь руководству</h2>
+<p>Пять чисел и одно решение — этого достаточно для слайда:</p>
+<ol><li><strong>Стоимость одного запроса сегодня</strong> и из чего она складывается (входной контекст — две трети);</li><li><strong>Прогноз на 12 месяцев</strong> по формуле из этой лекции, с явным «пиковый месяц» как потолком;</li><li><strong>Три рычага, которые в твоей власти</strong>, с эффектом в процентах: контекст, кэш, шаги агента;</li><li><strong>Точка окупаемости собственного железа</strong> и вывод: окупается ли при вашем объёме;</li><li><strong>Запас до перехода</strong> в смысле «при каком объёме подписка станет дороже железа».</li></ol>
+<p>И решение, которое ты приносишь: «мы идём по подписке до X запросов в месяц, дальше переходим на своё железо / аренду; кэш и top_k внедряем сейчас, они снижают счёт независимо от выбранной модели».</p>
+<h2 id="gde-eto-lomaetsya">Где это ломается</h2>
+<ul><li><strong>Считают счёт по средней стоимости, взятой из документации вендора два года назад.</strong> Цены меняются, а список моделей — нет. Бери цены из своего же реестра моделей (<a href="../../lectures/mlops/17-llmops-pipeliney.html">пайплайны</a>) и пересматривай ежеквартально.</li><li><strong>Считают по пиковому QPS.</strong> Нагрузка редко бывает постоянной, и платить за пик из подписки не нужно. Считай по среднему за день и моделируй пик отдельно.</li><li><strong>Забывают множитель агентных шагов.</strong> Агентный сценарий стоит в разы дороже RAG, и при этом часто ставится «на будущее». Если агент не нужен сейчас — не поднимай его в проде.</li><li><strong>Эмбеддинги считают на каждый запрос.</strong> При стабильном корпусе эмбеддинги документов считаются один раз и кэшируются; считать их заново на каждый запрос — чистая потеря денег.</li><li><strong>Кэш ответов без прав доступа в ключе.</strong> Это не оптимизация, а утечка. В ключ обязательно tenant, ACL-хеш и версия конфигурации.</li><li><strong>Автоскейлинг по VRAM.</strong> Не работает: память занята моделью всегда. Масштабируй по длине очереди.</li><li><strong>Своё железо «на вырост», купленное на 5 лет вперёд.</strong> Пока объём мал, это чистый убыток в месяц. Покупай по факту достигнутого объёма, арендуй до этого.</li><li><strong>Экономят на масштабе ценой качества и потом «чинят» промптом.</strong> Смена 70B на 8B требует прогона golden set; иначе через месяц выяснится, что 12% ответов стали хуже, и заработать обратно придётся дороже, чем сэкономили.</li><li><strong>Не заложили стоимость оценки и наблюдаемости.</strong> Прогон golden set и трассировка тоже стоят денег. Их нужно включать в смету, иначе в последний месяц выяснится, что половина бюджета ушла на инфраструктуру контроля качества.</li></ul>
+<h2 id="chek-list-ponimaniya">Чек-лист понимания</h2>
+<ul class="tasklist"><li><label class="task"><input type="checkbox" disabled ><span>Я умею разложить стоимость одного запроса на компоненты и назвать тот, который обычно даёт две трети счёта.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу посчитать точку окупаемости собственного железа против подписки и объяснить, почему для дорогих моделей она наступает раньше.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я понимаю, как <code>top_k</code>, кэш и число агентных шагов меняют итоговый счёт, и умею показать это на цифрах.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю, какие данные нельзя кэшировать и почему ключ кэша обязан включать права доступа.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу записать формулу прогноза бюджета на 12 месяцев с ростом нагрузки и назвать её пиковый месяц как потолок.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я знаю порядок оптимизаций от дешёвых к дорогим и понимаю, какие из них требуют согласования качества.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я умею настроить KEDA по длине очереди инференса и знаю, почему масштабирование по VRAM не работает.</span></label></li><li><label class="task"><input type="checkbox" disabled ><span>Я могу сформулировать для руководства одно решение с цифрами: где мы сейчас, куда идём, при каком объёме переходим на своё железо.</span></label></li></ul></div>
+
+      <div class="practice-box"><div class="practice-title">🛠 Практика</div><div>Посчитай стоимость своего RAG-запроса по компонентам, сравни top_k=5 и top_k=20, составь прогноз бюджета на 12 месяцев с ростом нагрузки и настрой KEDA-скейлер по длине очереди инференса.</div></div>
+
+      <a class="trainer-btn" href="../trainer/index.html?course=inference"><span class="tb-ico">▸</span><span class="tb-txt"><b>Потренироваться в тренажёре</b><em>курс «Инференс» — 20 курсов, 321 задание, ничего не ломается</em></span><span class="tb-go">→</span></a>
+
+      <div class="done-block">
+        <button class="done-btn" id="doneBtn" data-slug="mlops/18-masshtabirovanie-i-cena">
+          <span class="db-check">✓</span><span class="db-text">Отметить пройденной</span>
+        </button>
+      </div>
+
+      <nav class="lesson-nav">
+        <a class="nav-prev" href="../../lectures/mlops/17-llmops-pipeliney.html"><span>← Предыдущая</span><b>Пайплайны LLMOps</b></a>
+        <a class="nav-next" href="../../lectures/mlops/19-diplomnyj-proekt.html"><span>Следующая →</span><b>Дипломный проект</b></a>
+      </nav>
+
+      <footer class="foot">
+        <div>Учебник DevOps &amp; MLOps · сборка 14.10.2026 12:59</div>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<button class="totop" id="toTop" aria-label="Наверх">↑</button>
+
+<script>window.BASE = "../../"; window.SLUG = "mlops/18-masshtabirovanie-i-cena";</script>
+<script>window.CURRICULUM = [{"id": "start", "name": "Старт", "color": "#8b9dc3", "icon": "◈", "count": 2, "hours": 1.0, "modules": [{"name": "Старт", "lessons": [{"slug": "01-karta-kursa", "title": "Карта курса и навигация", "out": "lectures/start/01-karta-kursa.html", "track": "start", "duration": "20 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-glossarij", "title": "Глоссарий", "out": "lectures/start/02-glossarij.html", "track": "start", "duration": "40 мин", "level": "Новичок", "level_key": "junior"}]}]}, {"id": "devops", "name": "DevOps", "color": "#38bdf8", "icon": "⬢", "count": 30, "hours": 39.6, "modules": [{"name": "A. Linux и сеть", "lessons": [{"slug": "01-terminal-i-navigaciya", "title": "Терминал и навигация", "out": "lectures/devops/01-terminal-i-navigaciya.html", "track": "devops", "duration": "60 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-fajlovaya-sistema-i-prava", "title": "Файловая система и права доступа", "out": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-processy-i-systemd", "title": "Процессы, сигналы и systemd", "out": "lectures/devops/03-processy-i-systemd.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "04-set-i-diagnostika", "title": "Сеть: интерфейсы, порты, DNS", "out": "lectures/devops/04-set-i-diagnostika.html", "track": "devops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "05-bash-skripty", "title": "Скрипты на Bash", "out": "lectures/devops/05-bash-skripty.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-http-tls-dns", "title": "HTTP, HTTPS, DNS и TLS", "out": "lectures/devops/06-http-tls-dns.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ha-i-balansirovka", "title": "Высокая доступность и балансировка", "out": "lectures/devops/07-ha-i-balansirovka.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "B. Контейнеры и оркестрация", "lessons": [{"slug": "08-docker", "title": "Docker: образы, слои, контейнеры", "out": "lectures/devops/08-docker.html", "track": "devops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "09-docker-compose", "title": "Docker Compose: сети и тома", "out": "lectures/devops/09-docker-compose.html", "track": "devops", "duration": "60 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-kubernetes-bazovye", "title": "Kubernetes: ядро", "out": "lectures/devops/10-kubernetes-bazovye.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-kubernetes-prodvans", "title": "Kubernetes: продакшн-паттерны", "out": "lectures/devops/11-kubernetes-prodvans.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "12-terraform-i-ansible", "title": "Terraform и Ansible", "out": "lectures/devops/12-terraform-i-ansible.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "C. CI/CD", "lessons": [{"slug": "13-git-rabota-s-komandoy", "title": "Git и работа с командой", "out": "lectures/devops/13-git-rabota-s-komandoy.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-cicd-pipeliney", "title": "CI/CD: пайплайны и релизы", "out": "lectures/devops/14-cicd-pipeliney.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. Наблюдаемость", "lessons": [{"slug": "15-monitoring-concepts", "title": "Наблюдаемость: метрики, логи, трейсы", "out": "lectures/devops/15-monitoring-concepts.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "16-prometheus", "title": "Prometheus и PromQL", "out": "lectures/devops/16-prometheus.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-grafana-loki-alerty", "title": "Grafana, Loki и алерты", "out": "lectures/devops/17-grafana-loki-alerty.html", "track": "devops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "18-lab-proxmox-monitoring", "title": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "out": "lectures/devops/18-lab-proxmox-monitoring.html", "track": "devops", "duration": "120 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "E. Эксплуатация и безопасность", "lessons": [{"slug": "19-backup-i-dr", "title": "Бэкапы и аварийное восстановление", "out": "lectures/devops/19-backup-i-dr.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "20-bezopasnost-infrastruktury", "title": "Безопасность инфраструктуры", "out": "lectures/devops/20-bezopasnost-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "F. Хранилища и интеграции", "lessons": [{"slug": "21-postgresql-i-pgvector", "title": "PostgreSQL и pgvector", "out": "lectures/devops/21-postgresql-i-pgvector.html", "track": "devops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "22-redis", "title": "Redis: кэш, очереди и лимиты", "out": "lectures/devops/22-redis.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-active-directory", "title": "Active Directory: администрирование", "out": "lectures/devops/23-active-directory.html", "track": "devops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-n8n", "title": "n8n: автоматизация процессов", "out": "lectures/devops/24-n8n.html", "track": "devops", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Зрелость эксплуатации", "lessons": [{"slug": "25-sso-i-keycloak", "title": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "out": "lectures/devops/25-sso-i-keycloak.html", "track": "devops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "26-opensearch", "title": "OpenSearch: поиск по логам, которое масштабируется", "out": "lectures/devops/26-opensearch.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "27-ocheredi-i-workers", "title": "Очереди и воркеры", "out": "lectures/devops/27-ocheredi-i-workers.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "28-testirovanie-infrastruktury", "title": "Тестирование инфраструктуры", "out": "lectures/devops/28-testirovanie-infrastruktury.html", "track": "devops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}, {"slug": "29-incidenty-i-postmortem", "title": "Инциденты, разборы и runbooks", "out": "lectures/devops/29-incidenty-i-postmortem.html", "track": "devops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "30-finops", "title": "FinOps: контроль затрат на инфраструктуру", "out": "lectures/devops/30-finops.html", "track": "devops", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}]}, {"id": "net", "name": "Сетевое оборудование", "color": "#fbbf24", "icon": "⬡", "count": 18, "hours": 22.5, "modules": [{"name": "A. MikroTik / RouterOS", "lessons": [{"slug": "01-routeros-os", "title": "RouterOS как операционная система", "out": "lectures/net/01-routeros-os.html", "track": "net", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-vlany-i-bridging", "title": "VLAN, bridge и трехуровневая модель", "out": "lectures/net/02-vlany-i-bridging.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-wifi", "title": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "out": "lectures/net/03-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-tunneli", "title": "Туннели и VPN", "out": "lectures/net/04-tunneli.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-avtomatizaciya-routeros", "title": "Автоматизация RouterOS", "out": "lectures/net/05-avtomatizaciya-routeros.html", "track": "net", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "B. Cisco IOS", "lessons": [{"slug": "01-cisco-ios-bazovoe", "title": "Cisco IOS: режимы и базовая настройка", "out": "lectures/net/01-cisco-ios-bazovoe.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-marshrutizaciya", "title": "Маршрутизация и отказоустойчивость", "out": "lectures/net/02-marshrutizaciya.html", "track": "net", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-bezopasnost-cisco", "title": "Безопасность на Cisco: доступ, ACL, порты", "out": "lectures/net/03-bezopasnost-cisco.html", "track": "net", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "04-diagnostika-cisco", "title": "Диагностика сети на Cisco", "out": "lectures/net/04-diagnostika-cisco.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "C. Ubiquiti UniFi и TP-Link Omada", "lessons": [{"slug": "01-unifi", "title": "Ubiquiti UniFi: контроллер и провижининг", "out": "lectures/net/01-unifi.html", "track": "net", "duration": "70 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "02-omada", "title": "TP-Link Omada: локальный и облачный контроллер", "out": "lectures/net/02-omada.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "03-beshevnyy-wifi", "title": "Бесшовный Wi-Fi и его диагностика", "out": "lectures/net/03-beshevnyy-wifi.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "D. SNR и Eltex", "lessons": [{"slug": "13-snr", "title": "SNR: российское оборудование доступа", "out": "lectures/net/13-snr.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-eltex", "title": "Eltex: ESR, MES и бесшовный Wi-Fi", "out": "lectures/net/14-eltex.html", "track": "net", "duration": "70 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "15-rossiyskie-standarty", "title": "Сертификация и импортозамещение в сетях", "out": "lectures/net/15-rossiyskie-standarty.html", "track": "net", "duration": "65 мин", "level": "Продвинутый", "level_key": "middle"}]}, {"name": "E. Мониторинг и автоматизация", "lessons": [{"slug": "16-monitoring-seti", "title": "Мониторинг сети в Prometheus", "out": "lectures/net/16-monitoring-seti.html", "track": "net", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "17-netconf-telemetry", "title": "NETCONF, streaming telemetry и сбор конфигураций", "out": "lectures/net/17-netconf-telemetry.html", "track": "net", "duration": "75 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-set-kak-kod", "title": "Сеть как код: конфигурации в Git и дрейф", "out": "lectures/net/18-set-kak-kod.html", "track": "net", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "mlops", "name": "MLOps", "color": "#a78bfa", "icon": "◈", "count": 24, "hours": 33.5, "modules": [{"name": "F. Python и основы ML", "lessons": [{"slug": "01-python-dlya-ml", "title": "Python для ML-инженера", "out": "lectures/mlops/01-python-dlya-ml.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-matematika-bez-formul", "title": "Математика без формул", "out": "lectures/mlops/02-matematika-bez-formul.html", "track": "mlops", "duration": "75 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "03-ml-fundamenty", "title": "Фундамент ML", "out": "lectures/mlops/03-ml-fundamenty.html", "track": "mlops", "duration": "80 мин", "level": "Новичок", "level_key": "junior"}]}, {"name": "G. Данные и RAG", "lessons": [{"slug": "04-dannye-i-pipeliney", "title": "Данные и пайплайны", "out": "lectures/mlops/04-dannye-i-pipeliney.html", "track": "mlops", "duration": "75 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "05-embedding-i-vektory", "title": "Эмбеддинги и векторные базы", "out": "lectures/mlops/05-embedding-i-vektory.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "06-rag-pipeline", "title": "RAG-пайплайн", "out": "lectures/mlops/06-rag-pipeline.html", "track": "mlops", "duration": "95 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "07-ocenka-rag", "title": "Оценка RAG", "out": "lectures/mlops/07-ocenka-rag.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "H. LLM и инференс", "lessons": [{"slug": "08-llm-kak-ustroena", "title": "Как устроена LLM", "out": "lectures/mlops/08-llm-kak-ustroena.html", "track": "mlops", "duration": "90 мин", "level": "Новичок", "level_key": "junior"}, {"slug": "09-gpu-vram-cena", "title": "GPU, VRAM и цена вопроса", "out": "lectures/mlops/09-gpu-vram-cena.html", "track": "mlops", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "10-lokalnyj-serving", "title": "Ollama и vLLM: локальный инференс", "out": "lectures/mlops/10-lokalnyj-serving.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "11-api-shlyuz", "title": "API-шлюз для LLM", "out": "lectures/mlops/11-api-shlyuz.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "I. Агенты и интеграции", "lessons": [{"slug": "12-agent-frameworks", "title": "Агенты и фреймворки", "out": "lectures/mlops/12-agent-frameworks.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "13-mcp", "title": "MCP: протокол контекста", "out": "lectures/mlops/13-mcp.html", "track": "mlops", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "14-bezopasnost-agentov", "title": "Безопасность агентов", "out": "lectures/mlops/14-bezopasnost-agentov.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "J. LLMOps в продакшне", "lessons": [{"slug": "15-ocenka-llm", "title": "Оценка LLM-систем", "out": "lectures/mlops/15-ocenka-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "16-nablyudaemost-llm", "title": "Наблюдаемость LLM-систем", "out": "lectures/mlops/16-nablyudaemost-llm.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "17-llmops-pipeliney", "title": "Пайплайны LLMOps", "out": "lectures/mlops/17-llmops-pipeliney.html", "track": "mlops", "duration": "85 мин", "level": "Профи", "level_key": "senior"}, {"slug": "18-masshtabirovanie-i-cena", "title": "Масштабирование и стоимость", "out": "lectures/mlops/18-masshtabirovanie-i-cena.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "K. Финал", "lessons": [{"slug": "19-diplomnyj-proekt", "title": "Дипломный проект", "out": "lectures/mlops/19-diplomnyj-proekt.html", "track": "mlops", "duration": "100 мин", "level": "Профи", "level_key": "senior"}, {"slug": "20-roi-i-zashchita-byudzheta", "title": "ROI и защита бюджета", "out": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "track": "mlops", "duration": "80 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "L. Внедрение и продукт", "lessons": [{"slug": "21-pitch-i-prodazhi", "title": "Питч и первые клиенты", "out": "lectures/mlops/21-pitch-i-prodazhi.html", "track": "mlops", "duration": "90 мин", "level": "Профи", "level_key": "senior"}]}, {"name": "M. Практика работы с ИИ", "lessons": [{"slug": "22-prompt-engineering", "title": "Промпт-инжиниринг как инженерная дисциплина", "out": "lectures/mlops/22-prompt-engineering.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "23-dokumenty-i-ocr", "title": "Документы и OCR для RAG", "out": "lectures/mlops/23-dokumenty-i-ocr.html", "track": "mlops", "duration": "85 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "24-kogda-dooobuchat", "title": "Когда нужно дообучение, а когда нет", "out": "lectures/mlops/24-kogda-dooobuchat.html", "track": "mlops", "duration": "75 мин", "level": "Профи", "level_key": "senior"}]}]}, {"id": "ru", "name": "Российский сегмент", "color": "#34d399", "icon": "▣", "count": 3, "hours": 4.3, "modules": [{"name": "Российский сегмент", "lessons": [{"slug": "01-russkie-llm", "title": "Русскоязычные LLM", "out": "lectures/ru/01-russkie-llm.html", "track": "ru", "duration": "90 мин", "level": "Продвинутый", "level_key": "middle"}, {"slug": "02-personalnye-dannye-152fz", "title": "Персональные данные и 152-ФЗ в ИИ-системах", "out": "lectures/ru/02-personalnye-dannye-152fz.html", "track": "ru", "duration": "90 мин", "level": "Профи", "level_key": "senior"}, {"slug": "03-lokalnaya-infrastruktura", "title": "Локальная инфраструктура и регуляторные требования", "out": "lectures/ru/03-lokalnaya-infrastruktura.html", "track": "ru", "duration": "80 мин", "level": "Продвинутый", "level_key": "middle"}]}]}];</script>
+<script>window.SEARCH_INDEX = [{"t": "Карта курса и навигация", "s": "Как устроен курс, в каком порядке проходить и что считать результатом", "g": ["карта", "навигация", "структура", "цели"], "k": "start", "m": "Старт", "u": "lectures/start/01-karta-kursa.html", "n": 1}, {"t": "Глоссарий", "s": "Единый словарь терминов, которые встретятся во всём курсе", "g": ["глоссарий", "термины", "словарь", "шпаргалка"], "k": "start", "m": "Старт", "u": "lectures/start/02-glossarij.html", "n": 2}, {"t": "Терминал и навигация", "s": "Как работать в Linux быстрее, чем в GUI: чтение вывода, поиск по файлам, пайпы, история и кавычки", "g": ["linux", "cli", "терминал", "grep", "пайпы"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/01-terminal-i-navigaciya.html", "n": 3}, {"t": "Файловая система и права доступа", "s": "Где что лежит в Linux, как устроены права и владельцы, что такое inode и почему диск «занят на 100%» при свободном месте по du", "g": ["linux", "права", "chmod", "chown", "sudo", "inode"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/02-fajlovaya-sistema-i-prava.html", "n": 4}, {"t": "Процессы, сигналы и systemd", "s": "Как устроены процессы в Linux, зачем нужны сигналы и как systemd стал главным инструментом управления сервисами", "g": ["linux", "процессы", "systemd", "journalctl", "юниты"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/03-processy-i-systemd.html", "n": 5}, {"t": "Сеть: интерфейсы, порты, DNS", "s": "Как диагностировать сетевую проблему по шагам: от своего интерфейса до конкретного порта, с разбором DNS, tcpdump и причин типовых сбоев", "g": ["сеть", "ip", "порты", "dns", "ss", "tcpdump", "диагностика"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/04-set-i-diagnostika.html", "n": 6}, {"t": "Скрипты на Bash", "s": "Как написать bash-скрипт, который не сломается в проде: строгий режим, безопасные кавычки, обработка ошибок, trap, lock-файл и идемпотентность", "g": ["bash", "скрипты", "пайпы", "set -euo pipefail", "автоматизация"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/05-bash-skripty.html", "n": 7}, {"t": "HTTP, HTTPS, DNS и TLS", "s": "Как устроены HTTP, TLS и сертификаты, как выпустить и продлить сертификат Let's Encrypt и настроить nginx как обратный прокси, и почему бывает «по HTTP работает, по HTTPS — 502»", "g": ["http", "https", "tls", "сертификаты", "nginx", "certbot"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/06-http-tls-dns.html", "n": 8}, {"t": "Высокая доступность и балансировка", "s": "Как спроектировать отказоустойчивость без переплаты: уровни резервирования, L4/L7-балансировка, health-check, VRRP с keepalived и честный разговор про одну виртуальную машину", "g": ["ha", "балансировка", "keepalived", "health-check", "отказоустойчивость"], "k": "devops", "m": "A. Linux и сеть", "u": "lectures/devops/07-ha-i-balansirovka.html", "n": 9}, {"t": "Docker: образы, слои, контейнеры", "s": "Как устроены образы и слои, почему порядок инструкций в Dockerfile решает скорость сборки, и как собрать минимальный безопасный образ для FastAPI-сервиса.", "g": ["docker", "образы", "dockerfile", "слои", "реестры"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/08-docker.html", "n": 10}, {"t": "Docker Compose: сети и тома", "s": "Как один YAML поднимает дерево сервисов, почему сервисы видят друг друга по имени, чем depends_on отличается от healthcheck и когда Compose уже не справляется.", "g": ["docker", "compose", "тома", "сети", "зависимости"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/09-docker-compose.html", "n": 11}, {"t": "Kubernetes: ядро", "s": "Как control plane превращает твоё YAML-описание в работающие поды, зачем нужен Service, что живёт в ConfigMap и PVC, и как читать describe pod, когда под завис в Pending.", "g": ["kubernetes", "pod", "deployment", "service", "configmap"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/10-kubernetes-bazovye.html", "n": 12}, {"t": "Kubernetes: продакшн-паттерны", "s": "Requests, limits и QoS, три вида probe, стратегии выката без простоя, Ingress с TLS, автоскейлинг, StatefulSet и безопасное хранение секретов — то, что отличает стенд от продакшна.", "g": ["kubernetes", "ingress", "hpa", "statefulset", "secrets", "resources"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/11-kubernetes-prodvans.html", "n": 13}, {"t": "Terraform и Ansible", "s": "Почему ручная настройка сервера не воспроизводится, как Terraform описывает инфраструктуру и почему его state файл — секрет, и как написать идемпотентный playbook Ansible.", "g": ["terraform", "iac", "ansible", "idem-potency", "provisioning"], "k": "devops", "m": "B. Контейнеры и оркестрация", "u": "lectures/devops/12-terraform-i-ansible.html", "n": 14}, {"t": "Git и работа с командой", "s": "Как устроен Git на уровне трёх областей, чем merge отличается от rebase и как устроена работа команды через pull request и защиту ветки", "g": ["git", "ветки", "merge", "rebase", "pull request", "командная работа"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/13-git-rabota-s-komandoy.html", "n": 15}, {"t": "CI/CD: пайплайны и релизы", "s": "Как устроен рабочий пайплайн от коммита до продакшена, почему артефакт собирают один раз и как откатить и код, и миграцию", "g": ["cicd", "пайплайн", "github actions", "gitlab ci", "артефакты"], "k": "devops", "m": "C. CI/CD", "u": "lectures/devops/14-cicd-pipeliney.html", "n": 16}, {"t": "Наблюдаемость: метрики, логи, трейсы", "s": "Почему мониторинг превратился в observability, чем отличаются метрики, логи и трейсы, и как считать SLO с бюджетом ошибок вместо алертов на каждый чих", "g": ["observability", "метрики", "логи", "трейсы", "sli", "slo", "ubs"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/15-monitoring-concepts.html", "n": 17}, {"t": "Prometheus и PromQL", "s": "Как устроена pull-модель Prometheus, как поднять node_exporter на Ubuntu, писать запросы PromQL и правила алертов с учётом кардинальности", "g": ["prometheus", "promql", "exporters", "recording rules", "alerts"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/16-prometheus.html", "n": 18}, {"t": "Grafana, Loki и алерты", "s": "Как превратить метрики Prometheus в дашборд, который отвечает на вопрос «что сломалось», и как настроить оповещения, которые не игнорируют", "g": ["grafana", "loki", "дашборды", "alertmanager", "шаблоны"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/17-grafana-loki-alerty.html", "n": 19}, {"t": "Лаборатория: мониторинг Proxmox, AD и Ubuntu", "s": "Собираем наблюдаемость реального контура целиком — Proxmox, Ubuntu-гости и Windows AD DC — без установки лишнего софта и без сети-ловушки с AD", "g": ["lab", "proxmox", "active directory", "windows", "метрики", "лабораторная"], "k": "devops", "m": "D. Наблюдаемость", "u": "lectures/devops/18-lab-proxmox-monitoring.html", "n": 20}, {"t": "Бэкапы и аварийное восстановление", "s": "Как построить бэкапы, которые действительно восстанавливают, и как заранее посчитать допустимые потери и сроки простоя", "g": ["backup", "dr", "rpo", "rto", "proxmox backup server", "восстановление"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/19-backup-i-dr.html", "n": 21}, {"t": "Безопасность инфраструктуры", "s": "Минимальный набор контролей, который закрывает реальные риски типового IT-контура: SSH, файрвол, обновления, секреты, доступ и аудит", "g": ["безопасность", "ssh", "firewall", "секреты", "hardening", "аудит"], "k": "devops", "m": "E. Эксплуатация и безопасность", "u": "lectures/devops/20-bezopasnost-infrastruktury.html", "n": 22}, {"t": "PostgreSQL и pgvector", "s": "Как устроен Postgres как хранилище LLM-системы: одна СУБД вместо трёх, индексы, VACUUM, планы запросов, бэкап с PITR, пул соединений и векторный поиск на pgvector", "g": ["postgresql", "pgvector", "индексы", "vacuum", "sql", "rds"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/21-postgresql-i-pgvector.html", "n": 23}, {"t": "Redis: кэш, очереди и лимиты", "s": "Как Redis устроен и где он реально нужен в LLM-системе: структуры данных, политики вытеснения памяти, персистентность, распределённые блокировки, rate limit на Lua, семантический кэш и очереди на Streams", "g": ["redis", "кэш", "очереди", "rate limit", "память"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/22-redis.html", "n": 24}, {"t": "Active Directory: администрирование", "s": "Как устроен и чинится Active Directory: репликация NTDS и DNS, объектная модель и права, порядок применения GPO, SYSVOL, политики паролей, аудит и диагностика типовых поломок", "g": ["active directory", "gpo", "репликация", "sysvol", "dcdiag", "лес"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/23-active-directory.html", "n": 25}, {"t": "n8n: автоматизация процессов", "s": "Как поднять self-hosted n8n в контуре Proxmox, безопасно спрятать за обратным прокси, собрать рабочий RAG-бот в Telegram и понять, где n8n заканчивается и начинается код", "g": ["n8n", "автоматизация", "интеграция", "workflow", "telegram"], "k": "devops", "m": "F. Хранилища и интеграции", "u": "lectures/devops/24-n8n.html", "n": 26}, {"t": "Аутентификация для ИИ-сервисов: OIDC, SSO и Keycloak", "s": "Как дать пять ИИ-сервисам единый вход и общую проверку прав: аутентификация против авторизации, OAuth 2.0 и OpenID Connect, токены и их проверка в сервисе, Keycloak как мост к Active Directory, машинные клиенты и ротация секретов", "g": ["keycloak", "oidc", "oauth", "sso", "jwt", "токены"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/25-sso-i-keycloak.html", "n": 27}, {"t": "OpenSearch: поиск по логам, которое масштабируется", "s": "Полнотекстовый поиск по логам и событиям: устройство кластера и шардов, инвертированный индекс и маппинги, разница text и keyword, ILM для ротации и хранения, источники данных (Filebeat, Logstash, OpenTelemetry Collector) и честное сравнение с Loki и ClickHouse", "g": ["opensearch", "elasticsearch", "логи", "индексы", "дашборды"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/26-opensearch.html", "n": 28}, {"t": "Очереди и воркеры", "s": "", "g": ["kafka", "rabbitmq", "очереди", "воркеры", "dlq", "идемпотентность"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/27-ocheredi-i-workers.html", "n": 29}, {"t": "Тестирование инфраструктуры", "s": "Четыре уровня проверки инфраструктурного кода — от terraform plan и политик как кода до дрейф-детектора — и честный ответ на вопрос, есть ли у Terraform юнит-тесты", "g": ["тесты", "policy as code", "plan", "check", "дрейф", "pre-commit"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/28-testirovanie-infrastruktury.html", "n": 30}, {"t": "Инциденты, разборы и runbooks", "s": "Как организовать дежурство без ночных кошмаров, классифицировать инциденты и severity, вести разборы без поиска виноватых — и почему «человек ошибся» это не диагноз", "g": ["инциденты", "post-mortem", "runbook", "дежурство", "коммуникация", "SRE"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/29-incidenty-i-postmortem.html", "n": 31}, {"t": "FinOps: контроль затрат на инфраструктуру", "s": "Как видить, распределять и контролировать затраты на инфраструктуру — причём не только в облаке: почему on-prem с амортизацией, электричеством и сопровождением часто стоит дороже аренды, если считать честно", "g": ["finops", "бюджет", "тарификация", "право", "стоимость", "оптимизация"], "k": "devops", "m": "G. Зрелость эксплуатации", "u": "lectures/devops/30-finops.html", "n": 32}, {"t": "RouterOS как операционная система", "s": "RouterOS — не «роутер с веб-мордой», а операционная система, у которой вся конфигурация лежит в текстовом дереве с идентификаторами; разбираем пути, доступ, маршруты, NAT и межсетевой экран", "g": ["mikrotik", "routeros", "интерфейсы", "маршруты", "firewall"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/01-routeros-os.html", "n": 33}, {"t": "VLAN, bridge и трехуровневая модель", "s": "Три уровня MikroTik — порты, мост, VLAN — и почему трафик проходит только когда описаны и порт, и VLAN; плюс DHCP, DNS, NAT и пошаговая диагностика, которая экономит час", "g": ["vlan", "bridge", "trunk", "dhcp", "l2 l3"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/02-vlany-i-bridging.html", "n": 34}, {"t": "Wi-Fi на MikroTik: CAPsMAN и клиенты", "s": "Почему «сеть есть, а интернета нет», какие режимы бывают у беспроводного интерфейса, как устроен CAPsMAN, почему в 2.4 ГГц работают только каналы 1/6/11 и почему максимальная мощность — это плохо", "g": ["wifi", "capsman", "5ггц", "2.4ггц", "roaming", "мощность"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/03-wifi.html", "n": 35}, {"t": "Туннели и VPN", "s": "Зачем нужны туннели, чем WireGuard отличается от IPsec и GRE, как поднять site-to-site между двумя площадками и почему `allowed-address` — источник половины проблем «после VPN пропал интернет»", "g": ["vpn", "wireguard", "ipsec", "gre", "l2tp", "site-to-site"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/04-tunneli.html", "n": 36}, {"t": "Автоматизация RouterOS", "s": "Почему конфигурацию MikroTik можно хранить в Git и применять скриптом: export и бэкапы, язык скриптинга, планировщик, REST API с Python и правила безопасности автоматизации", "g": ["routeros scripting", "rest api", "git", "бэкапы", "автоматизация"], "k": "net", "m": "A. MikroTik / RouterOS", "u": "lectures/net/05-avtomatizaciya-routeros.html", "n": 37}, {"t": "Cisco IOS: режимы и базовая настройка", "s": "Как устроена иерархия режимов Cisco IOS, почему она защищает от ошибок, и как с нуля собрать рабочий конфиг коммутатора доступа с VLAN, trunk и EtherChannel — без риска потерять доступ к устройству.", "g": ["cisco", "ios", "vlan", "trunk", "интерфейсы"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/01-cisco-ios-bazovoe.html", "n": 38}, {"t": "Маршрутизация и отказоустойчивость", "s": "Как маршрутизатор выбирает маршрут (longest prefix, administrative distance, metric), как настроить статику с плавающим маршрутом, OSPF, DHCP-пул и HSRP на двух маршрутизаторах — и когда какой подход к отказоустойчивости уместен.", "g": ["cisco", "ospf", "dhcp", "hsrp", "статические маршруты"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/02-marshrutizaciya.html", "n": 39}, {"t": "Безопасность на Cisco: доступ, ACL, порты", "s": "Как закрыть доступ к коммутатору по SSH вместо telnet, чем enable secret лучше password-encryption, зачем нужен AAA, как написать рабочий ACL и что дают port-security и BPDU Guard — с честным разбором того, что на Cisco, что на MikroTik, что на Eltex.", "g": ["cisco", "acl", "aaa", "ssh", "port-security", "bpdu guard"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/03-bezopasnost-cisco.html", "n": 40}, {"t": "Диагностика сети на Cisco", "s": "Пошаговый алгоритм диагностики Cisco от физики до приложения: что означают счётчики ошибок, почему ARP застревает в incomplete, зачем фильтровать вывод через `| include`, как настроить SPAN и разобрать вымышленный инцидент от начала до конца.", "g": ["cisco", "диагностика", "show", "ping", "tcpdump", "span"], "k": "net", "m": "B. Cisco IOS", "u": "lectures/net/04-diagnostika-cisco.html", "n": 41}, {"t": "Ubiquiti UniFi: контроллер и провижининг", "s": "UniFi — это система из управляющего ПО и железа, а не коробка с веб-мордой: разбираем, где живёт контроллер, чем коммутатор отличается от шлюза, как устроен провижининг, как правильно резать сеть на VLAN и зачем DevOps-инженеру JSON API", "g": ["unifi", "ubiquiti", "контроллер", "провижининг", "unifi os"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/01-unifi.html", "n": 42}, {"t": "TP-Link Omada: локальный и облачный контроллер", "s": "Три режима управления у TP-Link Omada — локальный контроллер, облако и Standalone — и как выбрать между ними: как точка приходит на контроллер, как работают шаблоны и группы, чем отличается Omada API от UniFi API и что выбрать для офиса на 10 и на 100 точек", "g": ["omada", "tp-link", "eap", "контроллер", "standalone"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/02-omada.html", "n": 43}, {"t": "Бесшовный Wi-Fi и его диагностика", "s": "Что на самом деле происходит при переключении между точками, почему клиент «залипает» на дальней точке, когда 802.11r чинит сеть, а когда ломает её, и как за десять минут найти причину жалобы «в переговорной отваливается»", "g": ["wifi", "roaming", "80211r", "band steering", "rssi", "бесшовный"], "k": "net", "m": "C. Ubiquiti UniFi и TP-Link Omada", "u": "lectures/net/03-beshevnyy-wifi.html", "n": 44}, {"t": "SNR: российское оборудование доступа", "s": "Позиционирование SNR среди MikroTik, Cisco и Eltex, перенос опыта с Cisco на CLI в стиле IOS, типовая настройка коммутатора доступа, диагностика, мониторинг через SNMP и работа в стеке.", "g": ["snr", "коммутатор", "маршрутизатор", "wifi", "cli"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/13-snr.html", "n": 45}, {"t": "Eltex: ESR, MES и бесшовный Wi-Fi", "s": "Линейки Eltex и их роли, настройка коммутаторов MES в стиле Cisco, маршрутизация и VPN на ESR, почему бесшовный Wi-Fi у Eltex устроен иначе, чем у Ubiquiti, и как устроен стек из нескольких MES.", "g": ["eltex", "esr", "mes", "стек", "cli", "wifi"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/14-eltex.html", "n": 46}, {"t": "Сертификация и импортозамещение в сетях", "s": "Реестр отечественного ПО и реестры российского оборудования, разница между «сертифицировано ФСТЭК» и «в реестре», как построить процесс учёта и по каким критериям выбирать вендора при закупке сетевого парка.", "g": ["реестр", "сертификация", "минпромторг", "импортозамещение", "ФСТЭК"], "k": "net", "m": "D. SNR и Eltex", "u": "lectures/net/15-rossiyskie-standarty.html", "n": 47}, {"t": "Мониторинг сети в Prometheus", "s": "Почему сетевое оборудование нельзя мониторить node_exporter'ом и как собрать из него наблюдаемую систему на snmp_exporter: SNMPv3, модули, метрики IF-MIB, алерты и blackbox-пробы", "g": ["snmp", "prometheus", "snmp_exporter", "метрики", "ifmib", "мониторинг"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/16-monitoring-seti.html", "n": 48}, {"t": "NETCONF, streaming telemetry и сбор конфигураций", "s": "Почему SNMP не отвечает на вопросы «что изменилось» и «кто это сделал», и как их закрывают NETCONF, RESTCONF, потоковая телеметрия и syslog — плюс регулярный сбор конфигураций в Git как фундамент для сети как кода", "g": ["netconf", "restconf", "telemetry", "syslog", "конфиги", "журнал"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/17-netconf-telemetry.html", "n": 49}, {"t": "Сеть как код: конфигурации в Git и дрейф", "s": "Как перестать настраивать сеть руками: конфигурации в Git, шаблоны против полного конфига, Ansible с проверкой --check --diff, парсинг CLI через TextFSM, секреты в Vault и честный ответ на вопрос «кто прав — Git или устройство»", "g": ["git", "автоматизация", "шаблоны", "дрейф", "ansible", "netmiko", "ntc-templates"], "k": "net", "m": "E. Мониторинг и автоматизация", "u": "lectures/net/18-set-kak-kod.html", "n": 50}, {"t": "Python для ML-инженера", "s": "Как устроен Python-сервис вокруг LLM — изоляция окружения, фиксация зависимостей, асинхронные вызовы с ретраями, контракты данных и структурированные логи", "g": ["python", "venv", "uv", "типизация", "asyncio", "api"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/01-python-dlya-ml.html", "n": 51}, {"t": "Математика без формул", "s": "Как читать форму тензора, график обучения и отчёт эксперимента без вывода формул — и что из этого позволяет тебе не повести команду разработчиков", "g": ["математика", "тензоры", "градиенты", "переобучение", "интуиция"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/02-matematika-bez-formul.html", "n": 52}, {"t": "Фундамент ML", "s": "Как устроен ML-проект от постановки задачи до мониторинга, почему главные провалы случаются в данных, а не в модели, и чем классический ML отличается от LLM-системы", "g": ["ml", "классификация", "регрессия", "метрики", "обучение", "val test"], "k": "mlops", "m": "F. Python и основы ML", "u": "lectures/mlops/03-ml-fundamenty.html", "n": 53}, {"t": "Данные и пайплайны", "s": "Откуда берётся корпус корпоративного ассистента, как его чистить, инкрементально обновлять, версионировать и как построить золотой набор вопросов, на котором потом меряется вся система", "g": ["данные", "пайплайн", "etl", "golden set", "разметка"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/04-dannye-i-pipeliney.html", "n": 54}, {"t": "Эмбеддинги и векторные базы", "s": "Как текст превращается в вектор, почему размерность и модель эмбеддингов — это в первую очередь бюджет, как устроены HNSW и IVF, и как выбрать между Qdrant и pgvector на реальном корпусе", "g": ["эмбеддинги", "векторный поиск", "qdrant", "pgvector", "метрики"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/05-embedding-i-vektory.html", "n": 55}, {"t": "RAG-пайплайн", "s": "Полный путь от файла до цитатируемого ответа: чанкинг с перекрытием, структура чанка, reranking кросс-энкодером, гибридный поиск через RRF, выбор top-k и генерация с отказом — с рабочим кодом, который поднимается на твоём ноутбуке", "g": ["rag", "чанкинг", "retrieval", "reranking", "hybrid search"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/06-rag-pipeline.html", "n": 56}, {"t": "Оценка RAG", "s": "Почему «работает» — не метрика, как разложить качество на слои ретривера, реранкера и генератора, как построить LLM-as-a-judge над золотым набором и как ловить регрессии в CI до того, как о них сообщит пользователь", "g": ["оценка", "groundedness", "retrieval", "метрики качества", "golden set"], "k": "mlops", "m": "G. Данные и RAG", "u": "lectures/mlops/07-ocenka-rag.html", "n": 57}, {"t": "Как устроена LLM", "s": "Единица расчёта LLM-системы — токен, а не слово: как считать токены, почему русский дороже, что делает контекстное окно с ценой и памятью, чем 7B отличается от 70B и когда нужен RAG, а когда дообучение", "g": ["llm", "трансформер", "токены", "контекст", "параметры"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/08-llm-kak-ustroena.html", "n": 58}, {"t": "GPU, VRAM и цена вопроса", "s": "Почему для инференса LLM решает не FLOPS, а пропускная способность памяти: формула времени одного токена, расчёт VRAM с запасом под KV-кэш и батчи, выбор между игровой и профессиональной картой, MIG, TCO и число запросов, при котором своё железо окупается", "g": ["gpu", "vram", "bandwidth", "квантование", "tco", "mig"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/09-gpu-vram-cena.html", "n": 59}, {"t": "Ollama и vLLM: локальный инференс", "s": "Пять движков локального инференса и в чём они реально различаются: когда достаточно Ollama, когда нужен vLLM с PagedAttention и непрерывным батчингом, что даёт llama.cpp на CPU, как запустить vLLM в Docker с правильными флагами и где хранить веса", "g": ["ollama", "vllm", "инференс", "llama-cpp", "openai api"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/10-lokalnyj-serving.html", "n": 60}, {"t": "API-шлюз для LLM", "s": "Единая точка входа между приложениями и моделями: аутентификация, квоты по токенам, кэш, ретраи с фолбэком, проксирование стриминга через nginx, метрики RED и аудит расхода токенов", "g": ["api", "шлюз", "rate limit", "streaming", "кэш", "биллинг"], "k": "mlops", "m": "H. LLM и инференс", "u": "lectures/mlops/11-api-shlyuz.html", "n": 61}, {"t": "Агенты и фреймворки", "s": "Когда агенту нужен цикл, а когда хватит одного запроса к модели, как выглядит tool calling на живом коде и чем фреймворк отличается от ста строк на HTTP-клиенте", "g": ["агенты", "langchain", "llama-index", "tool calling", "память", "оркестрация"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/12-agent-frameworks.html", "n": 62}, {"t": "MCP: протокол контекста", "s": "Как один стандартный интерфейс соединяет агента с любой внутренней системой вместо N самописных интеграций, и почему сервер MCP — это новая точка входа, которую надо ограничивать", "g": ["mcp", "протокол", "интеграции", "серверы", "клиент", "стандарт"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/13-mcp.html", "n": 63}, {"t": "Безопасность агентов", "s": "Модель угроз агентной системы, архитектурные контроли против prompt injection и злоупотребления инструментами, и правило, которое запрещает ИИ-агенту менять права в домене", "g": ["prompt injection", "sandbox", "pii", "доступы", "аудит", "изоляция"], "k": "mlops", "m": "I. Агенты и интеграции", "u": "lectures/mlops/14-bezopasnost-agentov.html", "n": 64}, {"t": "Оценка LLM-систем", "s": "Как построить измеримый контроль качества LLM-системы: тест-набор из реальных вопросов, метрики ответа, LLM-судья и регрессии качества в CI", "g": ["evaluation", "golden set", "llm-as-judge", "галлюцинации", "регрессии качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/15-ocenka-llm.html", "n": 65}, {"t": "Наблюдаемость LLM-систем", "s": "Три уровня наблюдаемости LLM-системы, трассировка каждого запроса, выбор инструмента и выгрузка метрик качества прямо в Prometheus", "g": ["observability", "tracing", "langfuse", "openlit", "трассировка", "метрики качества"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/16-nablyudaemost-llm.html", "n": 66}, {"t": "Пайплайны LLMOps", "s": "Как сделать любой ответ LLM-системы воспроизводимым: реестры моделей и промптов, полный CI/CD-конвейер с оценкой качества, shadow и canary с автооткатом", "g": ["llmops", "реестры моделей", "реестры промптов", "ci/cd", "версионирование", "канареечные релизы"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/17-llmops-pipeliney.html", "n": 67}, {"t": "Масштабирование и стоимость", "s": "Как посчитать реальную стоимость LLM-запроса, найти главные рычаги экономии и спроектировать автоскейлинг GPU так, чтобы бюджет не раскрывался", "g": ["масштабирование", "стоимость", "токены", "hpa", "кэш", "бюджет"], "k": "mlops", "m": "J. LLMOps в продакшне", "u": "lectures/mlops/18-masshtabirovanie-i-cena.html", "n": 68}, {"t": "Дипломный проект", "s": "Выбираешь проект из реальной работы ИТ-отдела, собираешь его до приёмки и защищаешь как готовый продукт, а не как pet-проект", "g": ["проект", "архитектура", "интеграция", "диплом", "приемка"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/19-diplomnyj-proekt.html", "n": 69}, {"t": "ROI и защита бюджета", "s": "Переводишь разговор об LLM-системе на язык денег и защищаешь бюджет так, чтобы решение принимали на основе цифр, а не энтузиазма", "g": ["roi", "бюджет", "презентация", "приоритизация", "бизнес-кейс"], "k": "mlops", "m": "K. Финал", "u": "lectures/mlops/20-roi-i-zashchita-byudzheta.html", "n": 70}, {"t": "Питч и первые клиенты", "s": "Переводишь работающую внутреннюю ИИ-систему в продукт с упаковкой, демо, тарифом и договором — и находишь первых платящих клиентов вместо того, чтобы остаться с идеей без выручки", "g": ["питч", "продажи", "продукт", "демо", "пилот", "тарифы", "клиент"], "k": "mlops", "m": "L. Внедрение и продукт", "u": "lectures/mlops/21-pitch-i-prodazhi.html", "n": 71}, {"t": "Промпт-инжиниринг как инженерная дисциплина", "s": "Промпт как код: анатомия и приоритеты слоёв, работа с контекстом и форматом вывода, few-shot, честный статус популярных приёмов, шаблоны Jinja2, жизненный цикл и тестирование промптов в CI с расчётом цены запроса", "g": ["промпт", "инжиниринг", "шаблоны", "few-shot", "структурированный вывод", "тесты"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/22-prompt-engineering.html", "n": 72}, {"t": "Документы и OCR для RAG", "s": "Как привести реальные корпоративные документы — PDF со сканов, из 1С, DOCX, XLSX и презентации — к структурированным чанкам с метаданными и ссылками на страницы, и почему этап загрузки ломает RAG чаще, чем всё остальное", "g": ["ocr", "pdf", "документы", "извлечение", "таблицы", "разметка"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/23-dokumenty-i-ocr.html", "n": 73}, {"t": "Когда нужно дообучение, а когда нет", "s": "Дерево решений «дообучать или нет», честный расчёт стоимости дообучения, разбор SFT, LoRA и QLoRA без деталей обучения, обязательная оценка на golden set и шаблон решения, который заполняется до того, как кто-то скажет «давайте обучим»", "g": ["дообучение", "lora", "peft", "qlora", "критерии", "решение"], "k": "mlops", "m": "M. Практика работы с ИИ", "u": "lectures/mlops/24-kogda-dooobuchat.html", "n": 74}, {"t": "Русскоязычные LLM", "s": "Почему для русского языка важна модель, обученная именно на русском: токенизация, морфология, цена в токенах, лицензии открытых моделей, выбор на своём golden set, эмбеддинги и RAG на русских документах", "g": ["qwen", "mistral", "yandexgpt", "gigachat", "кимк", "русский язык"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/01-russkie-llm.html", "n": 75}, {"t": "Персональные данные и 152-ФЗ в ИИ-системах", "s": "Что в ИИ-системе считается персональными данными, где проходит граница уровней защищённости, зачем маскировать вход, чем отличаются маскирование, псевдонимизация и анонимизация, и как построить журнал обработки, который выдержит проверку", "g": ["152-фз", "пдн", "обезличивание", "согласие", "аудит", "ответственность"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/02-personalnye-dannye-152fz.html", "n": 76}, {"t": "Локальная инфраструктура и регуляторные требования", "s": "Почему локальный контур стал нормой, как проверять ПО по реестру отечественного ПО, что такое импортозамещение в госсекторе и в корпоративном сегменте, как устроен сегментированный контур ИИ-системы и по каким 15 пунктам принять систему в эксплуатацию", "g": ["импортозамещение", "реестр по", "аттестация", "контур", "импорт", "юнит-тесты"], "k": "ru", "m": "Российский сегмент", "u": "lectures/ru/03-lokalnaya-infrastruktura.html", "n": 77}];</script>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

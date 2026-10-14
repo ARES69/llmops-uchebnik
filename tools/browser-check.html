@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Проверка курсов в браузере</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, Consolas, monospace; background:#0b1218; color:#cfe; padding:16px; }
+  h1 { font-size:15px; margin:0 0 12px; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { border:1px solid #1c2b35; padding:4px 7px; text-align:left; }
+  th { background:#101a22; color:#8fa; }
+  .ok   { color:#3ddc84; }
+  .bad  { color:#ff6b6b; font-weight:700; }
+  .warn { color:#fbbf24; }
+  #f { width:1500px; height:900px; border:1px solid #1c2b35; margin-top:10px; }
+  #sum { margin:10px 0; font-weight:700; }
+</style>
+</head>
+<body>
+<h1>Проверка курсов тренажёра в реальном браузере</h1>
+<div id="sum">идёт…</div>
+<table>
+  <thead><tr>
+    <th>курс</th><th>заголовок терминала</th><th>приглашение</th>
+    <th>вкладка активна</th><th>задание</th><th>панель env</th><th>баннер</th><th>ошибки</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<iframe id="f"></iframe>
+
+<script>
+/* Грузим каждый курс в iframe и смотрим на живой DOM.
+   Чего этот чек ловит и чего не ловит node tools/check-courses.js:
+   - переключение курса (?course= и вкладки),
+   - отрисовку правой панели через env(),
+   - повторный запуск движка (двойной баннер),
+   - синтаксические ошибки в course-*.js. */
+const COURSES = ['k8s','linux','net','git','docker','ansible','auto','cicd','obs','ops',
+                 'data','cloud','python','agents','incident','inference','mlops','netdev','prompt','rag'];
+const BASE = '../lectures/trainer/index.html';
+const f = document.getElementById('f');
+const rows = document.getElementById('rows');
+const errs = [];
+
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function checkOne(k){
+  const err = [];
+  f.src = BASE + '?course=' + k + '&nocache=' + Date.now();
+  await new Promise(r => f.onload = r);
+  await wait(700);                       // даём отработать setTimeout(0) и отрисовке
+  const w = f.contentWindow, d = f.contentDocument;
+  w.onerror = (m) => err.push(String(m));
+
+  const title  = (d.getElementById('termTitle')||{}).textContent || '';
+  const prompt = (d.getElementById('prompt') ||{}).textContent || '';
+  const task   = (d.getElementById('lTask')   ||{}).textContent || '';
+  const envLen = (d.getElementById('genB')    ||{}).innerHTML  || '';
+  const term   = (d.getElementById('termBox')  ||{}).innerText  || '';
+  const active = d.querySelector('#tabBar .ct.on');
+  const banner = (term.match(/DevOps Terminal Pro v7\.0/g) || []).length;
+
+  /* курс с env() обязан рисовать правую панель, без env() — у базовых */
+  const needsEnv = !!w.COURSES[k].env;
+  const envOk = needsEnv ? envLen.replace(/<[^>]*>/g,'').trim().length > 20
+                         : envLen.length >= 0;
+
+  const row = {
+    k,
+    title:  title.trim(),
+    prompt: prompt.trim(),
+    task:   task.trim().slice(0, 34),
+    active: active ? active.id : '—',
+    envOk:  envOk ? 'ok' : 'ПУСТО',
+    banner: banner === 1 ? '1' : '×' + banner,
+    err:    err.length ? err.join('; ') : ''
+  };
+  errs.push(...err.map(e => k + ': ' + e));
+  return row;
+}
+
+(async function(){
+  const out = [];
+  for (const k of COURSES) out.push(await checkOne(k));
+
+  let bad = 0;
+  for (const r of out){
+    const problems = [];
+    if (r.banner !== '1') problems.push('баннер ×' + r.banner);
+    if (r.envOk === 'ПУСТО') problems.push('панель пуста');
+    if (r.active !== 'tab-' + r.k) problems.push('вкладка: ' + r.active);
+    if (!r.title || !r.prompt) problems.push('нет заголовка/приглашения');
+    if (r.err) problems.push('JS: ' + r.err);
+    if (problems.length) bad++;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + r.k + '</td><td>' + r.title + '</td><td>' + r.prompt +
+      '</td><td class="' + (r.active === 'tab-' + r.k ? 'ok' : 'bad') + '">' + r.active +
+      '</td><td>' + r.task + '</td><td class="' + (r.envOk === 'ok' ? 'ok' : 'bad') + '">' + r.envOk +
+      '</td><td class="' + (r.banner === '1' ? 'ok' : 'bad') + '">' + r.banner +
+      '</td><td class="' + (r.err ? 'bad' : 'ok') + '">' + (r.err || 'нет') + '</td>' +
+      (problems.length ? '<td class="bad">' + problems.join('; ') + '</td>' : '');
+    rows.appendChild(tr);
+  }
+  document.getElementById('sum').innerHTML =
+    bad === 0
+      ? '<span class="ok">ВСЕ ' + COURSES.length + ' КУРСОВ ПРОШЛИ (' + errs.length + ' ошибок JS)</span>'
+      : '<span class="bad">ПРОБЛЕМ: ' + bad + ' из ' + COURSES.length + '</span>';
+  document.title = bad === 0 ? 'OK ' + COURSES.length : 'FAIL ' + bad;
+})();
+</script>
+</body>
+</html>
